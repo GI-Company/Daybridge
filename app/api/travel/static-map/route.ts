@@ -18,8 +18,11 @@ export async function GET(request:Request){
   if(!parsed.success)return jsonError('Invalid static map coordinates',400);
   if(!await checkRateLimit(auth.db,auth.userId,30))return jsonError('Map request limit reached',429);
   const {lat,lon,zoom}=parsed.data;
+  // Dedicated Map Display key stays on the server and is never returned to the PWA.
+  // Legacy fallback preserves maps in deployments not yet configured with MAPS_DISPLAY.
+  const displayKey=process.env.MAPS_DISPLAY?.trim() || tomTomKey();
   const api=new URL('https://api.tomtom.com/map/1/staticimage');
-  for(const [key,value] of Object.entries({key:tomTomKey(),center:lon.toFixed(6)+','+lat.toFixed(6),zoom:String(zoom),
+  for(const [key,value] of Object.entries({key:displayKey,center:lon.toFixed(6)+','+lat.toFixed(6),zoom:String(zoom),
    width:'640',height:'320',format:'png',layer:'basic',style:'main',language:'en-US',view:'Unified'}))
    api.searchParams.set(key,value);
   const upstream=await fetch(api.toString(),{cache:'no-store',signal:AbortSignal.timeout(8000)});

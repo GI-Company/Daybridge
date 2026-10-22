@@ -8,6 +8,12 @@
 - A key with access to Map Display must be **separately restricted to the production origin** before setting \`NEXT_PUBLIC_TOMTOM_MAP_KEY\`. Never copy the server routing key to a public variable.
 - App currently defaults to current origin, navigation true, notifications true, 15-minute buffer, private lock screen. **User must explicitly approve a saved origin and enable monitoring on each appointment** to receive background route checks.
 
+
+## Dedicated Map Display key
+The `MAPS_DISPLAY` environment variable holds the **server-only** TomTom Maps Display API key. It is used by `app/api/travel/static-map/route.ts` to display street-map imagery through an authenticated server proxy. No `NEXT_PUBLIC_` prefix is needed and the display key must **not** be returned to the browser or committed to GitHub.
+
+Routing, traffic estimates and geocoding continue to use `tom_tom` or `TOMTOM_API_KEY`; the dedicated map key is not substituted for those services. If `MAPS_DISPLAY` is absent, the static map endpoint retains its existing routing-key fallback. Set `MAPS_DISPLAY` for **Production** in the Vercel `daybridge` project and redeploy once. The map remains static with an overlaid route in this server-only mode; a dedicated browser-exposed key is not required for this static preview.
+
 ## Production Vercel variables
 Already present per project inspection: \`tom_tom\`, Supabase public URL/publishable keys, and service-role credentials. Existing values must remain unchanged.
 
