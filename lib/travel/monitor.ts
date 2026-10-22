@@ -48,7 +48,8 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
   const {data,error}=await admin.from('notification_deliveries').insert({user_id:plan.user_id,appointment_id:plan.id,dedupe_key:key,kind,status:'pending'}).select().single();
   if(error)return;record=data;
  }
- if(!record||record.status==='sent'||record.status==='cancelled'||record.attempt_count>=4)return;
+ if(!record||record.status==='sent'||record.status==='cancelled'||
+   (record.attempt_count>=4&&record.status!=='no_subscription'))return;
  if(record.last_attempt_at&&time-Date.parse(record.last_attempt_at)<180000)return;
  const {data:claim}=await admin.from('notification_deliveries').update({status:'sending',attempt_count:record.attempt_count+1,last_attempt_at:new Date(time).toISOString(),updated_at:new Date(time).toISOString()}).eq('id',record.id).eq('status',record.status).eq('attempt_count',record.attempt_count).select('id').maybeSingle();
  if(!claim)return;
