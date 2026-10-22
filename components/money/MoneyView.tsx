@@ -25,6 +25,7 @@ import {
 } from '../../lib/budget';
 import { formatDate } from '../../lib/date-time';
 import {AddBudgetAccount} from './AddBudgetAccount';
+import {PaycheckSetup} from './PaycheckSetup';
 
 interface MoneyViewProps {
   onOpenQuickAdd: (type?: 'transaction'|'bill') => void;
@@ -38,6 +39,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
     deleteTransaction,
     paycheckPlan,
     updatePaycheckPlan,
+    recordPaycheckDeposit,
     advances,
     addAdvance,
     bills,
@@ -55,13 +57,16 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
   const [budgetMessage,setBudgetMessage]=useState('');
   const [newBalanceInput, setNewBalanceInput] = useState<string>('');
 
+  const [showPaycheckSetup,setShowPaycheckSetup]=useState(false);
+  const [advanceAccountId,setAdvanceAccountId]=useState('');
+  const [depositAccountId,setDepositAccountId]=useState('');
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [advanceAmountInput, setAdvanceAmountInput] = useState('100.00');
   const [advanceFeeInput, setAdvanceFeeInput] = useState('3.99');
   const [advanceNotesInput, setAdvanceNotesInput] = useState('Earned wage access');
 
   const [showReconcileModal, setShowReconcileModal] = useState(false);
-  const [actualNetInput, setActualNetInput] = useState('750.00');
+  const [actualNetInput, setActualNetInput] = useState('');
 
   // Safe to spend calculation
   const safeToSpend = calculateSafeToSpend({
@@ -101,8 +106,11 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
     e.preventDefault();
     const amountCents = parseDollarsToCents(advanceAmountInput);
     const feeCents = parseDollarsToCents(advanceFeeInput);
-    if (!amountCents) return;
-
+    if(!paycheckPlan){setBudgetMessage('Set up your next paycheck before tracking advances.');return;}
+    if(!Number.isSafeInteger(amountCents)||amountCents<=0||!activeAccounts.some(a=>a.id===advanceAccountId)){
+      setBudgetMessage('Enter a valid advance amount and choose where it was deposited.');return;
+    }
+    if(feeCents<0||!Number.isSafeInteger(feeCents)){setBudgetMessage('Enter a valid nonnegative fee.');return;}
     addAdvance({
       paycheckPlanId: paycheckPlan?.id,
       advanceAmountCents: amountCents,
@@ -110,21 +118,22 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
       receivedDate: new Date().toISOString().split('T')[0],
       isReconciled: false,
       notes: advanceNotesInput.trim(),
-    });
-
+    },advanceAccountId);
+    setBudgetMessage('Advance recorded in the selected account and deducted from this paycheck forecast.');
     setShowAdvanceModal(false);
   };
 
   const handleReconcilePaycheck = (e: React.FormEvent) => {
     e.preventDefault();
     const actualCents = parseDollarsToCents(actualNetInput);
-    if (!paycheckPlan) return;
-
-    updatePaycheckPlan({
-      actualNetCents: actualCents,
-      reconciledAt: new Date().toISOString(),
-    });
-
+    if(!paycheckPlan||paycheckPlan.reconciledAt)return;
+    if(!Number.isSafeInteger(actualCents)||actualCents<=0||!activeAccounts.some(a=>a.id===depositAccountId)){
+      setBudgetMessage('Enter the actual deposit and select the account receiving it.');return;
+    }
+    if(!recordPaycheckDeposit(depositAccountId,actualCents)){
+      setBudgetMessage('Unable to record deposit. Check the account and paycheck status.');return;
+    }
+    setBudgetMessage('Paycheck deposit added to your selected account and transaction history.');
     setShowReconcileModal(false);
   };
 
@@ -289,30 +298,37 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
       </section>
 
       {/* 3. PAYCHECK PLAN & WAGE ADVANCE PROTECTION */}
-      <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
+      <details className="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg">
+        <summary className="cursor-pointer text-base font-bold text-slate-900">Paycheck planning (optional)</summary>
+        <section className="mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">Paycheck & Wage Advance Plan</h3>
+            <h3 className="font-bold text-slate-900 text-base">Next paycheck and advances</h3>
             <p className="text-xs text-slate-600">
               Deducts advances from expected paycheck; avoids double-counting spendable cash
             </p>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowAdvanceModal(true)}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={()=>setShowPaycheckSetup(v=>!v)}
+              className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800">
+              {showPaycheckSetup?'Cancel':paycheckPlan?'Edit next payday':'+ Plan paycheck'}
+            </button>
+            {paycheckPlan&&<button
+              onClick={() => {setAdvanceAccountId(activeAccounts.length===1?activeAccounts[0].id:'');setShowAdvanceModal(true)}}
               data-daybridge-edit-button="true" className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 border border-slate-300 min-h-[44px]"
             >
               + Record Advance
             </button>
-            <button
-              onClick={() => setShowReconcileModal(true)}
+            {!paycheckPlan.reconciledAt&&<button
+              onClick={() => {setDepositAccountId(activeAccounts.length===1?activeAccounts[0].id:'');setShowReconcileModal(true)}}
               className="px-3 py-1.5 rounded-xl bg-teal-500/20 text-teal-800 border border-teal-500/30 hover:bg-teal-500/30 text-xs font-bold min-h-[44px]"
             >
-              Reconcile
-            </button>
+              Record deposit
+            </button>}</>
           </div>
         </div>
-
+        {showPaycheckSetup&&<div className="mb-4"><PaycheckSetup onSaved={()=>{setShowPaycheckSetup(false);setBudgetMessage('Paycheck forecast saved. It does not change your account balance.')}} onCancel={()=>setShowPaycheckSetup(false)}/></div>}
+        {!paycheckPlan&&!showPaycheckSetup&&<p className="text-sm text-slate-700">Add an optional payday forecast to track upcoming paychecks and advances. Everyday income and expenses work without one.</p>}
         {paycheckPlan && (
           <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-4 sm:p-5">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -388,7 +404,8 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             )}
           </div>
         )}
-      </section>
+        </section>
+      </details>
 
       {/* 4. BILLS DUE BEFORE PAYDAY */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
@@ -591,6 +608,13 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             </p>
 
             <form onSubmit={handleRecordAdvance} className="space-y-3 text-xs">
+              <label className="block text-sm font-semibold text-slate-800">Deposit into account
+                <select required value={advanceAccountId} onChange={e=>setAdvanceAccountId(e.target.value)}
+                 className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                 <option value="">Choose an account</option>
+                 {activeAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </label>
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">
                   Advance Amount ($)
@@ -659,6 +683,14 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             </p>
 
             <form onSubmit={handleReconcilePaycheck} className="space-y-3 text-xs">
+              <p className="text-xs text-amber-900">Record only the amount actually deposited. If you already entered this income elsewhere, don't record it again.</p>
+              <label className="block text-sm font-semibold text-slate-800">Received into account
+                <select required value={depositAccountId} onChange={e=>setDepositAccountId(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="">Choose an account</option>
+                  {activeAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </label>
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">
                   Actual Net Deposited ($)
@@ -685,7 +717,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold min-h-[44px]"
                 >
-                  Confirm Reconciliation
+                  Save deposit
                 </button>
               </div>
             </form>
