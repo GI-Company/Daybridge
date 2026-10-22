@@ -38,8 +38,8 @@ function validSource(event:SourceEvent|undefined,plan:Plan){
 }
 type TravelUpdate={travelSeconds:number;delaySeconds:number;leaveByMs:number;lockscreenPrivate:boolean;
  impact:TravelImpactResult;routeCount:number};
-async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'preliminary'|'preparation'|'leave_now'|'traffic_change',time:number,update:TravelUpdate,reason:'routine'|'late-risk'='routine'){
- const dedupeSlot=reason==='late-risk'?'late-risk':kind==='traffic_change'?Math.floor(time/(15*60000)):'once';
+async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'preliminary'|'preparation'|'leave_now'|'traffic_change',time:number,update:TravelUpdate,reason:'routine'|'late-risk'|'late-risk-change'='routine'){
+ const dedupeSlot=reason==='late-risk'?'late-risk':reason==='late-risk-change'?'risk-'+Math.floor(time/(15*60000)):kind==='traffic_change'?Math.floor(time/(15*60000)):'once';
  const key=[plan.id,plan.source_revision,kind,dedupeSlot].join(':');
  const {data:existing}=await admin.from('notification_deliveries').select('*').eq('user_id',plan.user_id).eq('dedupe_key',key).maybeSingle();
  let record=existing;
@@ -55,7 +55,7 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
  if(subError){await admin.from('notification_deliveries').update({status:'failed'}).eq('id',record.id);return}
  if(!subs?.length){await admin.from('notification_deliveries').update({status:'no_subscription'}).eq('id',record.id);return}
  const title=update.lockscreenPrivate?'DayBridge travel update'
-  :reason==='late-risk'?'Possible late arrival from saved start'
+  :reason!=='routine'?'Possible late arrival from saved start'
   :kind==='preparation'?'One-hour appointment traffic update'
   :kind==='leave_now'?'Departure time reached'
   :kind==='traffic_change'?'Your travel ETA has changed':'Upcoming appointment';
@@ -141,7 +141,7 @@ export async function monitorTravel(){
    // One priority notification per appointment per worker pass. Critical risk
    // supersedes ordinary one-hour reminders, preventing alert floods.
    if(remaining>0&&impact.appointmentAtRisk){
-     await deliver(admin,plan,'traffic_change',now,update,'late-risk');alerts++;
+     await deliver(admin,plan,'traffic_change',now,update,impact.meaningfulChange?'late-risk-change':'late-risk');alerts++;
    }else if(remaining>0&&now>=leaveMs-5*60000){
      await deliver(admin,plan,'leave_now',now,update);alerts++;
    }else if(remaining>0&&remaining<=4*3600000&&impact.meaningfulChange){
