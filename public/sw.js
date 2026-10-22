@@ -81,7 +81,8 @@ self.addEventListener('push',event=>{
  const kind=String(message.kind||'general').replace(/[^a-z_]/g,'').slice(0,24);
  const title=typeof message.title==='string'?message.title.slice(0,100):'DayBridge reminder';
  const body=typeof message.body==='string'?message.body.slice(0,240):'Open DayBridge to review an upcoming item.';
- const options={body,icon:'/icon.svg',badge:'/icon.svg',tag:'daybridge-'+kind,
+ const pushTag=typeof message.tag==='string'&&/^daybridge-[a-z_-]+-[a-f0-9-]{36}$/.test(message.tag)?message.tag:'daybridge-'+kind;
+ const options={body,icon:'/icon.svg',badge:'/icon.svg',tag:pushTag,
   data:{url:'/'},renotify:false};
  event.waitUntil(self.registration.showNotification(title,options));
 });
