@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, currentTab }) => {
-  const { profile, syncStatus, isLiveSupabase } = useDayBridge();
+  const { profile, syncStatus, syncIssue, retrySync, isLiveSupabase } = useDayBridge();
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -60,6 +60,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
             )}
           </button>
 
+          {syncStatus==='offline' && <button type="button" onClick={retrySync}
+            aria-label="Retry saving your private data" className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-2 text-xs font-semibold text-rose-900">Retry save</button>}
           {/* Quick Add Button */}
           <button
             onClick={onOpenQuickAdd}
@@ -71,6 +73,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
           </button>
         </div>
       </div>
+      {syncIssue && <p role="alert" className="mx-auto mt-2 max-w-4xl rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-950">{syncIssue}</p>}
     </header>
   );
 };

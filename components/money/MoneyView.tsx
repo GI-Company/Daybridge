@@ -268,7 +268,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
           <div className="flex gap-2">
             <button
               onClick={() => setShowAdvanceModal(true)}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 border border-slate-300 min-h-[44px]"
+              data-daybridge-edit-button="true" className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 border border-slate-300 min-h-[44px]"
             >
               + Record Advance
             </button>
@@ -534,7 +534,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
 
       {/* RECORD WAGE ADVANCE MODAL */}
       {showAdvanceModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div data-daybridge-draft="true" role="dialog" aria-modal="true" aria-label="Edit money record" className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-5 shadow-2xl animate-in zoom-in-95">
             <h3 className="font-bold text-base text-slate-900 mb-2">Record Wage Advance</h3>
             <p className="text-xs text-slate-600 mb-4">
@@ -602,7 +602,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
 
       {/* RECONCILE PAYCHECK MODAL */}
       {showReconcileModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div data-daybridge-draft="true" role="dialog" aria-modal="true" aria-label="Edit money record" className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-5 shadow-2xl animate-in zoom-in-95">
             <h3 className="font-bold text-base text-slate-900 mb-2">Reconcile Payday Deposit</h3>
             <p className="text-xs text-slate-600 mb-4">

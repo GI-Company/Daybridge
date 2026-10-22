@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import {
   UserProfile,
   SavedPlace,
@@ -58,6 +58,8 @@ interface DayBridgeContextType {
   reserves: BudgetReserve[];
   contacts: ResourceContact[];
   syncStatus: 'synced' | 'local_only' | 'syncing' | 'offline';
+  syncIssue: string | null;
+  retrySync: () => void;
   isLiveSupabase: boolean;
 
   // Actions
@@ -122,6 +124,102 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
   const [syncStatus, setSyncStatus] = useState<'synced' | 'local_only' | 'syncing' | 'offline'>('local_only');
   const [isLoaded, setIsLoaded] = useState(false);
+  const [syncIssue, setSyncIssue] = useState<string|null>(null);
+  const revisionRef = useRef(0);
+  const hydratedRef = useRef(false);
+  const savedFingerprintRef = useRef('');
+  const pendingRef = useRef<{payload:Record<string,unknown>;fingerprint:string}|null>(null);
+  const unknownFieldsRef = useRef<Record<string,unknown>>({});
+  const savingRef = useRef(false);
+  const conflictRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const aliveRef = useRef(true);
+
+  // Only the latest snapshot can be written, and requests are serialized.
+  // The Postgres RPC atomically rejects a save based on a stale revision.
+  const flushSnapshot = useCallback(async () => {
+    if(savingRef.current || conflictRef.current || !pendingRef.current)return;
+    const client=createClient();
+    if(!client){setSyncStatus('offline');setSyncIssue('Cloud storage is unavailable. Do not close this tab or update.');return;}
+    savingRef.current=true;
+    let failed=false;
+    try{
+      while(pendingRef.current && !conflictRef.current){
+        const item=pendingRef.current;
+        pendingRef.current=null;
+        let result: {data:unknown;error:{message:string}|null};
+        try{
+          result=await client.rpc('save_private_snapshot',{
+            p_payload:item.payload,p_expected_revision:revisionRef.current
+          });
+        }catch{
+          result={data:null,error:{message:'Network connection failed'}};
+        }
+        if(result.error || !Number.isSafeInteger(Number(result.data))){
+          // Keep the most recent unsaved data in memory. Never claim success
+          // and never silently overwrite data saved by another device.
+          if(!pendingRef.current)pendingRef.current=item;
+          failed=true;
+          const isConflict=String(result.error?.message??'').includes('snapshot_conflict');
+          if(isConflict)conflictRef.current=true;
+          if(aliveRef.current){
+            setSyncIssue(isConflict
+              ? 'Another device has saved a newer version. Your edits are still on this screen. Export them from Settings before refreshing; do not overwrite the other device.'
+              : 'Unable to save to Supabase. Keep this app open; check your connection and use Retry save.');
+            setSyncStatus('offline');
+          }
+          break;
+        }
+        revisionRef.current=Number(result.data);
+        savedFingerprintRef.current=item.fingerprint;
+      }
+    }finally{
+      savingRef.current=false;
+      if(aliveRef.current && !failed && !pendingRef.current){
+        setSyncIssue(null);
+        setSyncStatus('synced');
+      }
+    }
+  },[]);
+
+  const retrySync = useCallback(() => {
+    if(conflictRef.current)return;
+    if(saveTimerRef.current){clearTimeout(saveTimerRef.current);saveTimerRef.current=null;}
+    if(pendingRef.current){
+      setSyncStatus('syncing');
+      void flushSnapshot();
+    }
+  },[flushSnapshot]);
+
+  useEffect(()=>{
+    aliveRef.current=true;
+    return()=>{
+      aliveRef.current=false;
+      if(saveTimerRef.current)clearTimeout(saveTimerRef.current);
+    };
+  },[]);
+  useEffect(()=>{
+    const onRetry=()=>retrySync();
+    const onOnline=()=>retrySync();
+    const onVisibility=()=>{if(document.visibilityState==='hidden')retrySync();};
+    const onBeforeUnload=(event:BeforeUnloadEvent)=>{
+      if(pendingRef.current || savingRef.current || conflictRef.current){
+        event.preventDefault();
+        event.returnValue='';
+      }
+    };
+    window.addEventListener('daybridge:save-now',onRetry);
+    window.addEventListener('online',onOnline);
+    window.addEventListener('beforeunload',onBeforeUnload);
+    document.addEventListener('visibilitychange',onVisibility);
+    return()=>{
+      window.removeEventListener('daybridge:save-now',onRetry);
+      window.removeEventListener('online',onOnline);
+      window.removeEventListener('beforeunload',onBeforeUnload);
+      document.removeEventListener('visibilitychange',onVisibility);
+    };
+  },[retrySync]);
+
 
   const isLive = isSupabaseConfigured();
 
@@ -136,10 +234,12 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   useEffect(()=>{
     let active=true;const client=createClient();
     if(!client){setSyncStatus('offline');return;}
-    client.from('private_snapshots').select('payload').eq('user_id',userId).maybeSingle().then(({data,error}: {data:{payload:unknown}|null;error:unknown})=>{
+    client.from('private_snapshots').select('payload,revision').eq('user_id',userId).maybeSingle().then(({data,error}: {data:{payload:unknown;revision:number}|null;error:unknown})=>{
       if(!active)return;
       if(error){setSyncStatus('offline');return;}
+      revisionRef.current=data?.revision??0;
       const saved=data?.payload as Record<string,unknown>|undefined;
+      if(saved){const known=new Set(['profile','savedPlaces','events','eventOccurrences','tasks','medications','medicationSchedules','medicationLogs','accounts','transactions','paycheckPlan','advances','bills','reserves','contacts']);unknownFieldsRef.current=Object.fromEntries(Object.entries(saved).filter(([key])=>!known.has(key)));}
       if(saved){
         if(saved.profile&&typeof saved.profile==='object')setProfile({...DEFAULT_PROFILE,...(saved.profile as Partial<UserProfile>),id:userId});
         if(Array.isArray(saved.savedPlaces))setSavedPlaces(saved.savedPlaces as SavedPlace[]);
@@ -163,17 +263,32 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   },[userId]);
   useEffect(()=>{
     if(!isLoaded)return;
-    const client=createClient();if(!client)return;
-    const payload={profile,savedPlaces,events,eventOccurrences,tasks,medications,medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,advances,bills,reserves,contacts};
-    // Protect data during the debounce window, not just during network transfer.
-    setSyncStatus('syncing');
-    const timer=window.setTimeout(async()=>{
-      setSyncStatus('syncing');
-      const {error}=await client.from('private_snapshots').upsert({user_id:userId,payload,updated_at:new Date().toISOString()},{onConflict:'user_id'});
-      setSyncStatus(error?'offline':'synced');
-    },900);
-    return()=>window.clearTimeout(timer);
-  },[isLoaded,userId,profile,savedPlaces,events,eventOccurrences,tasks,medications,medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,advances,bills,reserves,contacts]);
+    // Retain unrecognized fields from newer releases instead of dropping them
+    // when an older tab saves a known property.
+    const payload:Record<string,unknown>={...unknownFieldsRef.current,
+      profile,savedPlaces,events,eventOccurrences,tasks,medications,
+      medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,
+      advances,bills,reserves,contacts};
+    const fingerprint=JSON.stringify(payload);
+    if(!hydratedRef.current){
+      // Reading records is not a change. An update must never overwrite the
+      // loaded snapshot just because the application mounted.
+      hydratedRef.current=true;
+      savedFingerprintRef.current=fingerprint;
+      return;
+    }
+    if(fingerprint===savedFingerprintRef.current && !pendingRef.current)return;
+    pendingRef.current={payload,fingerprint};
+    setSyncStatus('syncing'); // Debounce is UNSAVED time, not 'synced' time.
+    if(saveTimerRef.current)clearTimeout(saveTimerRef.current);
+    saveTimerRef.current=window.setTimeout(()=>{
+      saveTimerRef.current=null;
+      void flushSnapshot();
+    },850);
+    return()=>{if(saveTimerRef.current)clearTimeout(saveTimerRef.current);};
+  },[isLoaded,profile,savedPlaces,events,eventOccurrences,tasks,medications,
+    medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,
+    advances,bills,reserves,contacts,flushSnapshot]);
   // Saved places stay private to this user, persist alongside the other cloud records,
   // and are never queried by name from a public directory.
   const addSavedPlace=(input:Omit<SavedPlace,'id'|'userId'|'createdAt'|'updatedAt'>)=>{
@@ -541,6 +656,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         reserves,
         contacts,
         syncStatus,
+        syncIssue,
+        retrySync,
         isLiveSupabase: isLive,
 
         updateProfile,

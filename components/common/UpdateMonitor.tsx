@@ -72,21 +72,29 @@ export function UpdateMonitor(){
   };
  },[check]);
 
- const beginUpdate=()=>{
-  if(syncRef.current==='syncing'||syncRef.current==='offline'||syncRef.current==='local_only'){
-   setLastError('Your private data is still syncing or is offline. Keep working and check again when DayBridge shows Synced.');
-   return;
+ const canReload=()=>{
+  // Never offer a bypass when cloud data isn't confirmed or a modal draft is open.
+  if(syncRef.current!=='synced'){
+   window.dispatchEvent(new Event('daybridge:save-now'));
+   setLastError('Update paused until your private records are saved to Supabase. Keep DayBridge open, then retry.');
+   return false;
   }
+  if(document.querySelector('[data-daybridge-draft="true"]')){
+   setLastError('Finish saving or close the open form before updating. Unsubmitted form entries would otherwise be lost.');
+   return false;
+  }
+  return true;
+ };
+ const beginUpdate=()=>{
+  if(!canReload())return;
   setLastError('');
-  if(dirtyRef.current){setConfirm(true);return;}
+  // Edits may have occurred in a non-modal form. Re-check form focus before reload.
+  if(dirtyRef.current && isEditable(document.activeElement)){setConfirm(true);return;}
   window.location.reload();
  };
  const proceed=()=>{
-  if(syncRef.current==='syncing'||syncRef.current==='offline'||syncRef.current==='local_only'){
-   setConfirm(false);
-   setLastError('Update paused: your private data is not fully synced.');
-   return;
-  }
+  if(!canReload())return;
+  // A confirmation never overrides an unsaved cloud write.
   window.location.reload();
  };
  if(!version)return null;
@@ -107,7 +115,7 @@ export function UpdateMonitor(){
       <p className="mt-1">You've edited fields in this session. Save your work before updating; a reload discards unfinished form entries.</p>
       <div className="mt-3 flex flex-wrap gap-2">
        <button type="button" onClick={()=>setConfirm(false)} className="rounded-lg border border-amber-300 bg-white px-3 py-2 font-semibold">Keep working</button>
-       <button type="button" onClick={proceed} disabled={sync==='syncing'||sync==='offline'||sync==='local_only'} className="rounded-lg bg-amber-900 px-3 py-2 font-semibold text-white disabled:opacity-50">Reload anyway</button>
+       <button type="button" onClick={proceed} disabled={sync!=='synced'} className="rounded-lg bg-amber-900 px-3 py-2 font-semibold text-white disabled:opacity-50">Update after review</button>
       </div>
      </div>:<div className="mt-4 flex flex-wrap items-center justify-end gap-2">
       {dirty&&<span className="mr-auto text-xs text-amber-800">Form edits detected</span>}
