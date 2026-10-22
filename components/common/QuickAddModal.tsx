@@ -51,7 +51,7 @@ const hourLater=(value:string)=>{
  return [String((parts[0]+1)%24).padStart(2,'0'),String(parts[1]||0).padStart(2,'0')].join(':');
 };
 
-export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType='event' }) => {
+export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType }) => {
   const { addEvent, addMedication, addTask, addTransaction, addBill, addContact, addSavedPlace, accounts, savedPlaces } = useDayBridge();
 
   const [activeType, setActiveType] = useState<QuickAddType|null>(initialType??null);
