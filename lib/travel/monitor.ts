@@ -9,7 +9,7 @@ export function adminClient(){
  if(!url||!key)throw Error('Admin backend credentials missing');
  return createClient(url,key,{auth:{autoRefreshToken:false,persistSession:false}});
 }
-function vapidReady(){
+export function vapidReady(){
  const publicKey=process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
  const privateKey=process.env.VAPID_PRIVATE_KEY;
  if(!publicKey||!privateKey)throw Error('VAPID server configuration missing');
