@@ -26,8 +26,8 @@ export default function HomePage() {
 function PrivateWorkspace({userId}:{userId:string}) {
   const [currentTab, setCurrentTab] = useState<string>('today');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [quickAddType,setQuickAddType]=useState<'event'|'medication'>('event');
-  const openQuickAdd=(type:'event'|'medication'='event')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
+  const [quickAddType,setQuickAddType]=useState<'event'|'medication'|undefined>(undefined);
+  const openQuickAdd=(type?:'event'|'medication')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
 
   return (
     <DayBridgeProvider userId={userId}>
@@ -56,7 +56,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
           )}
 
           {currentTab === 'schedule' && (
-            <ScheduleView onOpenQuickAdd={() => openQuickAdd()} />
+            <ScheduleView onOpenQuickAdd={() => openQuickAdd('event')} />
           )}
 
           {currentTab === 'locations' && <LocationsView />}
