@@ -45,7 +45,7 @@ export function assessTravelImpact(v:TravelImpact):TravelImpactResult{
 
 export function summarizeTrafficUpdate(
  impact:TravelImpactResult,travelSeconds:number,delaySeconds:number,
- routeCount:number,timezone:string,nowMs:number
+ routeCount:number,timezone:string
 ):string{
  const mins=Math.ceil(travelSeconds/60),delay=Math.ceil(delaySeconds/60);
  const time=(t:number)=>new Date(t).toLocaleTimeString('en-US',{timeZone:timezone,hour:'numeric',minute:'2-digit'});
@@ -53,7 +53,7 @@ export function summarizeTrafficUpdate(
  if(impact.appointmentAtRisk){
   summary+='Leaving now could mean arriving '+impact.lateForAppointmentMinutes+' min late. ';
  }else if(impact.earlyArrivalAtRisk){
-  summary+='Leaving now may miss your '+Math.max(0,Math.round((impact.leaveByMs+travelSeconds*1000-(impact.arrivalIfLeavingNowMs-travelSeconds*1000))/60000))+' min arrival buffer. ';
+  summary+='Leaving now may miss your planned early-arrival buffer. ';
  }else {
   summary+='Leave by '+time(impact.leaveByMs)+'. ';
  }
