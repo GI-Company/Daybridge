@@ -63,7 +63,7 @@ async function writeEntry(store:string,id:string,value:unknown,insertOnly=false)
 async function keyFor(userId:string):Promise<CryptoKey>{
  const existing=await readEntry<CryptoKey>(KEYS,userId);
  if(existing)return existing;
- const fresh=await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+ const fresh=(await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt'])) as CryptoKey;
  try{await writeEntry(KEYS,userId,fresh,true);return fresh}
  catch{
   // A second tab may have generated the same user's key first.
