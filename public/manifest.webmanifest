@@ -1,0 +1,18 @@
+{
+  "name": "DayBridge Personal Edition",
+  "short_name": "DayBridge",
+  "description": "Private daily-life management and accountability organizer for schedule, medication, money, and tasks.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1b2a",
+  "theme_color": "#0d9488",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

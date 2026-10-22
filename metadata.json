@@ -1,0 +1,6 @@
+{
+  "name": "DayBridge",
+  "description": "Private daily-life management and accountability organizer for schedule, medication, money, and tasks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
