@@ -133,9 +133,14 @@ export function LocationsView(){
    id:p.id,label:p.label,lat:p.lat,lon:p.lon,address:p.address
   })),
   ...placeResults.filter(placeValid).map((p,i)=>({
-   id:'search-'+i,label:p.label,lat:p.lat,lon:p.lon,address:p.address
-  }))
- ],[savedPlaces,placeResults]);
+   id:p===searchedDestination?'__searched':'search-'+i,
+   label:p.label,lat:p.lat,lon:p.lon,address:p.address
+  })),
+  ...(searchedDestination&&!placeResults.includes(searchedDestination)
+   ?[{id:'__searched',label:searchedDestination.label,
+      lat:searchedDestination.lat,lon:searchedDestination.lon,
+      address:searchedDestination.address}]:[])
+ ],[savedPlaces,placeResults,searchedDestination]);
  const firstSaved=savedPlaces.find(placeValid);
  const initialMapCenter=approvedOrigin||
   (firstSaved?{lat:firstSaved.lat,lon:firstSaved.lon}:{lat:39.8283,lon:-98.5795});
@@ -143,8 +148,10 @@ export function LocationsView(){
  const mapAreaLabel=approvedOrigin?'Centered on your approved starting point':
   firstSaved?'Centered on a saved location':'Showing United States — tap Use my location';
  function selectMapPlace(place:MapPlace){
-  if(place.id.startsWith('search-')){
-   const match=placeResults.find((_,i)=>'search-'+i===place.id);
+  if(place.id==='__searched'||place.id.startsWith('search-')){
+   const match=place.id==='__searched'
+    ?searchedDestination
+    :placeResults.find((p,i)=>p!==searchedDestination&&'search-'+i===place.id);
    if(match){setSearchedDestination(match);setDestinationId('__searched')}
   }else{
    setDestinationId(place.id);
