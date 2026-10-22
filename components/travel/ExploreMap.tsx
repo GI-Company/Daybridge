@@ -12,7 +12,6 @@ type Props={
  onSelectPlace:(place:MapPlace)=>void;
 };
 type Feature=GeoJSON.Feature<GeoJSON.Point,GeoJSON.GeoJsonProperties>;
-type Line=GeoJSON.Feature<GeoJSON.LineString,GeoJSON.GeoJsonProperties>;
 const xyz=(point:Point):[number,number]=>[point.lon,point.lat];
 const fallbackCenter:Point={lat:39.8283,lon:-98.5795};
 
@@ -128,8 +127,12 @@ export function ExploreMap({
       'circle-color':['case',['==',['get','selected'],1],'#b45309','#086a62'],
       'circle-stroke-color':'#ffffff','circle-stroke-width':2
      }});
-     m.addSource('route',{type:'geojson',data:{type:'Feature',properties:{},
-      geometry:{type:'LineString',coordinates:line.current.length>=2?line.current:[]}}});
+     m.addSource('route',{type:'geojson',data:{
+      type:'FeatureCollection',features:line.current.length>=2?[{
+       type:'Feature',properties:{},
+       geometry:{type:'LineString',coordinates:line.current}
+      }]:[]
+     }});
      m.addLayer({id:'route-halo',type:'line',source:'route',paint:{
       'line-color':'#ffffff','line-width':9
      }},'places-halo');
@@ -168,9 +171,11 @@ export function ExploreMap({
   const m=mapRef.current;
   if(!m||!m.getSource('route'))return;
   (m.getSource('route') as GeoJSONSource).setData({
-   type:'Feature',properties:{},
-   geometry:{type:'LineString',coordinates:routeCoords.length>=2?routeCoords:[]}
-  } as Line);
+   type:'FeatureCollection',features:routeCoords.length>=2?[{
+    type:'Feature',properties:{},
+    geometry:{type:'LineString',coordinates:routeCoords}
+   }]:[]
+  });
   if(m.getSource('origin-marker'))(m.getSource('origin-marker') as GeoJSONSource).setData({
    type:'FeatureCollection',features:origin&&validMapPoint(origin)?[{
     type:'Feature',properties:{},
@@ -197,6 +202,12 @@ export function ExploreMap({
   if(m&&m.getLayer('incidents-layer'))
    m.setLayoutProperty('incidents-layer','visibility',showIncidents?'visible':'none');
  },[showIncidents,tilesLoaded]);
+
+ useEffect(()=>{
+  if(gpsState==='current'&&currentFix&&mapRef.current){
+   mapRef.current.flyTo({center:xyz(currentFix),zoom:14,essential:true});
+  }
+ },[gpsState,currentFix,tilesLoaded,retry]);
 
  useEffect(()=>{
   if(!selectedId||route||!tilesLoaded)return;
