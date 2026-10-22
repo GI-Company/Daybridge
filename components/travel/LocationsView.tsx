@@ -1,12 +1,12 @@
 'use client';
 
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useMemo,useState} from 'react';
 import {MapPinned,Plus,Trash2,Navigation,Route as RouteIcon,MapPin,LocateFixed} from 'lucide-react';
 import {useDayBridge} from '../../lib/storage/store';
 import {createClient} from '../../lib/supabase/client';
 import type {SavedPlace,SavedPlaceCategory} from '../../lib/types';
 import {defaults,mapsUrl,type Mode,type Point,type RouteResult} from '../../lib/travel/types';
-import {RouteMap} from './RouteMap';
+import {ExploreMap,type MapPlace} from './ExploreMap';
 import {TravelPreferencesCard} from './TravelPreferences';
 
 type AddressResult=Point&{label:string};
@@ -35,8 +35,24 @@ export function LocationsView(){
  const [route,setRoute]=useState<RouteResult|null>(null),[routeFrom,setRouteFrom]=useState<Point|null>(null);
  const [routeBusy,setRouteBusy]=useState(false),[routeMessage,setRouteMessage]=useState('');
  const [alt,setAlt]=useState(0),[showAdvanced,setShowAdvanced]=useState(false);
+ const [approvedOrigin,setApprovedOrigin]=useState<Point|null>(null);
  const db=createClient();
- useEffect(()=>{let valid=true;db?.from('travel_preferences').select('travel_mode').maybeSingle().then(({data}:{data:{travel_mode?:Mode}|null})=>{if(valid&&data?.travel_mode)setMode(data.travel_mode)});return()=>{valid=false}},[]);
+ useEffect(()=>{
+  let valid=true;
+  db?.from('travel_preferences')
+   .select('travel_mode,saved_origin_lat,saved_origin_lon').maybeSingle()
+   .then(({data}:{data:{travel_mode?:Mode;saved_origin_lat?:number|null;saved_origin_lon?:number|null}|null})=>{
+    if(!valid)return;
+    if(data?.travel_mode)setMode(data.travel_mode);
+    if(typeof data?.saved_origin_lat==='number'&&typeof data?.saved_origin_lon==='number'){
+     const point={lat:data.saved_origin_lat,lon:data.saved_origin_lon};
+     if(placeValid({...point,label:'Approved origin'}))setApprovedOrigin(point);
+    }
+   });
+  return()=>{valid=false};
+ // The existing Supabase preference load runs once when entering Locations & Maps.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[]);
  const selected=savedPlaces.find(p=>p.id===destinationId)||
   (destinationId==='__searched'&&searchedDestination
    ?{...searchedDestination,id:'__searched',category:'other' as const,userId:'',createdAt:'',updatedAt:''}
@@ -112,6 +128,31 @@ export function LocationsView(){
   finally{setRouteBusy(false)}
  }
  const destination=selected?{lat:selected.lat,lon:selected.lon}:null;
+ const mapPlaces=useMemo<MapPlace[]>(()=>[
+  ...savedPlaces.filter(p=>placeValid(p)).map(p=>({
+   id:p.id,label:p.label,lat:p.lat,lon:p.lon,address:p.address
+  })),
+  ...placeResults.filter(placeValid).map((p,i)=>({
+   id:'search-'+i,label:p.label,lat:p.lat,lon:p.lon,address:p.address
+  }))
+ ],[savedPlaces,placeResults]);
+ const firstSaved=savedPlaces.find(placeValid);
+ const initialMapCenter=approvedOrigin||
+  (firstSaved?{lat:firstSaved.lat,lon:firstSaved.lon}:{lat:39.8283,lon:-98.5795});
+ const initialMapZoom=approvedOrigin||firstSaved?12:4;
+ const mapAreaLabel=approvedOrigin?'Centered on your approved starting point':
+  firstSaved?'Centered on a saved location':'Showing United States — tap Use my location';
+ function selectMapPlace(place:MapPlace){
+  if(place.id.startsWith('search-')){
+   const match=placeResults.find((_,i)=>'search-'+i===place.id);
+   if(match){setSearchedDestination(match);setDestinationId('__searched')}
+  }else{
+   setDestinationId(place.id);
+  }
+  setRoute(null);setRouteFrom(null);
+  setRouteMessage('Destination selected. Preview a route if you want travel time.');
+ }
+
  const best=route?.routes[alt];
  // Android navigation can open using only the destination; no GPS or route preview required.
  function directMapLink(place:SavedPlace){const u=new URL('https://www.google.com/maps/dir/');u.searchParams.set('api','1');u.searchParams.set('destination',place.lat+','+place.lon);return u.toString();}
@@ -121,6 +162,21 @@ export function LocationsView(){
     <p className="mt-1 text-sm text-slate-700">Save places once. Select them for appointments or travel without typing again.</p></div>
    <button onClick={()=>openAdd('therapy')} className="flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-3 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Add a place</button>
   </div>
+  <ExploreMap
+   initialCenter={initialMapCenter} initialZoom={initialMapZoom} areaLabel={mapAreaLabel}
+   places={mapPlaces} selectedId={selected?.id||null}
+   origin={routeFrom} route={best||null} onSelectPlace={selectMapPlace}
+  />
+  {selected&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-3">
+   <div className="min-w-0">
+    <p className="text-xs font-semibold text-teal-950">Selected destination</p>
+    <p className="truncate text-sm text-slate-900">{selected.label}</p>
+   </div>
+   <button type="button" disabled={routeBusy} onClick={()=>void calculate()}
+    className="min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+    {routeBusy?'Checking traffic…':'Get route & ETA'}
+   </button>
+  </div>}
   <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4" aria-label="Find a destination">
    <h3 className="text-base font-bold text-slate-950">Find a destination</h3>
    <p className="text-xs text-slate-700">Search addresses, businesses, and places using TomTom. You don't have to save a location first.</p>
@@ -215,7 +271,6 @@ export function LocationsView(){
    {routeMessage&&<p role="status" className="text-xs text-slate-700">{routeMessage}</p>}
    {selected&&<a href={directMapLink(selected)} rel="noopener noreferrer" target="_blank" className="flex items-center justify-center gap-2 rounded-xl border border-teal-300 bg-white p-3 text-sm font-semibold text-teal-900"><Navigation className="h-4 w-4"/>Open navigation to {selected.label}</a>}
    {best&&routeFrom&&destination&&<div className="space-y-3">
-    <RouteMap origin={routeFrom} destination={destination} route={best}/>
     <div className="flex flex-wrap gap-2">{route!.routes.map((r,i)=><button key={i} type="button" onClick={()=>setAlt(i)} className={'rounded-lg border px-3 py-2 text-xs font-semibold '+(i===alt?'bg-teal-800 text-white':'bg-white text-slate-800')}>{i===0?'Fastest':'Alternative '+i} · {Math.ceil(r.durationSeconds/60)} min</button>)}</div>
     <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-800">
      <p><strong>Travel</strong><br/>{Math.ceil(best.durationSeconds/60)} minutes</p>
