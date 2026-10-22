@@ -57,6 +57,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
     { id: 'all', label: 'All Events' },
     { id: 'court', label: 'Court' },
     { id: 'class', label: 'Classes' },
+    { id: 'self_help', label: 'Self-help meetings' },
     { id: 'drug_testing', label: 'Drug Testing' },
     { id: 'work', label: 'Work Shifts' },
     { id: 'therapy', label: 'Therapy' },
@@ -113,6 +114,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
           {filteredOccurrences.map((occ) => {
             const isToday = occ.startTime.toDateString() === now.toDateString();
             const isCourt = occ.category === 'court' || occ.category === 'class' || occ.category === 'drug_testing';
+            const isSelfHelp = occ.category === 'self_help';
             const isAttended = occ.attendanceStatus === 'attended_self_reported';
             const isNotAttended = occ.attendanceStatus === 'not_attended_self_reported';
 
@@ -132,10 +134,10 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                       <span className="text-xs font-bold text-teal-700">
                         {getRelativeDayLabel(occ.startTime)} • {formatDate(occ.startTime)}
                       </span>
-                      {isCourt && (
+                      {(isCourt||isSelfHelp) && (
                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-800/60">
                           <Scale className="w-3 h-3" />
-                          <span>{occ.category==='court'?'Court appearance':occ.category==='drug_testing'?'Drug test':'Class / group'}</span>
+                          <span>{isSelfHelp?'Self-help meeting':occ.category==='court'?'Court appearance':occ.category==='drug_testing'?'Drug test':'Class / group'}</span>
                         </span>
                       )}
                     </div>
@@ -143,7 +145,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                   </div>
 
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-lg capitalize bg-slate-100 text-slate-700 border border-slate-700/60">
-                    {occ.category.replace('_', ' ')}
+                    {occ.category==='self_help'?'Self-help meeting':occ.category.replace('_', ' ')}
                   </span>
                 </div>
 
@@ -215,7 +217,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700">
-                  {selectedOccurrence.category.replace('_', ' ')}
+                  {selectedOccurrence.category==='self_help'?'Self-help meeting':selectedOccurrence.category.replace('_', ' ')}
                 </span>
                 <h3 className="font-bold text-lg text-slate-900">{selectedOccurrence.title}</h3>
               </div>
