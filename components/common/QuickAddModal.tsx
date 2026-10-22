@@ -79,6 +79,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [eventEndTime, setEventEndTime] = useState('11:00');
   const [eventVenue, setEventVenue] = useState<VenueType>('in_person');
   const [eventLocation, setEventLocation] = useState('');
+  const [verifiedEventLocation,setVerifiedEventLocation]=useState<{label:string;lat:number;lon:number}|null>(null);
+  const [eventLocationCandidates,setEventLocationCandidates]=useState<Array<{label:string;lat:number;lon:number}>>([]);
+  const [checkingEventAddress,setCheckingEventAddress]=useState(false);
   const [eventTravelBuffer, setEventTravelBuffer] = useState('15');
   const [eventRepeatWeekly, setEventRepeatWeekly] = useState(false);
   const [eventContact, setEventContact] = useState('');
@@ -145,6 +148,23 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
     finally{setLocationBusy(false);}
   }
 
+  async function verifyEventAddress(){
+    if(eventLocation.trim().length<6){setFormError('Enter a street address and city.');return;}
+    setCheckingEventAddress(true);setFormError('');setEventLocationCandidates([]);setVerifiedEventLocation(null);
+    try{
+      const response=await fetch('/api/travel/geocode',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({address:eventLocation.trim()})
+      });
+      if(!response.ok)throw Error();
+      const body=await response.json() as {results?:Array<{label:string;lat:number;lon:number}>};
+      const choices=(body.results||[]).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+      setEventLocationCandidates(choices);
+      if(!choices.length)setFormError('No matching street address found. Add a city and state.');
+    }catch{setFormError('Address verification is unavailable. The appointment can still be saved without traffic monitoring.');}
+    finally{setCheckingEventAddress(false);}
+  }
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -159,7 +179,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       const endIso = `${eventDate}T${eventEndTime}:00`;
       const rrule = eventRepeatWeekly ? 'FREQ=WEEKLY' : undefined;
 
-      const matchedPlace=savedPlaces.find(place=>place.address===eventLocation.trim());
+      const matchedPlace=savedPlaces.find(place=>place.address===eventLocation.trim())||
+        (verifiedEventLocation&&verifiedEventLocation.label===eventLocation.trim()
+          ?{address:verifiedEventLocation.label,lat:verifiedEventLocation.lat,lon:verifiedEventLocation.lon}:null);
       const created=addEvent({
         title: eventTitle.trim(),
         category: activeType==='class'?'class':activeType==='self_help'?'self_help':eventCategory,
@@ -334,20 +356,40 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
                 </label>
               </div>
-              <p className="text-xs text-slate-600">For automatic traffic alerts, choose a verified saved location and approve a saved starting location in Travel settings. Notifications must be enabled.</p>
+              <p className="text-xs text-slate-600">For automatic traffic alerts, verify the destination below or choose a saved location. Approve a starting point in Travel settings once; background traffic monitoring then needs no further setup for each eligible appointment.</p>
               {!!savedPlaces.length&&<label className="block text-sm font-medium text-slate-800">Choose a saved location (optional)
                 <select value={savedPlaces.find(p=>p.address===eventLocation)?.id||''}
-                  onChange={e=>{const place=savedPlaces.find(p=>p.id===e.target.value);if(place)setEventLocation(place.address);}}
+                  onChange={e=>{
+                    const place=savedPlaces.find(p=>p.id===e.target.value);
+                    if(place){setEventLocation(place.address);setVerifiedEventLocation(null);setEventLocationCandidates([]);}
+                  }}
                   className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
                   <option value="">Enter a location instead</option>
                   {savedPlaces.map(place=><option key={place.id} value={place.id}>{place.label}</option>)}
                 </select>
               </label>}
               <label className="block text-sm font-medium text-slate-800">Location or meeting link (optional)
-                <input type="text" value={eventLocation} onChange={e=>setEventLocation(e.target.value)}
-                  placeholder="Address, room, or video link"
+                <input type="text" value={eventLocation}
+                  onChange={e=>{setEventLocation(e.target.value);setVerifiedEventLocation(null);setEventLocationCandidates([]);}}
+                  placeholder="Street address, city, state, or online link"
                   className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
               </label>
+              {eventVenue==='in_person'&&eventLocation.trim().length>=6&&
+               !savedPlaces.some(p=>p.address===eventLocation.trim())&&<div className="space-y-2">
+                <button type="button" disabled={checkingEventAddress}
+                  onClick={()=>void verifyEventAddress()}
+                  className="min-h-[44px] w-full rounded-xl border border-teal-300 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-950 disabled:opacity-50">
+                  {checkingEventAddress?'Finding street address…':'Verify this address for traffic alerts'}
+                </button>
+                {eventLocationCandidates.map((candidate,i)=><button type="button" key={i}
+                  onClick={()=>{setEventLocation(candidate.label);setVerifiedEventLocation(candidate);setEventLocationCandidates([]);setFormError('');}}
+                  className="block min-h-[44px] w-full rounded-xl border border-slate-300 bg-white p-3 text-left text-sm text-slate-800">
+                  {candidate.label}
+                </button>)}
+                {verifiedEventLocation&&verifiedEventLocation.label===eventLocation.trim()
+                 ?<p role="status" className="text-xs text-teal-800">Address verified for automatic route estimates.</p>
+                 :<p className="text-xs text-slate-600">You can still save the appointment without verifying; traffic alerts won't start until an address is verified.</p>}
+               </div>}
               {(activeType==='class'||activeType==='self_help')&&<label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-800">
                 <input type="checkbox" checked={eventRepeatWeekly} onChange={e=>setEventRepeatWeekly(e.target.checked)}
                   className="h-4 w-4 accent-teal-800"/>Repeat weekly on this day
