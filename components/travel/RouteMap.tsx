@@ -1,12 +1,21 @@
 'use client';
 
 import {useEffect,useMemo,useRef,useState} from 'react';
+import type {Map as MapLibreInstance} from 'maplibre-gl';
 import type {Point,Route} from '../../lib/travel/types';
 import {projectRoute} from '../../lib/travel/projection';
 import {validMapPoint} from '../../lib/travel/geometry';
 
 export function RouteMap({origin,destination,route}:{origin:Point;destination:Point;route:Route}){
  const holder=useRef<HTMLDivElement>(null);
+ const mapRef=useRef<MapLibreInstance|null>(null);
+ const [showTraffic,setShowTraffic]=useState(false);
+ const [showIncidents,setShowIncidents]=useState(false);
+ const trafficWanted=useRef(showTraffic);
+ const incidentsWanted=useRef(showIncidents);
+ const [overlayNotice,setOverlayNotice]=useState('');
+ trafficWanted.current=showTraffic;
+ incidentsWanted.current=showIncidents;
  const [fallback,setFallback]=useState(false);
  const [reason,setReason]=useState('');
  const [retry,setRetry]=useState(0);
@@ -27,9 +36,22 @@ export function RouteMap({origin,destination,route}:{origin:Point;destination:Po
  }).toString();
 
  useEffect(()=>{
+  if(!mapRef.current||fallback)return;
+  if(mapRef.current.getLayer('daybridge-traffic-flow')){
+   mapRef.current.setLayoutProperty('daybridge-traffic-flow','visibility',showTraffic?'visible':'none');
+  }
+ },[showTraffic,fallback]);
+ useEffect(()=>{
+  if(!mapRef.current||fallback)return;
+  if(mapRef.current.getLayer('daybridge-traffic-incidents')){
+   mapRef.current.setLayoutProperty('daybridge-traffic-incidents','visibility',showIncidents?'visible':'none');
+  }
+ },[showIncidents,fallback]);
+ useEffect(()=>{
   if(fallback)return;
   let cancelled=false;
-  let map:{remove:()=>void}|null=null;
+  let map:MapLibreInstance|null=null;
+  let watchdog:ReturnType<typeof setTimeout>|null=null;
   setLoading(true);
   async function mount(){
    try{
@@ -59,23 +81,58 @@ export function RouteMap({origin,destination,route}:{origin:Point;destination:Po
      }
     });
     map=instance;
+    mapRef.current=instance;
+    // If the base raster cannot load, do not leave an empty map on screen.
+    watchdog=setTimeout(()=>{
+      if(cancelled||mapRef.current!==instance)return;
+      if(!instance.isSourceLoaded('orbis-streets')){
+       setReason('Street tiles did not finish loading. Trying static imagery.');
+       setFallback(true);
+      }
+    },14000);
     instance.on('error',(e)=>{
      if(cancelled)return;
-     // A raster error normally means the tile request failed or the MapLibre
-     // runtime could not initialize WebGL; preserve a functioning fallback.
      const detail=String(e.error?.message||'');
-     setReason(detail.includes('401')||detail.includes('403')
-      ?'TomTom map tiles were denied. Trying the classic street map.'
-      :'Interactive street tiles are unavailable. Trying the classic street map.');
+     const sourceId=(e as {sourceId?:string}).sourceId;
+     // Optional overlays must NEVER blank an otherwise functioning street map.
+     if(sourceId==='daybridge-flow'||sourceId==='daybridge-incidents'||
+        detail.includes('/map-overlay/')){
+      setOverlayNotice('A traffic overlay is temporarily unavailable. The street map and routing still work.');
+      return;
+     }
+     setReason('Street-map imagery unavailable. Trying the static map.');
      setFallback(true);
     });
     instance.on('sourcedata',(e)=>{
-     if(!cancelled&&e.sourceId==='orbis-streets'&&e.isSourceLoaded)setLoading(false);
+     if(!cancelled&&e.sourceId==='orbis-streets'&&e.isSourceLoaded){
+      setLoading(false);
+      if(watchdog){clearTimeout(watchdog);watchdog=null;}
+     }
     });
     instance.on('load',()=>{
      if(cancelled)return;
      const line=[origin,...points,destination];
      const coordinates=line.map(p=>[p.lon,p.lat] as [number,number]);
+     // Traffic overlays are optional and come from the user's traffic-enabled
+     // TomTom key, not the map-display-only key.
+     instance.addSource('daybridge-flow',{
+      type:'raster',tiles:['/api/travel/map-overlay/flow/{z}/{x}/{y}'],
+      tileSize:256,minzoom:0,maxzoom:18,attribution:'© TomTom Traffic'
+     });
+     instance.addLayer({
+      id:'daybridge-traffic-flow',type:'raster',source:'daybridge-flow',
+      layout:{visibility:trafficWanted.current?'visible':'none'},
+      paint:{'raster-opacity':0.86}
+     });
+     instance.addSource('daybridge-incidents',{
+      type:'raster',tiles:['/api/travel/map-overlay/incidents/{z}/{x}/{y}'],
+      tileSize:256,minzoom:0,maxzoom:18,attribution:'© TomTom Traffic'
+     });
+     instance.addLayer({
+      id:'daybridge-traffic-incidents',type:'raster',source:'daybridge-incidents',
+      layout:{visibility:incidentsWanted.current?'visible':'none'},
+      paint:{'raster-opacity':0.96}
+     });
      instance.addSource('daybridge-route',{
       type:'geojson',data:{type:'Feature',properties:{},
        geometry:{type:'LineString',coordinates}}
@@ -114,7 +171,12 @@ export function RouteMap({origin,destination,route}:{origin:Point;destination:Po
    }
   }
   void mount();
-  return()=>{cancelled=true;map?.remove()};
+  return()=>{
+   cancelled=true;
+   if(watchdog)clearTimeout(watchdog);
+   if(mapRef.current===map)mapRef.current=null;
+   map?.remove();
+  };
  },[fallback,retry,points,origin.lat,origin.lon,destination.lat,destination.lon,
     projected.center.lat,projected.center.lon,projected.zoom]);
 
@@ -148,6 +210,19 @@ export function RouteMap({origin,destination,route}:{origin:Point;destination:Po
  },[fallback,query,retry]);
 
  return <section className="rounded-2xl border border-slate-200 bg-white p-3" aria-label="TomTom route map">
+  {!fallback&&<div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Optional map layers">
+   <button type="button" aria-pressed={showTraffic} onClick={()=>{setShowTraffic(v=>!v);setOverlayNotice('')}}
+    className={'min-h-[44px] rounded-xl border px-3 py-2 text-xs font-semibold '+
+      (showTraffic?'border-teal-700 bg-teal-800 text-white':'border-slate-300 bg-white text-slate-900')}>
+    {showTraffic?'✓ ':''}Traffic flow
+   </button>
+   <button type="button" aria-pressed={showIncidents} onClick={()=>{setShowIncidents(v=>!v);setOverlayNotice('')}}
+    className={'min-h-[44px] rounded-xl border px-3 py-2 text-xs font-semibold '+
+      (showIncidents?'border-teal-700 bg-teal-800 text-white':'border-slate-300 bg-white text-slate-900')}>
+    {showIncidents?'✓ ':''}Road incidents
+   </button>
+  </div>}
+  {overlayNotice&&!fallback&&<p role="status" className="mb-2 text-xs text-amber-900">{overlayNotice}</p>}
   {!fallback?<div className="relative">
    <div ref={holder} className="h-[320px] w-full overflow-hidden rounded-xl bg-teal-50"
     aria-label="Interactive TomTom street map showing your route" role="region"/>
