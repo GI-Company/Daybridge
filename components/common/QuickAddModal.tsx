@@ -371,8 +371,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     <option value="therapy">Therapy</option>
                     <option value="work">Work shift</option>
                     <option value="case_management">Case management</option>
-                    <option value="other">Other expense</option>
-                    </>}
+                    <option value="other">Other</option>
                   </select>
                 </label>}
                 <label className="block text-sm font-medium text-slate-800">Meeting format
@@ -615,7 +614,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     <option value="prescriptions">Prescriptions</option>
                     <option value="court">Court / Fees</option>
                     <option value="housing">Housing / Rent</option>
-                    <option value="other">Other</option>
+                    <option value="other">Other expense</option>
+                    </>}
                   </select>
                 </div>
                 <div>
