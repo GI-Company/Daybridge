@@ -22,6 +22,7 @@ import {
 } from '../../lib/medication';
 import { formatDate } from '../../lib/date-time';
 import {MedicationScheduleManager} from './MedicationScheduleManager';
+import {MedicationListManager} from './MedicationListManager';
 
 interface HealthViewProps {
   onOpenQuickAdd: () => void;
@@ -197,11 +198,12 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
           </div>
         ) : (
           <p className="text-xs text-slate-600 text-center py-4">
-            No scheduled medications configured for today.
+            No scheduled doses today. Manage medications below to remove, restore, or update an entry.
           </p>
         )}
       </section>
 
+      <MedicationListManager/>
       <MedicationScheduleManager/>
       {/* 2. REFILL OUTLOOK & INVENTORY */}
       <details className="rounded-3xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer p-3 text-sm font-semibold text-slate-900">Refills & inventory <span className="text-xs font-normal text-slate-600">· Expand</span></summary>
@@ -214,7 +216,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {medications.map((med) => {
+          {medications.filter(med=>med.isActive).map((med) => {
             const forecast = calculateRefillForecast(med, medicationSchedules);
             return (
               <div
