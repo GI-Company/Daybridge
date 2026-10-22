@@ -50,12 +50,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
             {isLiveSupabase ? (
               <>
                 <Cloud className="w-3.5 h-3.5 text-teal-700" />
-                <span className="hidden sm:inline text-teal-800 font-medium">{syncStatus === 'synced' ? 'Saved' : syncStatus === 'syncing' ? 'Saving…' : syncStatus === 'device_saved' ? 'On device' : 'Check sync'}</span>
+                <span className="text-[10px] sm:text-xs text-teal-800 font-medium">{syncStatus === 'synced' ? 'Saved' : syncStatus === 'syncing' ? 'Saving…' : syncStatus === 'device_saved' ? 'On device' : 'Check sync'}</span>
               </>
             ) : (
               <>
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="hidden sm:inline text-slate-700">Cloud unavailable</span>
+                <span className="text-[10px] sm:text-xs text-slate-700">Cloud offline</span>
               </>
             )}
           </button>
