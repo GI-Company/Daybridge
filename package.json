@@ -28,10 +28,10 @@
     "tailwind-merge": "^3.3.1",
     "zod": "^4.6.7",
     "@tomtom-org/maps-sdk": "1.0.0-rc.2",
-    "maplibre-gl": "6.0.0",
-    "@turf/turf": "7.2.0",
+    "maplibre-gl": "6.15.0",
+    "@turf/turf": "7.4.0",
     "culori": "4.0.2",
-    "lodash-es": "4.17.21",
+    "lodash-es": "4.18.1",
     "web-push": "3.6.7"
   },
   "devDependencies": {
@@ -49,6 +49,6 @@
     "@types/web-push": "3.6.4"
   },
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   }
 }
