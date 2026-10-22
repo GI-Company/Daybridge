@@ -2,7 +2,8 @@ import 'server-only';
 import {createClient} from '@supabase/supabase-js';
 import * as webpush from 'web-push';
 import {calculateRoute} from './tomtom';
-import {assessTravelImpact,summarizeTrafficUpdate,type TravelImpactResult} from './traffic-impact';
+import {assessTravelImpact,type TravelImpactResult} from './traffic-impact';
+import {travelNotificationText} from './notification-text';
 
 export function adminClient(){
  const url=process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,7 +18,7 @@ export function vapidReady(){
  webpush.setVapidDetails(process.env.VAPID_SUBJECT||'https://daybridge-swart.vercel.app',publicKey,privateKey);
 }
 type SourceEvent={id:string;startTime:string;rrule?:string;location?:string;venueType?:string;destinationLat?:number;destinationLon?:number};
-type Plan={id:string;user_id:string;source_event_id:string;occurrence_start:string;timezone:string;destination_address:string;destination_lat:number;destination_lon:number;origin_lat:number|null;origin_lon:number|null;travel_mode:'car'|'pedestrian'|'bicycle';arrival_buffer_minutes:number;source_revision:string;last_travel_seconds:number|null;last_delay_seconds:number|null;last_checked_at:string|null;updated_at:string};
+type Plan={id:string;user_id:string;source_event_id:string;occurrence_start:string;timezone:string;destination_address:string;destination_lat:number;destination_lon:number;origin_lat:number|null;origin_lon:number|null;travel_mode:'car'|'pedestrian'|'bicycle';arrival_buffer_minutes:number;source_revision:string;last_travel_seconds:number|null;last_delay_seconds:number|null;last_checked_at:string|null;updated_at:string;departed_at:string|null};
 type Prefs={user_id:string;traffic_notifications:boolean;lockscreen_private:boolean;saved_origin_lat:number|null;saved_origin_lon:number|null};
 function localTime(iso:string,timezone:string){
  const f=new Intl.DateTimeFormat('en-US',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
@@ -37,7 +38,7 @@ function validSource(event:SourceEvent|undefined,plan:Plan){
  return source.slice(11)===target.slice(11)&&weekday(source)===weekday(target)&&target.slice(0,10)>=source.slice(0,10);
 }
 type TravelUpdate={travelSeconds:number;delaySeconds:number;leaveByMs:number;lockscreenPrivate:boolean;
- impact:TravelImpactResult;routeCount:number};
+ impact:TravelImpactResult;routeCount:number;departed:boolean;startMs:number};
 async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'preliminary'|'preparation'|'leave_now'|'traffic_change',time:number,update:TravelUpdate,reason:'routine'|'late-risk'|'late-risk-change'='routine'){
  const dedupeSlot=reason==='late-risk'?'late-risk':reason==='late-risk-change'?'risk-'+Math.floor(time/(15*60000)):kind==='traffic_change'?Math.floor(time/(15*60000)):'once';
  const key=[plan.id,plan.source_revision,kind,dedupeSlot].join(':');
@@ -54,22 +55,26 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
  const {data:subs,error:subError}=await admin.from('push_subscriptions').select('id,endpoint,keys_auth,keys_p256dh').eq('user_id',plan.user_id).is('disabled_at',null);
  if(subError){await admin.from('notification_deliveries').update({status:'failed'}).eq('id',record.id);return}
  if(!subs?.length){await admin.from('notification_deliveries').update({status:'no_subscription'}).eq('id',record.id);return}
- const title=update.lockscreenPrivate?'DayBridge travel update'
-  :reason!=='routine'?'Possible late arrival from saved start'
-  :kind==='preparation'?'One-hour appointment traffic update'
-  :kind==='leave_now'?'Departure time reached'
-  :kind==='traffic_change'?'Your travel ETA has changed':'Upcoming appointment';
- const body=update.lockscreenPrivate
-  ?'Open DayBridge to review your route and departure time.'
-  :summarizeTrafficUpdate(update.impact,update.travelSeconds,update.delaySeconds,update.routeCount,plan.timezone);
- // The event ID and date are opaque app records, not street locations or directions.
+ const copy=travelNotificationText({
+  kind,nowMs:time,startMs:update.startMs,leaveByMs:update.leaveByMs,
+  travelSeconds:update.travelSeconds,delaySeconds:update.delaySeconds,
+  priorTravelSeconds:plan.last_travel_seconds,timezone:plan.timezone,
+  arrivedLateMinutes:update.impact.lateForAppointmentMinutes,
+  routeOptions:update.routeCount,privacyMode:update.lockscreenPrivate,
+  departed:update.departed
+ });
+ // Full travel figures appear on the notification. In private mode we never
+ // include the address, appointment title or reason for the visit.
  const date=localTime(plan.occurrence_start,plan.timezone).slice(0,10);
  const url='/?tab=schedule&event='+encodeURIComponent(plan.source_event_id)+'&date='+encodeURIComponent(date);
- const message={kind,title,body,url,tag:'daybridge-'+kind+'-'+plan.id};
+ const message={kind,title:copy.title,body:copy.body,url,
+  appointmentId:plan.id,canAcknowledge:!update.departed,
+  tag:'daybridge-'+kind+'-'+plan.id,sentAt:time};
  let success=0;
  for(const sub of subs){
   try{
-   await webpush.sendNotification({endpoint:sub.endpoint,keys:{auth:sub.keys_auth,p256dh:sub.keys_p256dh}},JSON.stringify(message),{TTL:1800,urgency:'normal'});
+   await webpush.sendNotification({endpoint:sub.endpoint,keys:{auth:sub.keys_auth,p256dh:sub.keys_p256dh}},JSON.stringify(message),{TTL:kind==='leave_now'?300:900,
+     urgency:kind==='leave_now'||reason!=='routine'?'high':'normal'});
    success++;
   }catch(err){
    const code=(err as {statusCode?:number}).statusCode;
@@ -131,7 +136,7 @@ export async function monitorTravel(){
    const update:TravelUpdate={
      travelSeconds:best.durationSeconds,delaySeconds:best.delaySeconds,
      leaveByMs:leaveMs,lockscreenPrivate:pref.lockscreen_private,
-     impact,routeCount:ordered.length
+     impact,routeCount:ordered.length,departed:Boolean(plan.departed_at),startMs
    };
    await admin.from('travel_appointments').update({
      last_travel_seconds:best.durationSeconds,last_delay_seconds:best.delaySeconds,
@@ -140,7 +145,13 @@ export async function monitorTravel(){
    checked++;
    // One priority notification per appointment per worker pass. Critical risk
    // supersedes ordinary one-hour reminders, preventing alert floods.
-   if(remaining>0&&impact.appointmentAtRisk){
+   if(remaining>0&&plan.departed_at){
+     // Acknowledgment doesn't prove location or arrival. Stop leave-now
+     // reminders but retain meaningful traffic change alerts on the saved route.
+     if(remaining<=4*3600000&&impact.meaningfulChange){
+       await deliver(admin,plan,'traffic_change',now,update);alerts++;
+     }
+   }else if(remaining>0&&impact.appointmentAtRisk){
      await deliver(admin,plan,'traffic_change',now,update,impact.meaningfulChange?'late-risk-change':'late-risk');alerts++;
    }else if(remaining>0&&now>=leaveMs-5*60000){
      await deliver(admin,plan,'leave_now',now,update);alerts++;
