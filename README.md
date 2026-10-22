@@ -1,76 +1,41 @@
 # DayBridge Personal Edition
 
-A private, mobile-first daily organizer and accountability life-management application for individuals navigating accountability court assignments, treatment programs, and daily living.
+A private install-first PWA for one person's daily budgeting, medications, therapy, case-management, accountability-court classes, and tasks.
 
-![DayBridge Icon](/public/icon.svg)
+## Architecture
+- Next.js 15 App Router + TypeScript + Tailwind v4; deployed on Vercel
+- Supabase Auth, persistent secure browser session, optional experimental WebAuthn passkeys
+- Supabase PostgreSQL (17 normalized domain tables plus `private_snapshots`)
+- Live UI currently persists a single JSON snapshot per signed-in owner using Supabase RLS. The normalized tables are **prepared for a future migration**, not yet used by the UI.
+- Light-only, accessible navigation with grouped and collapsible side menu
+- Install-first screen for supported Android/iOS/desktop PWAs
+- A push-only service worker that does **not** cache protected screens or private records
 
----
+## Setup
+1. Use the dedicated Supabase project. Apply the migrations in `supabase/migrations` if not already applied. For the owner's existing project these were applied on 2026-10-21 (America/New_York).
+2. In Supabase Dashboard, disable public sign-ups (Authentication > Providers > Email), create/invite **only your own account**, and require email confirmation. Keep MFA available.
+3. Configure the **production domain** in Supabase Auth URL configuration and the WebAuthn Relying Party settings. Passkeys are experimental; avoid changing the RP ID after enrollment. Enable passkeys in Dashboard only when the permanent HTTPS domain is known.
+4. In Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. These are public configuration values, not secrets. Never expose Supabase service/secret keys to the client.
+5. Optional remote Web Push setup needs `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in Vercel **and a separate authenticated delivery worker with VAPID private key**. No delivery worker is present yet, so do **not** rely on automatic scheduled notifications.
+6. Install the PWA from the device's browser, open the home-screen icon, sign in, then optionally register your passkey and enable device notification permission in Settings.
+7. Test across Android Chrome/Samsung Internet and iOS Home Screen. On iOS, no JavaScript API can force an install prompt; the app shows manual instructions.
 
-## Key Features
-
-- **5-Second Priority Dashboard:** Answers *What do I do next? Did I take my medication? What can I safely spend? What must I prepare for tomorrow?*
-- **Accountability Court & Classes:** Recurring weekly classes, travel buffers, preparation checklists, and personal self-reported attendance tracking.
-- **Conservative Safe-to-Spend:** Pure integer-cents ledger deducting unpaid bills, earmarked essentials (gas/transit, groceries), and safety buffer before payday.
-- **Wage Advance Protection:** Deducts early wage access (EarnIn/Dave) from expected paychecks to eliminate double-counting spendable money.
-- **Medication Management:** Scheduled morning/night doses and PRN logs with unique slot protection, refill runout forecasts, and one-tap Taken / Snooze / Skip actions.
-- **Printable Weekly Self-Review:** Clean printable report for personal review or coordinator meetings with optional medication name redaction.
-- **Private Resources & 24/7 Crisis Support:** Saved contacts for court officers, therapists, and doctors, with one-tap 988 Crisis Line access.
-
----
-
-## Technical Architecture
-
-- **Framework:** Next.js 15+ (App Router) + TypeScript
-- **Styling:** Tailwind CSS with accessible color contrast and 44x44px minimum tap targets
-- **Backend & Database:** Supabase SSR Auth, PostgreSQL with Row Level Security (RLS) on all tables
-- **Storage Strategy:** Resilient offline-first local repository with seamless Supabase cloud synchronization
-- **PWA Ready:** Web Manifest, icons, standalone display mode
-
----
-
-## Getting Started
-
-### 1. Local Development
+## Local
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd daybridge
-
-# Install dependencies
 npm install
-
-# Run the development server
+npm run typecheck
+npm run build
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+## Security assumptions
+- Never enter real medication, therapy or court data in a preview URL or unaudited deployment.
+- The app currently stores authenticated personal records in Supabase `private_snapshots`, not browser localStorage. Data is encrypted in transit and relies on Supabase platform-level encryption at rest; it is **not end-to-end encrypted**.
+- JSON export is **unencrypted** and must be protected.
+- PWA installation is a UX prerequisite, not an authentication or authorization security boundary.
+- The service worker doesn't implement offline access to personal records. Existing local data from old builds requires a deliberate manual migration; this build doesn't silently copy it.
+- Concurrent edits from multiple devices are last-write-wins, and failed saves require retry. Use one primary device until conflict detection and a persistent offline queue are implemented.
+- App-entered attendance is self-reported, never official court verification.
+- For health decisions, always follow clinician instructions and prescription labeling.
 
----
-
-## Supabase Deployment Checklist (Manual Owner Setup)
-
-1. **Create a Private Supabase Project:**
-   - Log into [Supabase](https://supabase.com) and create a new project.
-2. **Disable Public Signups:**
-   - In Supabase Dashboard -> **Authentication** -> **Providers** -> **Email**, disable *Enable Signup*.
-   - Manually invite or create your single authorized user account.
-3. **Run Schema & RLS Migrations:**
-   - Open the **SQL Editor** in your Supabase dashboard.
-   - Run the contents of `supabase/migrations/20261021000000_daybridge_schema.sql`.
-   - Confirm that Row Level Security (RLS) is enabled on all tables.
-4. **Configure Environment Variables in Vercel:**
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
-   NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-publishable-key"
-   SUPABASE_SERVICE_ROLE_KEY="your-server-only-service-role-key"
-   NEXT_PUBLIC_APP_URL="https://your-custom-domain.vercel.app"
-   ```
-
----
-
-## Important Disclaimers
-
-1. **Non-Certification Notice:**
-   Attendance recorded in DayBridge is user-entered and self-reported. It does not constitute an official court attendance certificate.
-2. **Personal Medical Record Only:**
-   Medication schedules and dose logs are personal tracking records and do not constitute clinical guidance. Always follow prescription labels and healthcare provider instructions.
+See `SECURITY.md` and `KNOWN_LIMITATIONS.md`.

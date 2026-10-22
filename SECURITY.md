@@ -1,35 +1,22 @@
-# DayBridge Security Policy & Threat Model
+# DayBridge security model
 
-## Overview
-DayBridge Personal Edition is architected with a strict privacy-first and defense-in-depth security model. The application is built for one authorized human owner managing personal accountability, healthcare schedules, and manual budgets.
+## Current controls
+- No public sign-up interface in the PWA. **Also turn off public sign-ups in Supabase dashboard**; UI alone is not enforcement.
+- Authenticated Supabase account required before mounting any private views.
+- Records stored under `private_snapshots.user_id`, protected by select/insert/update/delete owner-specific RLS; anonymous access revoked.
+- All 17 domain tables have RLS owner predicates. The existing `rls_auto_enable()` privileged helper was revoked from public API roles.
+- Public/publishable Supabase keys are safe in client code only with correct RLS. **Never** use a service role/secret key in `NEXT_PUBLIC_` variables.
+- No plaintext app-data localStorage writes in the live data store.
+- Service worker performs push display only, caches neither routes nor private data.
+- Notifications use generic text to avoid exposing medication or court information on a lock screen.
+- Password or passkey sign-in can persist session across launches. Device locking and revoking lost sessions remain the owner's responsibility.
+- Headers disable framing, sniffing, referrals, and unneeded device capabilities.
 
-## Assets & Classification
-1. **Prescription & Medication Records:** Drug names, dosages, instructions, and dose timestamps.
-2. **Accountability & Court Records:** Court classes, hearing dates, location, case worker contact info, and self-reported attendance.
-3. **Financial Snapshot:** Manual checking/cash balances, wage advances, and recurring bills.
-4. **Authentication & Session Tokens:** Supabase SSR session cookies, WebAuthn credentials.
-
-## Threat Model & Mitigations
-
-### 1. Database Access & Row Level Security (RLS)
-- **Control:** Every table in the Supabase schema (`profiles`, `calendar_events`, `event_occurrences`, `tasks`, `medications`, `medication_schedules`, `medication_logs`, `budget_accounts`, `money_transactions`, `paycheck_plans`, `wage_advances`, `bills`, `budget_reserves`, `resource_contacts`, `reminder_rules`, `reminder_occurrences`, `push_subscriptions`) has RLS enabled.
-- **Rule:** Strict owner predicate `auth.uid() = user_id` for `SELECT`, `INSERT WITH CHECK`, `UPDATE USING/WITH CHECK`, and `DELETE`.
-- **Cross-Tenant Isolation:** Unauthenticated requests and cross-owner queries are rejected at the database engine level.
-
-### 2. Lock-Screen Push Notification Hygiene
-- **Control:** Notification payloads dispatched to Web Push services (Apple APNs / Google FCM) contain strictly generic text:
-  - *Title:* "DayBridge reminder"
-  - *Body:* "Open DayBridge to view scheduled item"
-- **Mitigation:** Sensitive medication names, clinician titles, and court appointment descriptions are never sent over notification networks or displayed on device lock screens.
-
-### 3. Client-Side Secrets & Credentials
-- **Control:** No privileged keys (`SUPABASE_SERVICE_ROLE_KEY`, database admin passwords) exist in client bundles or `NEXT_PUBLIC_` variables.
-- **Verification:** All sensitive server operations and push notifications are handled via isolated server runtime/Edge Functions.
-
-### 4. Zero Third-Party Trackers & Telemetry
-- No ad trackers, marketing pixels, or analytics services.
-- No medical or court data is transmitted to AI inference models or external LLMs.
-
-### 5. Data Export & Right to Deletion
-- The owner can export a complete plaintext copy of all data in JSON format at any time.
-- A single-action "Wipe Local Data" affordance deletes local cache and resets application state.
+## Unfinished / must verify before daily use
+- Owner invitation and disabling sign-ups must be done in dashboard.
+- Passkeys must be enabled for the final HTTPS relying-party domain (Supabase experimental feature).
+- Scheduled notification dispatch, dedupe, retry, and delivery monitoring not yet implemented; never depend exclusively on app alerts for critical medication.
+- Offline encrypted queue, automatic cross-device conflict resolution, session-step-up lock, key management for field encryption, and RLS impersonation/integration tests remain open.
+- JSON download is unencrypted: protect or delete it after use.
+- Do not include personal records in issue reports, screenshots, telemetry, or GitHub commits.
+- HIPAA applicability depends on how the product is used and by whom; don't advertise certification.
