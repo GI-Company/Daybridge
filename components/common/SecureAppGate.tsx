@@ -1,6 +1,6 @@
 'use client';
 import React,{useEffect,useMemo,useState} from 'react';
-import type {User} from '@supabase/supabase-js';
+import type {User,Session,AuthChangeEvent} from '@supabase/supabase-js';
 import {Fingerprint,KeyRound,ShieldCheck} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
 
@@ -15,8 +15,8 @@ export function SecureAppGate({children}:{children:(id:string)=>React.ReactNode}
  useEffect(()=>{
    if(!client){setPending(false);return}
    let active=true;
-   client.auth.getUser().then(({data,error})=>{if(active){setUser(error?null:data.user);setPending(false)}});
-   const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{if(active){setUser(session?.user??null);setPending(false)}});
+   client.auth.getUser().then((result: {data:{user:User};error:unknown})=>{if(active){setUser(result.error?null:result.data.user);setPending(false)}}).catch(()=>{if(active){setUser(null);setPending(false)}});
+   const {data:{subscription}}=client.auth.onAuthStateChange((_event:AuthChangeEvent,session:Session|null)=>{if(active){setUser(session?.user??null);setPending(false)}});
    return()=>{active=false;subscription.unsubscribe()};
  },[client]);
  if(!client)return <main className="min-h-screen flex items-center justify-center bg-slate-50 p-5"><section className="max-w-md rounded-2xl border border-amber-300 bg-white p-6"><h1 className="font-bold text-slate-900">Private backend not configured</h1><p className="mt-2 text-sm text-slate-700">Configure the public Supabase project URL and publishable key in Vercel. No personal records are available until sign-in is configured.</p></section></main>;
