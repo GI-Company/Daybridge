@@ -29,6 +29,6 @@ export function usernameToAuthEmail(value: string): string | null {
 export function loginIdentifierToEmail(value: string): string | null {
   const identifier = value.trim().toLowerCase();
   if (!identifier.includes('@')) return usernameToAuthEmail(identifier);
-  if (identifier.length > 254 || !/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(identifier)) return null;
+  if (identifier.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) return null;
   return identifier;
 }
