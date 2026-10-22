@@ -25,8 +25,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
       <div className="max-w-4xl mx-auto flex items-center justify-between">
         {/* Brand & Greeting */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-teal-400 flex items-center justify-center shadow-lg shadow-teal-100/70">
-            <span className="font-bold text-lg text-slate-950 tracking-tight">DB</span>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-800 to-teal-600 flex items-center justify-center shadow-lg shadow-teal-100/70">
+            <span className="font-bold text-lg text-white tracking-tight">DB</span>
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
           {/* Quick Add Button */}
           <button
             onClick={onOpenQuickAdd}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 active:scale-95 text-slate-950 font-semibold text-xs transition shadow-md shadow-teal-100/70"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 active:scale-95 text-white font-semibold text-xs transition shadow-md shadow-teal-100/70"
             aria-label="Quick Add Obligation or Record"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />

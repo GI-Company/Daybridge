@@ -78,7 +78,13 @@ export function Navigation({ currentTab, onTabChange }:NavigationProps) {
   </button>
   {open&&<div className="fixed inset-0 z-50 lg:hidden">
     <button type="button" aria-label="Close navigation" onClick={()=>setOpen(false)} className="absolute inset-0 h-full w-full bg-slate-900/45"/>
-    <aside role="dialog" aria-modal="true" aria-label="Navigation menu" className="absolute inset-y-0 left-0 w-[min(88vw,340px)] overflow-y-auto border-r border-slate-200 bg-white shadow-2xl">
+    <aside role="dialog" aria-modal="true" aria-label="Navigation menu" onKeyDown={event=>{
+      if(event.key!=='Tab')return;
+      const focusables=Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),[tabindex]:not([tabindex="-1"])'));
+      const first=focusables[0],last=focusables[focusables.length-1];
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}
+    }} className="absolute inset-y-0 left-0 w-[min(88vw,340px)] overflow-y-auto border-r border-slate-200 bg-white shadow-2xl">
      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
       <strong className="text-base text-slate-900">DayBridge menu</strong>
       <button type="button" autoFocus onClick={()=>setOpen(false)} aria-label="Close menu" className="rounded-lg p-2 text-slate-700 hover:bg-slate-100"><X className="h-5 w-5"/></button>

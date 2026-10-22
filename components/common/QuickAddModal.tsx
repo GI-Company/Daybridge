@@ -207,7 +207,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap min-h-[44px] transition ${
                   isSelected
                     ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-100/70'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-100 hover:text-white border border-slate-700/50'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-100 hover:text-slate-950 border border-slate-200'
                 }`}
               >
                 <Icon className="w-4 h-4" />
