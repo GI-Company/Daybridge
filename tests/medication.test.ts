@@ -42,3 +42,16 @@ test('inventory forecast respects two scheduled doses daily',()=>{
 test('PRN medication does not invent a daily refill rate',()=>{
  assert.equal(calculateRefillForecast({...med,isPrn:true},[]).daysRemaining,null);
 });
+
+test('removed medication is absent from daily slots while its old dose logs remain intact',()=>{
+ const day=new Date(2026,9,22);
+ const original=getMedicationSlotsForDay([med],schedules,[],day);
+ const historicalLog={id:'past1',userId:'u',medicationId:'m1',
+  scheduledSlotUtc:original[0].scheduledTime,recordedAtUtc:day.toISOString(),action:'taken' as const};
+ const removed={...med,isActive:false};
+ assert.equal(getMedicationSlotsForDay([removed],schedules,[historicalLog],day).length,0);
+ assert.equal(historicalLog.medicationId,'m1');
+ const restored=getMedicationSlotsForDay([{...removed,isActive:true}],schedules,[historicalLog],day);
+ assert.equal(restored.length,2);
+ assert.equal(restored[0].actionStatus,'taken');
+});

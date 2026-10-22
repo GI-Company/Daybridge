@@ -584,8 +584,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const deleteMedication = (id: string) => {
+    // Permanent deletion is only exposed for an already-removed medication.
+    // Delete all dependent private dose schedules and history so no orphaned
+    // medication log entries remain in the synchronized snapshot.
+    if(!medications.some(m=>m.id===id&&!m.isActive))return;
     setMedications((prev) => prev.filter((m) => m.id !== id));
     setMedicationSchedules((prev) => prev.filter((s) => s.medicationId !== id));
+    setMedicationLogs((prev) => prev.filter((log) => log.medicationId !== id));
   };
 
   const logDose = (
