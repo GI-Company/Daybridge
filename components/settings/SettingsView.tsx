@@ -19,6 +19,7 @@ import {
 import { useDayBridge } from '../../lib/storage/store';
 import { DeviceSetup } from '../common/DeviceSetup';
 import { TravelPreferencesCard } from '../travel/TravelPreferences';
+import { ChangePasswordCard } from '../common/ChangePasswordCard';
 
 export const SettingsView: React.FC = () => {
   const data=useDayBridge();
@@ -74,6 +75,7 @@ export const SettingsView: React.FC = () => {
       </div>
 
       <DeviceSetup />
+      <ChangePasswordCard />
       <TravelPreferencesCard />
 
       {/* 1. PROFILE & TIMEZONE */}
