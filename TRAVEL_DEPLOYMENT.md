@@ -9,10 +9,23 @@
 - App currently defaults to current origin, navigation true, notifications true, 15-minute buffer, private lock screen. **User must explicitly approve a saved origin and enable monitoring on each appointment** to receive background route checks.
 
 
-## Dedicated Map Display key
-The `MAPS_DISPLAY` environment variable holds the **server-only** TomTom Maps Display API key. It is used by `app/api/travel/static-map/route.ts` to display street-map imagery through an authenticated server proxy. No `NEXT_PUBLIC_` prefix is needed and the display key must **not** be returned to the browser or committed to GitHub.
+## Map Display credentials and mobile route preview
+The authenticated `app/api/travel/static-map/route.ts` now uses the existing server-only
+`tom_tom` key (or `TOMTOM_API_KEY` fallback) for TomTom Map Display Static Image
+requests. The account's `tom_tom` key has Map Display permission. The separate
+`MAPS_DISPLAY` variable is not used by the static map endpoint, avoiding an
+accidental preference for a different key. Do not expose either key with a
+`NEXT_PUBLIC_` prefix.
 
-Routing, traffic estimates and geocoding continue to use `tom_tom` or `TOMTOM_API_KEY`; the dedicated map key is not substituted for those services. If `MAPS_DISPLAY` is absent, the static map endpoint retains its existing routing-key fallback. Set `MAPS_DISPLAY` for **Production** in the Vercel `daybridge` project and redeploy once. The map remains static with an overlaid route in this server-only mode; a dedicated browser-exposed key is not required for this static preview.
+TomTom's documented classic Map Display API supports `/map/1/staticimage`.
+The client fetches that authenticated same-origin image, shows its HTTP failure
+reason without revealing credentials, and can retry after a failure. Route geometry
+and start/end markers stay visible when the base map is unavailable.
+
+`NEXT_PUBLIC_TOMTOM_MAP_KEY` remains an optional, independently
+browser-restricted key for an interactive SDK renderer; it is not needed for the
+static route preview. The static map remains a fixed image rather than
+interactive zoom/pan. Do not reuse the `tom_tom` server key as a browser key.
 
 ## Production Vercel variables
 Already present per project inspection: \`tom_tom\`, Supabase public URL/publishable keys, and service-role credentials. Existing values must remain unchanged.
