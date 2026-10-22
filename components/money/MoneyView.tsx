@@ -643,7 +643,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                       {formatCents(tx.amountCents)}
                     </span>
                     <button
-                      onClick={() => deleteTransaction(tx.id)}
+                      onClick={() => {if(window.confirm('Delete this transaction and reverse its balance effect?'))deleteTransaction(tx.id)}}
                       className="p-1.5 text-slate-600 hover:text-rose-700"
                       title="Delete transaction"
                     >
