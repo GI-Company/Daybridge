@@ -63,7 +63,7 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
  const body=update.lockscreenPrivate
   ?'Open DayBridge for your private route estimate and departure time.'
   :trafficMessage(update,plan.timezone);
- const message={kind,title,body,url:'/'};
+ const message={kind,title,body,url:'/',tag:'daybridge-'+kind+'-'+plan.id};
  let success=0;
  for(const sub of subs){
   try{
