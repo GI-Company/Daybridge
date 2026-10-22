@@ -35,7 +35,7 @@ const addChoices: {id: QuickAddType; label: string; detail: string; icon: typeof
  {id:'event',label:'Appointment',detail:'Court, work, or personal',icon:Calendar},
  {id:'class',label:'Class / Group',detail:'Classes and sessions',icon:GraduationCap},
  {id:'self_help',label:'Self-Help Meeting',detail:'AA, NA, SMART, or other',icon:Users},
- {id:'task',label:'Task / Reminder',detail:'Something to remember',icon:CheckSquare},
+ {id:'task',label:'Task',detail:'Something to remember',icon:CheckSquare},
  {id:'medication',label:'Medication',detail:'Doses and reminders',icon:Pill},
  {id:'transaction',label:'Expense / Income',detail:'Track money',icon:DollarSign},
  {id:'bill',label:'Bill',detail:'Payment due date',icon:Receipt},
@@ -203,7 +203,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
     } else if (activeType === 'transaction') {
       const cents = parseDollarsToCents(txAmount);
       if (!cents || cents<=0){setFormError('Enter a valid amount greater than zero.');return;}
-      if(!selectedAccountId||!accounts.some(account=>account.id===selectedAccountId)){
+      if(!selectedAccountId||!accounts.some(account=>account.id===selectedAccountId&&account.isActive)){
         setFormError('Choose the account for this transaction.');return;
       }
       const signedCents = txType === 'expense' ? -Math.abs(cents) : Math.abs(cents);
@@ -568,6 +568,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 />
               </div>
 
+              <label className="block text-sm font-semibold text-slate-800">Account
+                <select required value={selectedAccountId} onChange={e=>setSelectedAccountId(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="">Choose an account</option>
+                  {accounts.filter(a=>a.isActive).map(account=><option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+              {!accounts.some(a=>a.isActive)&&<p role="alert" className="text-sm text-amber-900">Add an account in Budget before recording money.</p>}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Category</label>
@@ -655,6 +664,48 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
             </>
           )}
 
+          {/* LOCATION FORM: verified coordinates are required for routing */}
+          {activeType==='location'&&<>
+            <label className="block text-sm font-semibold text-slate-900">Place name
+              <input type="text" required maxLength={80} value={placeName} onChange={e=>setPlaceName(e.target.value)}
+                placeholder="e.g. Weekly class" className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+            </label>
+            <label className="block text-sm font-semibold text-slate-900">Street address and city
+              <input type="text" required value={placeAddress} onChange={e=>{setPlaceAddress(e.target.value);setVerifiedLocation(null);setLocationCandidates([]);}}
+                placeholder="Street address, city, state" className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+            </label>
+            <button type="button" disabled={locationBusy||placeAddress.trim().length<6}
+              onClick={()=>void verifyAddress()}
+              className="min-h-[44px] w-full rounded-xl border border-teal-300 bg-teal-50 p-3 text-sm font-semibold text-teal-950 disabled:opacity-50">
+              {locationBusy?'Verifying address…':'Verify address'}
+            </button>
+            {!!locationCandidates.length&&<fieldset className="space-y-2">
+              <legend className="text-xs font-semibold text-slate-800">Choose the correct match</legend>
+              {locationCandidates.map((candidate,i)=><button key={i} type="button" onClick={()=>{setVerifiedLocation(candidate);setPlaceAddress(candidate.label);setFormError('');}}
+                className={'block min-h-[44px] w-full rounded-xl border p-3 text-left text-sm '+
+                (verifiedLocation?.label===candidate.label?'border-teal-700 bg-teal-50 text-teal-950':'border-slate-300 bg-white text-slate-800')}>
+                {candidate.label}
+              </button>)}
+            </fieldset>}
+            {verifiedLocation&&<p className="text-xs text-teal-900">Verified address selected. It will be available in your private saved places.</p>}
+            <button type="button" onClick={()=>setAdvanced(prev=>!prev)} aria-expanded={advanced}
+              className="flex w-full min-h-[44px] items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-teal-900">
+              {advanced?'Hide optional settings':'More options (optional)'} <span aria-hidden="true">{advanced?'−':'+'}</span>
+            </button>
+            {advanced&&<label className="block text-sm font-medium text-slate-800">Place type
+              <select value={placeKind} onChange={e=>setPlaceKind(e.target.value as SavedPlaceCategory)}
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                <option value="other">Other</option>
+                <option value="home">Home</option>
+                <option value="work">Work</option>
+                <option value="therapy">Therapy</option>
+                <option value="class">Class or meeting</option>
+                <option value="court">Court</option>
+                <option value="drug_testing">Drug testing</option>
+              </select>
+            </label>}
+          </>}
+
           {/* CONTACT FORM */}
           {activeType === 'contact' && (
             <>
@@ -714,11 +765,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
             </>
           )}
 
+          {formError&&<p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950">{formError}</p>}
           {/* Form Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 min-h-[44px] transition"
             >
               Cancel
@@ -727,7 +779,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
               type="submit"
               className="px-5 py-2.5 rounded-xl text-xs font-bold bg-teal-500 hover:bg-teal-400 active:scale-95 text-slate-950 min-h-[44px] shadow-lg shadow-teal-100/70 transition"
             >
-              Save Record
+              Save {activeType==='class'?'Class':activeType==='self_help'?'Meeting':activeType==='event'?'Appointment':activeType==='location'?'Location':activeType==='transaction'?'Transaction':'Record'}
             </button>
           </div>
         </form>}
