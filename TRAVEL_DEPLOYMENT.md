@@ -87,3 +87,12 @@ Do not activate until you have set Vercel secrets, inserted Vault secret, confir
 - Routing to a far-future appointment uses modelled/historical estimates, not guaranteed live traffic.
 - Multiple edits and stale client state are not yet transactionally reconciled across devices.
 - Supabase stores coordinates and appointment metadata to run private monitoring; not end-to-end encrypted.
+
+## Traffic ETA changes, late risk, and faster alternatives
+- Server monitoring continues every five minutes for eligible scheduled appointments with verified coordinates, push permission, traffic notifications enabled, and a separately approved saved origin. Both total trip time and traffic delay are compared to the last successful check; shifts of five minutes or more can trigger a deduplicated travel update.
+- During the final two hours the worker requests up to two alternatives alongside the fastest TomTom route. The recommended route is the quickest of the returned candidates. If departing from the saved origin now risks arriving after appointment start, the worker prioritizes a possible-lateness notice; it does not claim to know the user's live location.
+- For far-future appointments TomTom supplies forecast/historical estimates; close to departure the route is calculated using current traffic. Estimates and arrival times are not guarantees, and a faster route is not always available.
+- Traffic push notifications link to the appointment's local calendar date. Sensitive route and appointment details stay off the lock screen when private notification wording is enabled.
+- Opening the appointment's travel section automatically loads route choices when a saved starting location was approved. Only explicitly started foreground guidance uses current phone GPS. While foreground guidance remains open, it refreshes live routes as the user moves, keeping the fastest displayed option selected. This is not a full turn-by-turn navigation engine; an external navigation app remains recommended while driving.
+- Permanent/background GPS tracking, automatic changes to an external navigation application's active route, and guaranteed real-time delivery while the phone is offline are not supported.
+
