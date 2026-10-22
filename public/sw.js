@@ -76,9 +76,14 @@ self.addEventListener('message',event=>{
 });
 
 self.addEventListener('push',event=>{
- let category='general';try{category=String(event.data?.json()?.kind||'general').replace(/[^a-z_]/g,'').slice(0,24)}catch{}
- const options={body:'Open DayBridge to review an upcoming item.',icon:'/icon.svg',badge:'/icon.svg',tag:'daybridge-'+category,data:{url:'/'},renotify:false};
- event.waitUntil(self.registration.showNotification('DayBridge reminder',options));
+ let message={};
+ try{message=event.data?.json()||{}}catch{}
+ const kind=String(message.kind||'general').replace(/[^a-z_]/g,'').slice(0,24);
+ const title=typeof message.title==='string'?message.title.slice(0,100):'DayBridge reminder';
+ const body=typeof message.body==='string'?message.body.slice(0,240):'Open DayBridge to review an upcoming item.';
+ const options={body,icon:'/icon.svg',badge:'/icon.svg',tag:'daybridge-'+kind,
+  data:{url:'/'},renotify:false};
+ event.waitUntil(self.registration.showNotification(title,options));
 });
 self.addEventListener('notificationclick',event=>{
  event.notification.close();
