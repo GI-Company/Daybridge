@@ -103,6 +103,13 @@ export function ExploreMap({
       setOverlayError('Traffic imagery is temporarily unavailable. Street maps and routes remain usable.');
       return;
      }
+     if(sourceId==='streets'||message.includes('/map-tile/')||message.includes('Failed to fetch')){
+      const center=m.getCenter();
+      setFallbackView({point:{lat:center.lat,lon:center.lng},
+       zoom:Math.max(3,Math.min(17,Math.round(m.getZoom())))});
+      setMapError('Street tiles could not be loaded. Trying a static map.');
+      return;
+     }
      hideIfUnavailable();
     });
     m.on('sourcedata',e=>{
