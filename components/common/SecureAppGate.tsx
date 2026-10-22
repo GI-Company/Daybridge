@@ -26,13 +26,17 @@ export function SecureAppGate({children}:{children:(id:string)=>React.ReactNode}
        return session?.expires_at&&session.expires_at>Date.now()/1000 ? session.user:null;
      }catch{return null}
    };
-   void client.auth.getUser().then(async(result: {data:{user:User|null};error:unknown})=>{
-     const user=result.error?await offlineUser():result.data.user;
-     if(active){setUser(user);setPending(false)}
-   }).catch(async()=>{
-     const user=await offlineUser();
-     if(active){setUser(user);setPending(false)}
-   });
+   if(!navigator.onLine){
+     void offlineUser().then(user=>{if(active){setUser(user);setPending(false)}});
+   }else{
+     void client.auth.getUser().then(async(result: {data:{user:User|null};error:unknown})=>{
+       const user=result.error?await offlineUser():result.data.user;
+       if(active){setUser(user);setPending(false)}
+     }).catch(async()=>{
+       const user=await offlineUser();
+       if(active){setUser(user);setPending(false)}
+     });
+   }
    const {data:{subscription}}=client.auth.onAuthStateChange((_event:AuthChangeEvent,session:Session|null)=>{if(active){setUser(session?.user??null);setPending(false)}});
    return()=>{active=false;subscription.unsubscribe()};
  },[client]);
