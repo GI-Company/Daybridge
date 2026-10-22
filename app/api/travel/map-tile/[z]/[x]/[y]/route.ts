@@ -1,6 +1,7 @@
 import {NextResponse} from 'next/server';
 import {z} from 'zod';
-import {authenticated,checkRateLimit,jsonError} from '../../../../../../../lib/travel/auth';
+import {authenticated,jsonError} from '../../../../../../../lib/travel/auth';
+import {adminClient} from '../../../../../../../lib/travel/monitor';
 import {tomTomKey} from '../../../../../../../lib/travel/tomtom';
 
 export const runtime='nodejs';
@@ -28,9 +29,14 @@ export async function GET(
   const {z,x,y}=parsed.data;
   const width=2**z;
   if(x>=width||y>=width)return jsonError('Street-map tile out of range',400);
-  // Pan/zoom needs multiple PNG requests. Still enforce a per-user rate limit.
-  if(!await checkRateLimit(auth.db,auth.userId,240))
-   return jsonError('Street map request limit reached',429);
+  // Pan and zoom loads tiles concurrently. Use an atomic database increment
+  // so initial tile bursts don't fail on a first-insert race.
+  const bucket=new Date(Math.floor(Date.now()/60000)*60000).toISOString();
+  const {data:allowed,error:limitError}=await adminClient().rpc('take_travel_api_slot',{
+   p_user_id:auth.userId,p_bucket:bucket,p_limit:240
+  });
+  if(limitError)return jsonError('Map rate limiter temporarily unavailable',503);
+  if(!allowed)return jsonError('Street map request limit reached',429);
 
   const url=new URL('https://api.tomtom.com/maps/orbis/display/raster/tile/'+z+'/'+x+'/'+y);
   url.searchParams.set('apiVersion','2');
