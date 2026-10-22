@@ -22,6 +22,7 @@ import {
 } from '../types';
 import { isSupabaseConfigured, createClient } from '../supabase/client';
 import {readDeviceSnapshot,writeDeviceSnapshot,requestDurableStorage,type DeviceSnapshot} from './device-cache';
+import {applyAccountMovement} from '../budget-ledger';
 
 // Initial realistic baseline data
 const DEFAULT_PROFILE: UserProfile = {
@@ -140,6 +141,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const deviceWritingRef=useRef(false);
   const volatileEditRef=useRef(false);
   const latestStagedFingerprintRef=useRef('');
+  const paidBillIdsRef=useRef(new Set<string>());
+  const depositedPlanIdsRef=useRef(new Set<string>());
   const deviceWriteChain=useRef<Promise<void>>(Promise.resolve());
   const saveTimerRef=useRef<number|null>(null);
   const aliveRef=useRef(true);
@@ -629,45 +632,23 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const addTransaction = (txData: Omit<MoneyTransaction, 'id' | 'userId' | 'createdAt'>) => {
+    if(!accounts.some(account=>account.id===txData.accountId&&account.isActive)||
+       !Number.isSafeInteger(txData.amountCents)||txData.amountCents===0)return;
+    const now=new Date().toISOString();
     const newTx: MoneyTransaction = {
       ...txData,
       id: crypto.randomUUID(),
       userId: profile.id,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     };
     setTransactions((prev) => [newTx, ...prev]);
-
-    // Automatically update the account balance
-    setAccounts((prev) =>
-      prev.map((a) => {
-        if (a.id === txData.accountId) {
-          return {
-            ...a,
-            balanceCents: a.balanceCents + txData.amountCents,
-            lastConfirmedAt: new Date().toISOString(),
-          };
-        }
-        return a;
-      })
-    );
+    setAccounts(prev=>applyAccountMovement(prev,txData.accountId,txData.amountCents,now));
   };
 
   const deleteTransaction = (id: string) => {
     const tx = transactions.find((t) => t.id === id);
-    if (tx) {
-      // Reverse balance effect
-      setAccounts((prev) =>
-        prev.map((a) => {
-          if (a.id === tx.accountId) {
-            return {
-              ...a,
-              balanceCents: a.balanceCents - tx.amountCents,
-              lastConfirmedAt: new Date().toISOString(),
-            };
-          }
-          return a;
-        })
-      );
+    if(tx){
+      setAccounts(prev=>applyAccountMovement(prev,tx.accountId,-tx.amountCents,new Date().toISOString()));
     }
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
@@ -689,8 +670,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const recordPaycheckDeposit=(accountId:string,amountCents:number)=>{
-    if(!paycheckPlan||paycheckPlan.reconciledAt||amountCents<=0||
+    if(!paycheckPlan||paycheckPlan.reconciledAt||depositedPlanIdsRef.current.has(paycheckPlan.id)||
+       !Number.isSafeInteger(amountCents)||amountCents<=0||
        !accounts.some(a=>a.id===accountId&&a.isActive))return false;
+    depositedPlanIdsRef.current.add(paycheckPlan.id);
     addTransaction({
       accountId,amountCents,transactionType:'income',category:'wages',
       transactionDate:new Date().toLocaleDateString('en-CA'),notes:'Paycheck deposit',
@@ -728,9 +711,9 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
   const markBillPaid = (billId: string, createTransaction: boolean = true, accountId?: string) => {
     const bill = bills.find((b) => b.id === billId);
-    if (!bill || bill.isPaid) return;
+    if (!bill || bill.isPaid || paidBillIdsRef.current.has(billId)) return;
     if(createTransaction && !accounts.some(a=>a.id===accountId && a.isActive))return;
-
+    paidBillIdsRef.current.add(billId);
     setBills((prev) =>
       prev.map((b) =>
         b.id === billId
@@ -787,6 +770,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const resetToDefaults=()=>{
+    paidBillIdsRef.current.clear();
+    depositedPlanIdsRef.current.clear();
     setSavedPlaces([]);
     setProfile({...DEFAULT_PROFILE,id:userId});setEvents([]);setEventOccurrences([]);setTasks([]);
     setMedications([]);setMedicationSchedules([]);setMedicationLogs([]);setAccounts([]);
