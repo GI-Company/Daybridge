@@ -156,7 +156,6 @@ export function ExploreMap({
   })();
   return()=>{cancelled=true;if(watchdog)clearTimeout(watchdog);if(mapRef.current===map)mapRef.current=null;map?.remove()};
  // The map persists while users choose places, routes and traffic layers.
- // eslint-disable-next-line react-hooks/exhaustive-deps
  },[retry]);
 
  useEffect(()=>{
