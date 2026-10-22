@@ -9,7 +9,7 @@ const base:TravelNotificationInput={
  nowMs:Date.UTC(2026,9,22,17,30,0),
  travelSeconds:1980,delaySeconds:0,priorTravelSeconds:1980,
  timezone:'America/New_York',arrivedLateMinutes:0,routeOptions:2,
- privacyMode:true,departed:false
+ privacyMode:true,destinationName:'1988 Tom Bell Road, Cleveland, GA',departed:false
 };
 test('one-hour traffic push contains actionable departure, duration and delay',()=>{
  const {title,body}=travelNotificationText(base);
@@ -38,4 +38,11 @@ test('after acknowledging departure, traffic changes continue without stale-posi
  assert.match(result.body,/\+7 min since last check/);
  assert.match(result.body,/Current-position ETA requires active guidance/);
  assert.doesNotMatch(result.body,/Tap On my way/);
+});
+
+test('opt-in detailed mode includes the destination, private mode does not',()=>{
+ const privateText=travelNotificationText(base).body;
+ const detailed=travelNotificationText({...base,privacyMode:false}).body;
+ assert.doesNotMatch(privateText,/Tom Bell Road/);
+ assert.match(detailed,/Tom Bell Road/);
 });
