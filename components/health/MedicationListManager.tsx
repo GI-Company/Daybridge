@@ -1,7 +1,7 @@
 'use client';
 
 import React,{useState} from 'react';
-import {ArchiveRestore,Pill,Trash2,X} from 'lucide-react';
+import {ArchiveRestore,Pill,Trash2} from 'lucide-react';
 import {useDayBridge} from '../../lib/storage/store';
 
 /**
