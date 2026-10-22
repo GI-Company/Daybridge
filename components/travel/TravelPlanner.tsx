@@ -86,6 +86,36 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   {enableHighAccuracy:true,maximumAge:10000,timeout:15000});
   return()=>{stopped=true;controller.abort();navigator.geolocation.clearWatch(watchId);};
  },[guiding,place?.lat,place?.lon,prefs.travel_mode,at]);
+ useEffect(()=>{
+  if(guiding||!place||prefs.saved_origin_lat===null||prefs.saved_origin_lon===null||
+     !prefs.traffic_notifications)return;
+  // A previously approved saved origin needs no new GPS permission.
+  // Populate the appointment's route details automatically on open.
+  const from={lat:prefs.saved_origin_lat,lon:prefs.saved_origin_lon};
+  const controller=new AbortController();
+  let cancelled=false;
+  void (async()=>{
+   try{
+    const response=await fetch('/api/travel/route',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({origin:from,destination:{lat:place.lat,lon:place.lon},
+      travelMode:prefs.travel_mode,arriveAt:at}),signal:controller.signal
+    });
+    if(!response.ok)throw Error();
+    const data=await response.json() as RouteResult;
+    if(cancelled||!data.routes.length)return;
+    setOrigin(from);
+    setEstimate({...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)});
+    setChoice(0);
+    setStatus('Latest travel estimate loaded from your approved starting location.');
+   }catch{
+    if(!cancelled)setStatus('Automatic route preview unavailable. Tap Preview to retry.');
+   }
+  })();
+  return()=>{cancelled=true;controller.abort();};
+ },[guiding,place?.lat,place?.lon,prefs.saved_origin_lat,prefs.saved_origin_lon,
+    prefs.travel_mode,prefs.traffic_notifications,at]);
+
  async function geocode(){
   setBusy(true);setOptions([]);setPlace(null);setEstimate(null);setStatus('');
   try{const r=await fetch('/api/travel/geocode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address})});if(!r.ok)throw Error();const j=await r.json();setOptions(j.results||[]);setStatus(j.results?.length?'Select the matching destination.':'No matches found.');}
