@@ -21,6 +21,7 @@ import { useDayBridge } from '../../lib/storage/store';
 import { expandEventOccurrences, detectEventConflicts } from '../../lib/recurrence';
 import { formatTime, formatDate, getRelativeDayLabel } from '../../lib/date-time';
 import { EventCategory, AttendanceStatus } from '../../lib/types';
+import { TravelPlanner } from '../travel/TravelPlanner';
 
 interface ScheduleViewProps {
   onOpenQuickAdd: () => void;
@@ -272,6 +273,8 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                   </a>
                 </div>
               )}
+
+              {selectedOccurrence.venueType === 'in_person' && <TravelPlanner key={selectedOccurrence.eventId+'-'+selectedOccurrence.startTime.toISOString()} eventId={selectedOccurrence.eventId} title={selectedOccurrence.title} startTime={selectedOccurrence.startTime} location={selectedOccurrence.location}/>} 
 
               {/* Attendance Recording */}
               <div className="pt-2">
