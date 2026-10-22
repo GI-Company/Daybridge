@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import {productionVersion} from '../lib/release/version';
 export const metadata: Metadata = {
  title:'DayBridge — Private Daily Organizer',

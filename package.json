@@ -13,7 +13,8 @@
     "test:budget": "node --experimental-strip-types --test tests/budget-ledger.test.ts",
     "test:calendar": "node --experimental-strip-types --test tests/calendar.test.ts",
     "test:medications": "node --experimental-strip-types --test tests/medication.test.ts",
-    "test:traffic-impact": "node --experimental-strip-types --test tests/traffic-impact.test.ts"
+    "test:traffic-impact": "node --experimental-strip-types --test tests/traffic-impact.test.ts",
+    "test:map": "node --experimental-strip-types --test tests/tomtom-map-geometry.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

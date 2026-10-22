@@ -96,3 +96,15 @@ Do not activate until you have set Vercel secrets, inserted Vault secret, confir
 - Opening the appointment's travel section automatically loads route choices when a saved starting location was approved. Only explicitly started foreground guidance uses current phone GPS. While foreground guidance remains open, it refreshes live routes as the user moves, keeping the fastest displayed option selected. This is not a full turn-by-turn navigation engine; an external navigation app remains recommended while driving.
 - Permanent/background GPS tracking, automatic changes to an external navigation application's active route, and guaranteed real-time delivery while the phone is offline are not supported.
 
+
+
+## Map fix: Orbis street tiles and correct route geometry (October 22, 2026)
+
+The blank map with `Invalid static map coordinates` had an internal format mismatch: TomTom Routing v1 returns leg points as `{latitude,longitude}`, but DayBridge treated them as `{lat,lon}`. This yielded invalid projected map centers (NaN), causing DayBridge's own static-map endpoint to reject requests before reaching TomTom. Route-point normalization now filters and maps coordinates correctly; a regression test covers this exact payload.
+
+DayBridge now renders TomTom Orbis Map Display API **v2 raster tiles** in MapLibre, with zoom/pan and the route line plus starting and ending markers. It requests tiles through `/api/travel/map-tile/{z}/{x}/{y}`, which authenticates the user, validates tile bounds, rate-limits requests, and calls the official Orbis v2 endpoint using the existing **server-only** `tom_tom` key in the `TomTom-Api-Key` header. No client-side TomTom credential is necessary. The MapLibre stylesheet is loaded by the app's layout.
+
+When MapLibre or Orbis raster imagery fails, the viewer retries the classic Static Image API with the corrected projected coordinates and keeps the route overlay visible as a final fallback. TomTom API permission/billing errors cannot be solved by client rendering changes. Do not expose `tom_tom` as `NEXT_PUBLIC_TOMTOM_MAP_KEY`.
+
+Validation: `npm run test:map` checks TomTom point normalization, map projection and malformed point filtering. Confirm real street imagery on an installed Android device after deployment; a successful build alone cannot prove Orbis entitlement or PNG delivery.
+
