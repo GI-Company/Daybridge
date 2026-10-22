@@ -18,8 +18,8 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
  const at=new Date(startTime).toISOString();
  useEffect(()=>{
   let valid=true;
-  client?.from('travel_preferences').select('*').maybeSingle().then(({data})=>{if(valid&&data)setPrefs({...defaults,...data})});
-  client?.from('travel_appointments').select('destination_address,destination_lat,destination_lon,enabled,cancelled,origin_lat,origin_lon').eq('source_event_id',eventId).eq('occurrence_start',at).maybeSingle().then(({data})=>{
+  client?.from('travel_preferences').select('*').maybeSingle().then(({data}: {data:Partial<TravelPrefs>|null})=>{if(valid&&data)setPrefs({...defaults,...data})});
+  client?.from('travel_appointments').select('destination_address,destination_lat,destination_lon,enabled,cancelled,origin_lat,origin_lon').eq('source_event_id',eventId).eq('occurrence_start',at).maybeSingle().then(({data}: {data:{destination_address:string;destination_lat:number;destination_lon:number;enabled:boolean;cancelled:boolean;origin_lat:number|null;origin_lon:number|null}|null})=>{
    if(!valid||!data)return;
    setAddress(data.destination_address);setPlace({label:data.destination_address,lat:data.destination_lat,lon:data.destination_lon});setActive(Boolean(data.enabled&&!data.cancelled));
    setMonitor(data.origin_lat!==null&&data.origin_lon!==null);

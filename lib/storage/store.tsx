@@ -122,7 +122,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   useEffect(()=>{
     let active=true;const client=createClient();
     if(!client){setSyncStatus('offline');return;}
-    client.from('private_snapshots').select('payload').eq('user_id',userId).maybeSingle().then(({data,error})=>{
+    client.from('private_snapshots').select('payload').eq('user_id',userId).maybeSingle().then(({data,error}: {data:{payload:unknown}|null;error:unknown})=>{
       if(!active)return;
       if(error){setSyncStatus('offline');return;}
       const saved=data?.payload as Record<string,unknown>|undefined;
