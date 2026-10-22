@@ -24,9 +24,10 @@ import {
   parseDollarsToCents,
 } from '../../lib/budget';
 import { formatDate } from '../../lib/date-time';
+import {AddBudgetAccount} from './AddBudgetAccount';
 
 interface MoneyViewProps {
-  onOpenQuickAdd: () => void;
+  onOpenQuickAdd: (type?: 'transaction'|'bill') => void;
 }
 
 export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
@@ -47,6 +48,11 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
   } = useDayBridge();
 
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [showAccountForm,setShowAccountForm]=useState(false);
+  const [payingBillId,setPayingBillId]=useState<string|null>(null);
+  const [billAccountId,setBillAccountId]=useState('');
+  const activeAccounts=accounts.filter(a=>a.isActive);
+  const [budgetMessage,setBudgetMessage]=useState('');
   const [newBalanceInput, setNewBalanceInput] = useState<string>('');
 
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
@@ -73,9 +79,22 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
   });
 
   const handleUpdateBalance = (accountId: string) => {
+    if(!/^-?\d+(?:\.\d{1,2})?$/.test(newBalanceInput.trim())){
+      setBudgetMessage('Enter a valid amount, such as 120.00.');return;
+    }
     const cents = parseDollarsToCents(newBalanceInput);
-    updateAccountBalance(accountId, cents);
+    if(!Number.isSafeInteger(cents)){setBudgetMessage('That amount is too large.');return;}
+    updateAccountBalance(accountId,cents);
+    setBudgetMessage('Balance updated. Your manual transaction history is unchanged.');
     setEditingAccountId(null);
+  };
+  const confirmBillPayment=(billId:string)=>{
+    const account=activeAccounts.find(a=>a.id===billAccountId);
+    if(!account){setBudgetMessage('Choose the account that paid this bill.');return;}
+    const name=bills.find(b=>b.id===billId)?.title||'Bill';
+    markBillPaid(billId,true,account.id);
+    setPayingBillId(null);setBillAccountId('');
+    setBudgetMessage(name+' marked paid and deducted from '+account.name+'.');
   };
 
   const handleRecordAdvance = (e: React.FormEvent) => {
@@ -120,14 +139,20 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
           </p>
         </div>
         <button
-          onClick={onOpenQuickAdd}
+          onClick={()=>onOpenQuickAdd('transaction')}
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs min-h-[44px] transition shadow-md shadow-teal-100/70"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>New Entry</span>
+          <span>Income / Expense</span>
         </button>
       </div>
 
+      {budgetMessage&&<p role="status" className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950">{budgetMessage}</p>}
+      {accounts.length===0&&<div className="space-y-3 rounded-2xl border border-teal-300 bg-white p-4">
+        <h3 className="text-lg font-bold text-slate-950">Set up your budget</h3>
+        <p className="text-sm text-slate-700">No money accounts yet. Add where you keep your money, even if you start with $0. Then income and expenses will update its balance automatically.</p>
+        <AddBudgetAccount onCreated={()=>{setShowAccountForm(false);setBudgetMessage('Account created. You can now record income or spending.')}}/>
+      </div>}
       {/* 1. SAFE-TO-SPEND HERO CARD */}
       <section className="bg-gradient-to-br from-teal-50 to-white border border-teal-500/30 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="flex items-center justify-between mb-3">
@@ -190,17 +215,24 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
 
       {/* 2. CONFIRMED ACCOUNT BALANCES (MANUAL LEDGER) */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">Account Balances (Manual)</h3>
+            <h3 className="font-bold text-slate-900 text-base">Your money accounts</h3>
             <p className="text-xs text-slate-600">
               Confirm balances regularly; never requires bank credentials
             </p>
           </div>
+          {accounts.length>0&&<button type="button" onClick={()=>setShowAccountForm(v=>!v)}
+            className="min-h-[44px] rounded-xl border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-900">
+            {showAccountForm?'Cancel':'+ Add account'}
+          </button>}
         </div>
-
+        {showAccountForm&&accounts.length>0&&<div className="mb-4">
+          <AddBudgetAccount onCreated={()=>{setShowAccountForm(false);setBudgetMessage('Account created.');}}
+            onCancel={()=>setShowAccountForm(false)}/>
+        </div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {accounts.map((acc) => (
+          {accounts.filter(acc=>acc.isActive).map((acc) => (
             <div
               key={acc.id}
               className="p-4 bg-slate-50/90 border border-slate-200 rounded-2xl flex items-center justify-between"
@@ -368,8 +400,8 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             </p>
           </div>
           <button
-            onClick={onOpenQuickAdd}
-            className="text-xs text-teal-700 hover:text-teal-800 font-medium"
+            onClick={()=>onOpenQuickAdd('bill')}
+            className="min-h-[44px] text-xs text-teal-700 hover:text-teal-800 font-medium"
           >
             + Add Bill
           </button>
@@ -407,7 +439,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                   </span>
                 ) : (
                   <button
-                    onClick={() => markBillPaid(bill.id, true)}
+                    onClick={()=>{setPayingBillId(bill.id);setBillAccountId(activeAccounts.length===1?activeAccounts[0].id:'');setBudgetMessage('')}}
                     className="px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 active:scale-95 text-slate-950 font-bold text-xs min-h-[44px] transition shadow-md shadow-teal-950/40"
                   >
                     Mark Paid
@@ -417,6 +449,22 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             </div>
           ))}
         </div>
+        {payingBillId&&<div className="mt-3 space-y-3 rounded-xl border border-teal-200 bg-teal-50 p-4">
+          <h4 className="font-semibold text-slate-950">Pay from which account?</h4>
+          {activeAccounts.length===0?<p className="text-sm text-amber-900">Add a money account first. The bill has not been marked paid.</p>:
+            <label className="block text-sm text-slate-800">Account
+              <select value={billAccountId} onChange={e=>setBillAccountId(e.target.value)}
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3">
+                <option value="">Choose account</option>
+                {activeAccounts.map(a=><option value={a.id} key={a.id}>{a.name} ({formatCents(a.balanceCents)})</option>)}
+              </select>
+            </label>}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={!billAccountId} onClick={()=>confirmBillPayment(payingBillId)}
+              className="min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirm payment</button>
+            <button type="button" onClick={()=>{setPayingBillId(null);setBillAccountId('')}} className="min-h-[44px] rounded-xl border border-slate-300 px-4 py-2 text-sm">Cancel</button>
+          </div>
+        </div>}
       </section>
 
       {/* 5. EARMARKED RESERVES */}
@@ -467,8 +515,8 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             <p className="text-xs text-slate-600">Recent manual expenses and income entries</p>
           </div>
           <button
-            onClick={onOpenQuickAdd}
-            className="text-xs text-teal-700 hover:text-teal-800 font-medium"
+            onClick={()=>onOpenQuickAdd('transaction')}
+            className="min-h-[44px] text-xs text-teal-700 hover:text-teal-800 font-medium"
           >
             + Add Transaction
           </button>
