@@ -216,7 +216,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
               </div>
 
               {editingAccountId === acc.id ? (
-                <div className="flex items-center gap-1.5">
+                <div data-daybridge-draft="true" className="flex items-center gap-1.5">
                   <input
                     type="number"
                     step="0.01"

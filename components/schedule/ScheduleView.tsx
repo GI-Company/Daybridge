@@ -210,7 +210,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
 
       {/* Detail & Self-Report Attendance Modal */}
       {selectedOccurrence && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div data-daybridge-draft="true" role="dialog" aria-modal="true" aria-label="Appointment details" className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white border border-slate-200 w-full max-w-lg rounded-2xl p-5 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
               <div>

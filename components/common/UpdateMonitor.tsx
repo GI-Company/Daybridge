@@ -53,6 +53,12 @@ export function UpdateMonitor(){
   };
   const foreground=()=>{if(document.visibilityState==='visible')void check();};
   const onFocus=()=>void check();
+  const onBeforeUnload=(event:BeforeUnloadEvent)=>{
+    if(document.querySelector('[data-daybridge-draft="true"]')){
+      event.preventDefault();event.returnValue='';
+    }
+  };
+  window.addEventListener('beforeunload',onBeforeUnload);
   const interval=window.setInterval(()=>void check(),5*60*1000);
   document.addEventListener('input',onEdit,true);
   document.addEventListener('change',onEdit,true);
@@ -63,6 +69,7 @@ export function UpdateMonitor(){
   void check();
   return()=>{
    mounted.current=false;window.clearInterval(interval);
+   window.removeEventListener('beforeunload',onBeforeUnload);
    document.removeEventListener('input',onEdit,true);
    document.removeEventListener('change',onEdit,true);
    window.removeEventListener('daybridge:sync-state',onSync);
