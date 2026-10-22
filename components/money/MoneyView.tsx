@@ -61,9 +61,9 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
   const [advanceAccountId,setAdvanceAccountId]=useState('');
   const [depositAccountId,setDepositAccountId]=useState('');
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
-  const [advanceAmountInput, setAdvanceAmountInput] = useState('100.00');
-  const [advanceFeeInput, setAdvanceFeeInput] = useState('3.99');
-  const [advanceNotesInput, setAdvanceNotesInput] = useState('Earned wage access');
+  const [advanceAmountInput, setAdvanceAmountInput] = useState('');
+  const [advanceFeeInput, setAdvanceFeeInput] = useState('0.00');
+  const [advanceNotesInput, setAdvanceNotesInput] = useState('');
 
   const [showReconcileModal, setShowReconcileModal] = useState(false);
   const [actualNetInput, setActualNetInput] = useState('');
@@ -184,8 +184,9 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
 
         <div className="mb-4">
           <div className="text-4xl sm:text-5xl font-extrabold text-teal-700 tracking-tight">
-            {formatCents(safeToSpend.netSpendableCents)}
+            {activeAccounts.length?formatCents(safeToSpend.netSpendableCents):'Not set'}
           </div>
+          {!activeAccounts.length&&<p className="text-sm text-slate-700">Add a money account above to calculate your available balance.</p>}
           {safeToSpend.shortfallCents > 0 && (
             <div className="text-xs font-bold text-rose-700 mt-1">
               Shortfall of -{formatCents(safeToSpend.shortfallCents)} to cover pre-payday obligations
@@ -678,8 +679,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
           <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-5 shadow-2xl animate-in zoom-in-95">
             <h3 className="font-bold text-base text-slate-900 mb-2">Reconcile Payday Deposit</h3>
             <p className="text-xs text-slate-600 mb-4">
-              When your actual paycheck deposits, enter the final net amount received to update your
-              balances and clear this cycle&apos;s advances.
+              Record the money actually deposited into the account you choose. Your transaction history and balance will update together.
             </p>
 
             <form onSubmit={handleReconcilePaycheck} className="space-y-3 text-xs">
