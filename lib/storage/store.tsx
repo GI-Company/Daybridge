@@ -658,6 +658,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const setPaycheckForecast=(details:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>{
+    // A revised payday is a new cycle, which can receive its own deposit.
+    if(paycheckPlan)depositedPlanIdsRef.current.delete(paycheckPlan.id);
     setPaycheckPlan(prev=>({
       id:prev?.id||crypto.randomUUID(),userId,
       expectedNetCents:details.expectedNetCents,
@@ -676,7 +678,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     depositedPlanIdsRef.current.add(paycheckPlan.id);
     addTransaction({
       accountId,amountCents,transactionType:'income',category:'wages',
-      transactionDate:new Date().toLocaleDateString('en-CA'),notes:'Paycheck deposit',
+      transactionDate:[new Date().getFullYear(),String(new Date().getMonth()+1).padStart(2,'0'),String(new Date().getDate()).padStart(2,'0')].join('-'),notes:'Paycheck deposit',
       isPending:false
     });
     setPaycheckPlan(prev=>prev?{...prev,actualNetCents:amountCents,reconciledAt:new Date().toISOString()}:null);
