@@ -62,7 +62,7 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
   priorTravelSeconds:plan.last_travel_seconds,timezone:plan.timezone,
   arrivedLateMinutes:update.impact.lateForAppointmentMinutes,
   routeOptions:update.routeCount,privacyMode:update.lockscreenPrivate,
-  departed:update.departed
+  departed:update.departed,destinationName:plan.destination_address
  });
  // Full travel figures appear on the notification. In private mode we never
  // include the address, appointment title or reason for the visit.
