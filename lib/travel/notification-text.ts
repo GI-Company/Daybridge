@@ -46,14 +46,14 @@ export function travelNotificationText(v:TravelNotificationInput):{title:string;
  if(v.arrivedLateMinutes>0){
   return {
    title:'Possible late arrival · '+appt,
-   body:base+' · estimated arrival '+arrival+' if leaving now ('+v.arrivedLateMinutes+
+   body:base+' · estimated arrival '+arrival+' if departing now from your approved start ('+v.arrivedLateMinutes+
     ' min late)'+route+'.'
   };
  }
  if(v.kind==='leave_now'){
   return {
    title:'Leave now · appointment at '+appt,
-   body:base+' · estimated arrival '+arrival+'. Tap On my way to acknowledge'+route+'.'
+   body:base+' · estimated arrival '+arrival+' from your approved start. Tap On my way to acknowledge'+route+'.'
   };
  }
  if(v.kind==='preparation'){
