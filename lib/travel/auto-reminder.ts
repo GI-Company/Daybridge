@@ -48,6 +48,6 @@ export async function enrollTrafficAlerts(event:CalendarEvent,destination:SavedP
  }
  if(!rows.length)return false;
  // Supabase/PostgREST normally accepts this list in one request.
- const {error}=await db.from('travel_appointments').upsert(rows,{onConflict:'user_id,source_event_id,occurrence_start'});
+ const {error}=await db.from('travel_appointments').upsert(rows,{onConflict:'user_id,source_event_id,occurrence_start',ignoreDuplicates:true});
  return !error;
 }
