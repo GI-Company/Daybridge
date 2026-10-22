@@ -43,7 +43,7 @@ export function RouteMap({origin,destination,route}:{origin:Point;destination:Po
      center:[projected.center.lon,projected.center.lat],
      zoom:projected.zoom,
      minZoom:2,maxZoom:18,
-     attributionControl:false,
+     attributionControl:true,
      style:{
       version:8,
       sources:{
