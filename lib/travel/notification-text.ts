@@ -11,6 +11,7 @@ export type TravelNotificationInput={
  arrivedLateMinutes:number;
  routeOptions:number;
  privacyMode:boolean;
+ destinationName:string;
  departed:boolean;
 };
 
@@ -29,7 +30,8 @@ export function travelNotificationText(v:TravelNotificationInput):{title:string;
  const shift=v.priorTravelSeconds===null?null:Math.round((v.travelSeconds-v.priorTravelSeconds)/60);
  const difference=shift!==null&&Math.abs(shift)>=5
   ?' · '+(shift>0?'+':'')+shift+' min since last check':'';
- const base=trip+' min trip · traffic +'+traffic+' min'+difference;
+ const destination=v.privacyMode?'':' · To '+v.destinationName.slice(0,64);
+ const base=trip+' min trip · traffic +'+traffic+' min'+difference+destination;
  // Suppress appointment identity/destination in a private notification,
  // but preserve the travel information necessary for taking action.
  const source=v.departed?'Saved-route forecast':'From approved start';
