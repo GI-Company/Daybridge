@@ -14,7 +14,7 @@ export const routeInput=z.object({
 });
 export type Coordinates=z.infer<typeof coordinateSchema>;
 export type RouteInput=z.infer<typeof routeInput>;
-export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[]};
+export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[];instructions?:string[]};
 export type RouteResult={basis:'live'|'historical';routes:RouteOption[];checkedAt:string};
 const cache=new Map<string,{expires:number,value:RouteResult}>();
 export function tomTomKey():string {
@@ -41,7 +41,8 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
  url.searchParams.set('traffic','true');url.searchParams.set('routeType','fastest');
  url.searchParams.set('travelMode',valid.travelMode);
  url.searchParams.set('computeTravelTimeFor','all');
- url.searchParams.set('maxAlternatives',String(options.alternatives??2));
+ url.searchParams.set('maxAlternatives',String(valid.travelMode==='car'?(options.alternatives??2):0));
+ url.searchParams.set('instructionsType','text');url.searchParams.set('language','en-US');
  // Use historic departure/arrival profiles for future travel, but never treat them as live traffic guarantees.
  const future=valid.arriveAt && new Date(valid.arriveAt).getTime()>Date.now()+4*60*60_000;
  if(future)url.searchParams.set('arriveAt',valid.arriveAt!);
@@ -50,6 +51,7 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
  if(!res.ok)throw new Error('Routing currently unavailable ('+res.status+')');
  const data=await res.json() as {routes?:Array<{
   summary?:{travelTimeInSeconds?:number;trafficDelayInSeconds?:number;lengthInMeters?:number;historicTrafficTravelTimeInSeconds?:number};
+  guidance?:{instructions?:Array<{message?:string}>};
   legs?:Array<{points?:Coordinates[]}>
  }>};
  const routes=(data.routes??[]).map(r=>({
@@ -57,7 +59,8 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
   delaySeconds:Math.max(0,Math.round(r.summary?.trafficDelayInSeconds??0)),
   distanceMeters:Math.max(0,Math.round(r.summary?.lengthInMeters??0)),
   historicSeconds: r.summary?.historicTrafficTravelTimeInSeconds??null,
-  points:(r.legs??[]).flatMap(l=>l.points??[]).slice(0,2000)
+  points:(r.legs??[]).flatMap(l=>l.points??[]).slice(0,2000),
+  instructions:(r.guidance?.instructions??[]).map(i=>i.message??'').filter(Boolean).slice(0,100)
  })).filter(r=>r.durationSeconds>0);
  if(!routes.length)throw new Error('No usable route found');
  const value:RouteResult={basis:future?'historical':'live',routes,checkedAt:new Date().toISOString()};

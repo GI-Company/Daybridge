@@ -109,7 +109,7 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
     <a href={mapsUrl('apple',origin,destination,prefs.travel_mode)} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-teal-400 bg-white px-4 py-2 text-xs font-bold text-teal-900">Open Apple Maps</a>
     <button type="button" onClick={()=>setGuiding(!guiding)} className="flex gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-800"><Navigation className="h-4 w-4"/>{guiding?'Stop foreground guidance':'Start foreground guidance'}</button>
    </div>}
-   {guiding&&<p role="status" className="rounded-xl bg-white p-2 text-xs text-slate-800">{guidance||'Foreground location tracking started. Use an external navigation app for spoken turns.'}</p>}
+   {guiding&&<div className="rounded-xl bg-white p-3 text-xs text-slate-800"><p role="status">{guidance||'Foreground location tracking started. Use an external navigation app for spoken turns.'}</p>{selected.instructions?.length ? <ol className="mt-3 max-h-48 overflow-y-auto list-decimal space-y-2 pl-5" aria-label="Route maneuver instructions">{selected.instructions.map((step,i)=><li key={i}>{step}</li>)}</ol> : <p>Spoken turn guidance is not available; review the map or open your preferred navigation app.</p>}</div>}
   </div>}
   <label className="flex gap-2 items-start text-xs text-slate-800"><input type="checkbox" className="mt-1 h-4 w-4 accent-teal-800" checked={monitor} onChange={e=>setMonitor(e.target.checked)}/>Use my explicitly approved saved location for alerts while DayBridge is closed.</label>
   <div className="flex gap-2">
