@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
 import { parseDollarsToCents } from '../../lib/budget';
+import {enrollTrafficAlerts} from '../../lib/travel/auto-reminder';
 import { EventCategory, VenueType, PriorityLevel, SavedPlaceCategory } from '../../lib/types';
 
 interface QuickAddModalProps {
@@ -154,7 +155,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       const rrule = eventRepeatWeekly ? 'FREQ=WEEKLY' : undefined;
 
       const matchedPlace=savedPlaces.find(place=>place.address===eventLocation.trim());
-      addEvent({
+      const created=addEvent({
         title: eventTitle.trim(),
         category: activeType==='class'?'class':activeType==='self_help'?'self_help':eventCategory,
         description: activeType==='self_help'?'Private self-help meeting':'',
@@ -170,6 +171,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         travelBufferMinutes: eventVenue==='in_person'?(parseInt(eventTravelBuffer, 10) || 0):0,
         prepChecklist: [],
       });
+      if(matchedPlace&&eventVenue==='in_person'){
+        void enrollTrafficAlerts(created,matchedPlace).catch(()=>undefined);
+      }
     } else if (activeType === 'medication') {
       if (!medName.trim()) return;
       const times=[...new Set(medTimes)].sort();
@@ -319,6 +323,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
                 </label>
               </div>
+              <p className="text-xs text-slate-600">For automatic traffic alerts, choose a verified saved location and approve a saved starting location in Travel settings. Notifications must be enabled.</p>
               {!!savedPlaces.length&&<label className="block text-sm font-medium text-slate-800">Choose a saved location (optional)
                 <select value={savedPlaces.find(p=>p.address===eventLocation)?.id||''}
                   onChange={e=>{const place=savedPlaces.find(p=>p.id===e.target.value);if(place)setEventLocation(place.address);}}
