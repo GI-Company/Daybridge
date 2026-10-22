@@ -59,7 +59,10 @@ export function summarizeTrafficUpdate(
  }
  if(impact.meaningfulChange&&impact.etaShiftSeconds!==null){
   const minutes=Math.max(1,Math.round(Math.abs(impact.etaShiftSeconds)/60));
-  summary+='ETA '+(impact.etaShiftSeconds>=0?'increased':'improved')+' about '+minutes+' min. ';
+  if(Math.abs(impact.etaShiftSeconds)>=300)
+   summary+='Travel time '+(impact.etaShiftSeconds>0?'increased':'decreased')+' about '+minutes+' min. ';
+  else if(impact.trafficShiftSeconds!==null&&Math.abs(impact.trafficShiftSeconds)>=300)
+   summary+='Traffic delay changed about '+Math.round(Math.abs(impact.trafficShiftSeconds)/60)+' min. ';
  }
  if(routeCount>1)summary+='Compare '+routeCount+' routes in DayBridge.';
  else if(impact.appointmentAtRisk)summary+='No faster alternative was returned.';
