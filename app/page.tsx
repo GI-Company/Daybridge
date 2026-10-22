@@ -27,8 +27,8 @@ export default function HomePage() {
 function PrivateWorkspace({userId}:{userId:string}) {
   const [currentTab, setCurrentTab] = useState<string>('today');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [quickAddType,setQuickAddType]=useState<'event'|'medication'|undefined>(undefined);
-  const openQuickAdd=(type?:'event'|'medication')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
+  const [quickAddType,setQuickAddType]=useState<'event'|'medication'|'transaction'|'bill'|'task'|'contact'|undefined>(undefined);
+  const openQuickAdd=(type?:'event'|'medication'|'transaction'|'bill'|'task'|'contact')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
 
   return (
     <DayBridgeProvider userId={userId}>
@@ -64,7 +64,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
           {currentTab === 'locations' && <LocationsView />}
 
           {currentTab === 'money' && (
-            <MoneyView onOpenQuickAdd={() => openQuickAdd()} />
+            <MoneyView onOpenQuickAdd={type => openQuickAdd(type)} />
           )}
 
           {currentTab === 'health' && (
@@ -79,13 +79,13 @@ function PrivateWorkspace({userId}:{userId:string}) {
           )}
 
           {currentTab === 'tasks' && (
-            <TasksView onOpenQuickAdd={() => openQuickAdd()} />
+            <TasksView onOpenQuickAdd={() => openQuickAdd('task')} />
           )}
 
           {currentTab === 'review' && <ReviewView />}
 
           {currentTab === 'resources' && (
-            <ResourcesView onOpenQuickAdd={() => openQuickAdd()} />
+            <ResourcesView onOpenQuickAdd={() => openQuickAdd('contact')} />
           )}
 
           {currentTab === 'settings' && <SettingsView />}

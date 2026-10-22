@@ -22,6 +22,7 @@ import {
 } from '../types';
 import { isSupabaseConfigured, createClient } from '../supabase/client';
 import {readDeviceSnapshot,writeDeviceSnapshot,requestDurableStorage,type DeviceSnapshot} from './device-cache';
+import {applyAccountMovement} from '../budget-ledger';
 
 // Initial realistic baseline data
 const DEFAULT_PROFILE: UserProfile = {
@@ -88,13 +89,18 @@ interface DayBridgeContextType {
   deleteMedication: (id: string) => void;
   logDose: (medicationId: string, scheduledSlotUtc: string, action: DoseAction, reason?: string) => void;
 
+  addAccount: (account: Pick<BudgetAccount,'name'|'accountType'|'balanceCents'>) => string;
   updateAccountBalance: (accountId: string, newBalanceCents: number) => void;
   addTransaction: (tx: Omit<MoneyTransaction, 'id' | 'userId' | 'createdAt'>) => void;
   deleteTransaction: (id: string) => void;
   updatePaycheckPlan: (plan: Partial<PaycheckPlan>) => void;
-  addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => void;
-  markBillPaid: (billId: string, createTransaction?: boolean) => void;
+  setPaycheckForecast: (plan:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>void;
+  recordPaycheckDeposit: (accountId:string,amountCents:number)=>boolean;
+  addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>, depositAccountId:string) => void;
+  markBillPaid: (billId: string, createTransaction?: boolean, accountId?:string) => void;
   addBill: (bill: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => void;
+  addReserve: (reserve: Pick<BudgetReserve,'name'|'category'|'targetCents'|'allocatedCents'|'isEssential'>)=>void;
+  deleteReserve: (reserveId:string)=>void;
   updateReserve: (reserveId: string, allocatedCents: number) => void;
 
   addContact: (contact: Omit<ResourceContact, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => void;
@@ -137,6 +143,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const deviceWritingRef=useRef(false);
   const volatileEditRef=useRef(false);
   const latestStagedFingerprintRef=useRef('');
+  const paidBillIdsRef=useRef(new Set<string>());
+  const depositedPlanIdsRef=useRef(new Set<string>());
   const deviceWriteChain=useRef<Promise<void>>(Promise.resolve());
   const saveTimerRef=useRef<number|null>(null);
   const aliveRef=useRef(true);
@@ -605,6 +613,16 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     setMedicationLogs(prev=>[...prev.filter(l=>!(l.medicationId===medicationId&&l.scheduledSlotUtc===scheduledSlotUtc)),newLog]);
   };
 
+  const addAccount = (input: Pick<BudgetAccount,'name'|'accountType'|'balanceCents'>) => {
+    const id=crypto.randomUUID();
+    const now=new Date().toISOString();
+    const account:BudgetAccount={id,userId,name:input.name.trim().slice(0,80),
+      accountType:input.accountType,balanceCents:input.balanceCents,
+      lastConfirmedAt:now,isActive:true};
+    setAccounts(prev=>[...prev,account]);
+    return id;
+  };
+
   const updateAccountBalance = (accountId: string, newBalanceCents: number) => {
     setAccounts((prev) =>
       prev.map((a) =>
@@ -616,45 +634,23 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const addTransaction = (txData: Omit<MoneyTransaction, 'id' | 'userId' | 'createdAt'>) => {
+    if(!accounts.some(account=>account.id===txData.accountId&&account.isActive)||
+       !Number.isSafeInteger(txData.amountCents)||txData.amountCents===0)return;
+    const now=new Date().toISOString();
     const newTx: MoneyTransaction = {
       ...txData,
-      id: `tx-${Date.now()}`,
+      id: crypto.randomUUID(),
       userId: profile.id,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     };
     setTransactions((prev) => [newTx, ...prev]);
-
-    // Automatically update the account balance
-    setAccounts((prev) =>
-      prev.map((a) => {
-        if (a.id === txData.accountId) {
-          return {
-            ...a,
-            balanceCents: a.balanceCents + txData.amountCents,
-            lastConfirmedAt: new Date().toISOString(),
-          };
-        }
-        return a;
-      })
-    );
+    setAccounts(prev=>applyAccountMovement(prev,txData.accountId,txData.amountCents,now));
   };
 
   const deleteTransaction = (id: string) => {
     const tx = transactions.find((t) => t.id === id);
-    if (tx) {
-      // Reverse balance effect
-      setAccounts((prev) =>
-        prev.map((a) => {
-          if (a.id === tx.accountId) {
-            return {
-              ...a,
-              balanceCents: a.balanceCents - tx.amountCents,
-              lastConfirmedAt: new Date().toISOString(),
-            };
-          }
-          return a;
-        })
-      );
+    if(tx){
+      setAccounts(prev=>applyAccountMovement(prev,tx.accountId,-tx.amountCents,new Date().toISOString()));
     }
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
@@ -663,7 +659,38 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     setPaycheckPlan((prev) => (prev ? { ...prev, ...planUpdates } : null));
   };
 
-  const addAdvance = (advData: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
+  const setPaycheckForecast=(details:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>{
+    // A revised payday is a new cycle, which can receive its own deposit.
+    if(paycheckPlan)depositedPlanIdsRef.current.delete(paycheckPlan.id);
+    setPaycheckPlan(prev=>({
+      id:prev?.id||crypto.randomUUID(),userId,
+      expectedNetCents:details.expectedNetCents,
+      nextPayday:details.nextPayday,
+      recurringFrequency:details.recurringFrequency,
+      confidence:details.confidence,
+      // Every newly saved payday is a new forecast, not a prior deposit.
+      actualNetCents:undefined,reconciledAt:undefined
+    }));
+  };
+
+  const recordPaycheckDeposit=(accountId:string,amountCents:number)=>{
+    if(!paycheckPlan||paycheckPlan.reconciledAt||depositedPlanIdsRef.current.has(paycheckPlan.id)||
+       !Number.isSafeInteger(amountCents)||amountCents<=0||
+       !accounts.some(a=>a.id===accountId&&a.isActive))return false;
+    depositedPlanIdsRef.current.add(paycheckPlan.id);
+    addTransaction({
+      accountId,amountCents,transactionType:'income',category:'wages',
+      transactionDate:[new Date().getFullYear(),String(new Date().getMonth()+1).padStart(2,'0'),String(new Date().getDate()).padStart(2,'0')].join('-'),notes:'Paycheck deposit',
+      isPending:false
+    });
+    setPaycheckPlan(prev=>prev?{...prev,actualNetCents:amountCents,reconciledAt:new Date().toISOString()}:null);
+    setAdvances(prev=>prev.map(a=>!a.isReconciled&&(!a.paycheckPlanId||a.paycheckPlanId===paycheckPlan.id)
+      ?{...a,isReconciled:true,updatedAt:new Date().toISOString()}:a));
+    return true;
+  };
+
+  const addAdvance = (advData: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,depositAccountId:string) => {
+    if(!accounts.some(a=>a.id===depositAccountId&&a.isActive))return;
     const newAdv: WageAdvance = {
       ...advData,
       id: `adv-${Date.now()}`,
@@ -673,11 +700,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     };
     setAdvances((prev) => [newAdv, ...prev]);
 
-    // An advance gives immediate cash, so add to checking account if an account exists
-    if (accounts.length > 0) {
-      const primaryAcc = accounts[0];
-      addTransaction({
-        accountId: primaryAcc.id,
+    // Record the actual advance receipt in the explicitly chosen account.
+    // This is cash received now, not a second paycheck.
+    addTransaction({
+        accountId: depositAccountId,
         amountCents: advData.advanceAmountCents,
         transactionType: 'income',
         category: 'wage_advance',
@@ -685,13 +711,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         notes: `Wage advance received (${advData.notes || 'early payout'})`,
         isPending: false,
       });
-    }
   };
 
-  const markBillPaid = (billId: string, createTransaction: boolean = true) => {
+  const markBillPaid = (billId: string, createTransaction: boolean = true, accountId?: string) => {
     const bill = bills.find((b) => b.id === billId);
-    if (!bill) return;
-
+    if (!bill || bill.isPaid || paidBillIdsRef.current.has(billId)) return;
+    if(createTransaction && !accounts.some(a=>a.id===accountId && a.isActive))return;
+    paidBillIdsRef.current.add(billId);
     setBills((prev) =>
       prev.map((b) =>
         b.id === billId
@@ -704,9 +730,9 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       )
     );
 
-    if (createTransaction && accounts.length > 0) {
+    if (createTransaction && accountId) {
       addTransaction({
-        accountId: accounts[0].id,
+        accountId,
         amountCents: -bill.amountCents,
         transactionType: 'expense',
         category: bill.category,
@@ -726,6 +752,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     };
     setBills((prev) => [...prev, newBill]);
   };
+
+  const addReserve=(input:Pick<BudgetReserve,'name'|'category'|'targetCents'|'allocatedCents'|'isEssential'>)=>{
+    const now=new Date().toISOString();
+    setReserves(prev=>[...prev,{...input,name:input.name.trim().slice(0,80),id:crypto.randomUUID(),userId,
+      createdAt:now,updatedAt:now}]);
+  };
+  const deleteReserve=(reserveId:string)=>setReserves(prev=>prev.filter(r=>r.id!==reserveId));
 
   const updateReserve = (reserveId: string, allocatedCents: number) => {
     setReserves((prev) =>
@@ -748,6 +781,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const resetToDefaults=()=>{
+    paidBillIdsRef.current.clear();
+    depositedPlanIdsRef.current.clear();
     setSavedPlaces([]);
     setProfile({...DEFAULT_PROFILE,id:userId});setEvents([]);setEventOccurrences([]);setTasks([]);
     setMedications([]);setMedicationSchedules([]);setMedicationLogs([]);setAccounts([]);
@@ -798,13 +833,18 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         deleteMedication,
         logDose,
 
+        addAccount,
         updateAccountBalance,
         addTransaction,
         deleteTransaction,
         updatePaycheckPlan,
+        setPaycheckForecast,
+        recordPaycheckDeposit,
         addAdvance,
         markBillPaid,
         addBill,
+        addReserve,
+        deleteReserve,
         updateReserve,
 
         addContact,

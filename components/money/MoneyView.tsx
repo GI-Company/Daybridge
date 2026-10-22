@@ -24,9 +24,11 @@ import {
   parseDollarsToCents,
 } from '../../lib/budget';
 import { formatDate } from '../../lib/date-time';
+import {AddBudgetAccount} from './AddBudgetAccount';
+import {PaycheckSetup} from './PaycheckSetup';
 
 interface MoneyViewProps {
-  onOpenQuickAdd: () => void;
+  onOpenQuickAdd: (type?: 'transaction'|'bill') => void;
 }
 
 export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
@@ -37,25 +39,41 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
     deleteTransaction,
     paycheckPlan,
     updatePaycheckPlan,
+    recordPaycheckDeposit,
     advances,
     addAdvance,
     bills,
     markBillPaid,
     reserves,
     updateReserve,
+    addReserve,
+    deleteReserve,
     profile,
   } = useDayBridge();
 
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [showAccountForm,setShowAccountForm]=useState(false);
+  const [showReserveForm,setShowReserveForm]=useState(false);
+  const [reserveName,setReserveName]=useState('');
+  const [reserveAmount,setReserveAmount]=useState('');
+  const [reserveTarget,setReserveTarget]=useState('');
+  const [reserveEssential,setReserveEssential]=useState(true);
+  const [payingBillId,setPayingBillId]=useState<string|null>(null);
+  const [billAccountId,setBillAccountId]=useState('');
+  const activeAccounts=accounts.filter(a=>a.isActive);
+  const [budgetMessage,setBudgetMessage]=useState('');
   const [newBalanceInput, setNewBalanceInput] = useState<string>('');
 
+  const [showPaycheckSetup,setShowPaycheckSetup]=useState(false);
+  const [advanceAccountId,setAdvanceAccountId]=useState('');
+  const [depositAccountId,setDepositAccountId]=useState('');
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
-  const [advanceAmountInput, setAdvanceAmountInput] = useState('100.00');
-  const [advanceFeeInput, setAdvanceFeeInput] = useState('3.99');
-  const [advanceNotesInput, setAdvanceNotesInput] = useState('Earned wage access');
+  const [advanceAmountInput, setAdvanceAmountInput] = useState('');
+  const [advanceFeeInput, setAdvanceFeeInput] = useState('0.00');
+  const [advanceNotesInput, setAdvanceNotesInput] = useState('');
 
   const [showReconcileModal, setShowReconcileModal] = useState(false);
-  const [actualNetInput, setActualNetInput] = useState('750.00');
+  const [actualNetInput, setActualNetInput] = useState('');
 
   // Safe to spend calculation
   const safeToSpend = calculateSafeToSpend({
@@ -73,17 +91,49 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
   });
 
   const handleUpdateBalance = (accountId: string) => {
+    if(!/^-?\d+(?:\.\d{1,2})?$/.test(newBalanceInput.trim())){
+      setBudgetMessage('Enter a valid amount, such as 120.00.');return;
+    }
     const cents = parseDollarsToCents(newBalanceInput);
-    updateAccountBalance(accountId, cents);
+    if(!Number.isSafeInteger(cents)){setBudgetMessage('That amount is too large.');return;}
+    updateAccountBalance(accountId,cents);
+    setBudgetMessage('Balance updated. Your manual transaction history is unchanged.');
     setEditingAccountId(null);
   };
+  const confirmBillPayment=(billId:string)=>{
+    const account=activeAccounts.find(a=>a.id===billAccountId);
+    if(!account){setBudgetMessage('Choose the account that paid this bill.');return;}
+    const name=bills.find(b=>b.id===billId)?.title||'Bill';
+    markBillPaid(billId,true,account.id);
+    setPayingBillId(null);setBillAccountId('');
+    setBudgetMessage(name+' marked paid and deducted from '+account.name+'.');
+  };
 
+  const createReserve=(event:React.FormEvent)=>{
+    event.preventDefault();
+    const amount=parseDollarsToCents(reserveAmount),target=parseDollarsToCents(reserveTarget||reserveAmount);
+    if(!reserveName.trim()||!/^\d+(?:\.\d{1,2})?$/.test(reserveAmount.trim())||
+       !(amount>=0)||!Number.isSafeInteger(amount)||!Number.isSafeInteger(target)||target<0){
+      setBudgetMessage('Enter a reserve name and a valid amount.');return;
+    }
+    if(reserves.some(r=>r.name.toLowerCase()===reserveName.trim().toLowerCase())){
+      setBudgetMessage('This reserve already exists. Use its adjustment buttons.');return;
+    }
+    addReserve({name:reserveName.trim(),category:'other',allocatedCents:amount,
+      targetCents:Math.max(amount,target),isEssential:reserveEssential});
+    setReserveName('');setReserveAmount('');setReserveTarget('');
+    setShowReserveForm(false);
+    setBudgetMessage('Reserve added. Essential reserves are excluded from safe-to-spend.');
+  };
   const handleRecordAdvance = (e: React.FormEvent) => {
     e.preventDefault();
     const amountCents = parseDollarsToCents(advanceAmountInput);
     const feeCents = parseDollarsToCents(advanceFeeInput);
-    if (!amountCents) return;
-
+    if(!paycheckPlan){setBudgetMessage('Set up your next paycheck before tracking advances.');return;}
+    if(!Number.isSafeInteger(amountCents)||amountCents<=0||!activeAccounts.some(a=>a.id===advanceAccountId)){
+      setBudgetMessage('Enter a valid advance amount and choose where it was deposited.');return;
+    }
+    if(feeCents<0||!Number.isSafeInteger(feeCents)){setBudgetMessage('Enter a valid nonnegative fee.');return;}
     addAdvance({
       paycheckPlanId: paycheckPlan?.id,
       advanceAmountCents: amountCents,
@@ -91,21 +141,22 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
       receivedDate: new Date().toISOString().split('T')[0],
       isReconciled: false,
       notes: advanceNotesInput.trim(),
-    });
-
+    },advanceAccountId);
+    setBudgetMessage('Advance recorded in the selected account and deducted from this paycheck forecast.');
     setShowAdvanceModal(false);
   };
 
   const handleReconcilePaycheck = (e: React.FormEvent) => {
     e.preventDefault();
     const actualCents = parseDollarsToCents(actualNetInput);
-    if (!paycheckPlan) return;
-
-    updatePaycheckPlan({
-      actualNetCents: actualCents,
-      reconciledAt: new Date().toISOString(),
-    });
-
+    if(!paycheckPlan||paycheckPlan.reconciledAt)return;
+    if(!Number.isSafeInteger(actualCents)||actualCents<=0||!activeAccounts.some(a=>a.id===depositAccountId)){
+      setBudgetMessage('Enter the actual deposit and select the account receiving it.');return;
+    }
+    if(!recordPaycheckDeposit(depositAccountId,actualCents)){
+      setBudgetMessage('Unable to record deposit. Check the account and paycheck status.');return;
+    }
+    setBudgetMessage('Paycheck deposit added to your selected account and transaction history.');
     setShowReconcileModal(false);
   };
 
@@ -120,14 +171,30 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
           </p>
         </div>
         <button
-          onClick={onOpenQuickAdd}
+          onClick={()=>onOpenQuickAdd('transaction')}
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs min-h-[44px] transition shadow-md shadow-teal-100/70"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>New Entry</span>
+          <span>Income / Expense</span>
         </button>
       </div>
 
+      {budgetMessage&&<p role="status" className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950">{budgetMessage}</p>}
+      {accounts.length===0&&<div className="space-y-3 rounded-2xl border border-teal-300 bg-white p-4">
+        <h3 className="text-lg font-bold text-slate-950">Set up your budget</h3>
+        <p className="text-sm text-slate-700">No money accounts yet. Add where you keep your money, even if you start with $0. Then income and expenses will update its balance automatically.</p>
+        <AddBudgetAccount onCreated={()=>{setShowAccountForm(false);setBudgetMessage('Account created. You can now record income or spending.')}}/>
+      </div>}
+      {transactions.length>0&&<div role="status" aria-live="polite" className="rounded-2xl border border-slate-200 bg-white p-4">
+        <p className="text-xs font-semibold uppercase text-slate-600">Latest recorded entry</p>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-slate-900">{transactions[0].notes||transactions[0].category.replaceAll('_',' ')}</p>
+            <p className="text-xs text-slate-600">{accounts.find(a=>a.id===transactions[0].accountId)?.name||'Account'} · {transactions[0].transactionDate}</p>
+          </div>
+          <strong className={transactions[0].amountCents>=0?'text-emerald-800':'text-slate-900'}>{formatCents(transactions[0].amountCents)}</strong>
+        </div>
+      </div>}
       {/* 1. SAFE-TO-SPEND HERO CARD */}
       <section className="bg-gradient-to-br from-teal-50 to-white border border-teal-500/30 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="flex items-center justify-between mb-3">
@@ -150,8 +217,9 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
 
         <div className="mb-4">
           <div className="text-4xl sm:text-5xl font-extrabold text-teal-700 tracking-tight">
-            {formatCents(safeToSpend.netSpendableCents)}
+            {activeAccounts.length?formatCents(safeToSpend.netSpendableCents):'Not set'}
           </div>
+          {!activeAccounts.length&&<p className="text-sm text-slate-700">Add a money account above to calculate your available balance.</p>}
           {safeToSpend.shortfallCents > 0 && (
             <div className="text-xs font-bold text-rose-700 mt-1">
               Shortfall of -{formatCents(safeToSpend.shortfallCents)} to cover pre-payday obligations
@@ -190,17 +258,24 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
 
       {/* 2. CONFIRMED ACCOUNT BALANCES (MANUAL LEDGER) */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">Account Balances (Manual)</h3>
+            <h3 className="font-bold text-slate-900 text-base">Your money accounts</h3>
             <p className="text-xs text-slate-600">
               Confirm balances regularly; never requires bank credentials
             </p>
           </div>
+          {accounts.length>0&&<button type="button" onClick={()=>setShowAccountForm(v=>!v)}
+            className="min-h-[44px] rounded-xl border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-900">
+            {showAccountForm?'Cancel':'+ Add account'}
+          </button>}
         </div>
-
+        {showAccountForm&&accounts.length>0&&<div className="mb-4">
+          <AddBudgetAccount onCreated={()=>{setShowAccountForm(false);setBudgetMessage('Account created.');}}
+            onCancel={()=>setShowAccountForm(false)}/>
+        </div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {accounts.map((acc) => (
+          {accounts.filter(acc=>acc.isActive).map((acc) => (
             <div
               key={acc.id}
               className="p-4 bg-slate-50/90 border border-slate-200 rounded-2xl flex items-center justify-between"
@@ -257,30 +332,37 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
       </section>
 
       {/* 3. PAYCHECK PLAN & WAGE ADVANCE PROTECTION */}
-      <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
+      <details className="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg">
+        <summary className="cursor-pointer text-base font-bold text-slate-900">Paycheck planning (optional)</summary>
+        <section className="mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">Paycheck & Wage Advance Plan</h3>
+            <h3 className="font-bold text-slate-900 text-base">Next paycheck and advances</h3>
             <p className="text-xs text-slate-600">
               Deducts advances from expected paycheck; avoids double-counting spendable cash
             </p>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowAdvanceModal(true)}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={()=>setShowPaycheckSetup(v=>!v)}
+              className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800">
+              {showPaycheckSetup?'Cancel':paycheckPlan?'Edit next payday':'+ Plan paycheck'}
+            </button>
+            {paycheckPlan&&<button
+              onClick={() => {setAdvanceAccountId(activeAccounts.length===1?activeAccounts[0].id:'');setShowAdvanceModal(true)}}
               data-daybridge-edit-button="true" className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 border border-slate-300 min-h-[44px]"
             >
               + Record Advance
-            </button>
-            <button
-              onClick={() => setShowReconcileModal(true)}
+            </button>}
+            {paycheckPlan&&!paycheckPlan.reconciledAt&&<button
+              onClick={() => {setDepositAccountId(activeAccounts.length===1?activeAccounts[0].id:'');setShowReconcileModal(true)}}
               className="px-3 py-1.5 rounded-xl bg-teal-500/20 text-teal-800 border border-teal-500/30 hover:bg-teal-500/30 text-xs font-bold min-h-[44px]"
             >
-              Reconcile
-            </button>
+              Record deposit
+            </button>}
           </div>
         </div>
-
+        {showPaycheckSetup&&<div className="mb-4"><PaycheckSetup onSaved={()=>{setShowPaycheckSetup(false);setBudgetMessage('Paycheck forecast saved. It does not change your account balance.')}} onCancel={()=>setShowPaycheckSetup(false)}/></div>}
+        {!paycheckPlan&&!showPaycheckSetup&&<p className="text-sm text-slate-700">Add an optional payday forecast to track upcoming paychecks and advances. Everyday income and expenses work without one.</p>}
         {paycheckPlan && (
           <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-4 sm:p-5">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -356,7 +438,8 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             )}
           </div>
         )}
-      </section>
+        </section>
+      </details>
 
       {/* 4. BILLS DUE BEFORE PAYDAY */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
@@ -368,8 +451,8 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             </p>
           </div>
           <button
-            onClick={onOpenQuickAdd}
-            className="text-xs text-teal-700 hover:text-teal-800 font-medium"
+            onClick={()=>onOpenQuickAdd('bill')}
+            className="min-h-[44px] text-xs text-teal-700 hover:text-teal-800 font-medium"
           >
             + Add Bill
           </button>
@@ -407,7 +490,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                   </span>
                 ) : (
                   <button
-                    onClick={() => markBillPaid(bill.id, true)}
+                    onClick={()=>{setPayingBillId(bill.id);setBillAccountId(activeAccounts.length===1?activeAccounts[0].id:'');setBudgetMessage('')}}
                     className="px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 active:scale-95 text-slate-950 font-bold text-xs min-h-[44px] transition shadow-md shadow-teal-950/40"
                   >
                     Mark Paid
@@ -417,6 +500,22 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             </div>
           ))}
         </div>
+        {payingBillId&&<div className="mt-3 space-y-3 rounded-xl border border-teal-200 bg-teal-50 p-4">
+          <h4 className="font-semibold text-slate-950">Pay from which account?</h4>
+          {activeAccounts.length===0?<p className="text-sm text-amber-900">Add a money account first. The bill has not been marked paid.</p>:
+            <label className="block text-sm text-slate-800">Account
+              <select value={billAccountId} onChange={e=>setBillAccountId(e.target.value)}
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3">
+                <option value="">Choose account</option>
+                {activeAccounts.map(a=><option value={a.id} key={a.id}>{a.name} ({formatCents(a.balanceCents)})</option>)}
+              </select>
+            </label>}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={!billAccountId} onClick={()=>confirmBillPayment(payingBillId)}
+              className="min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirm payment</button>
+            <button type="button" onClick={()=>{setPayingBillId(null);setBillAccountId('')}} className="min-h-[44px] rounded-xl border border-slate-300 px-4 py-2 text-sm">Cancel</button>
+          </div>
+        </div>}
       </section>
 
       {/* 5. EARMARKED RESERVES */}
@@ -427,7 +526,32 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             Money set aside for essentials so you don&apos;t accidentally spend it
           </p>
         </div>
-
+        <button type="button" onClick={()=>setShowReserveForm(v=>!v)}
+          className="mb-3 min-h-[44px] rounded-xl border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-900">
+          {showReserveForm?'Cancel':'+ Add reserve'}
+        </button>
+        {showReserveForm&&<form data-daybridge-draft="true" onSubmit={createReserve} className="mb-4 space-y-3 rounded-xl border border-teal-200 bg-teal-50 p-4">
+          <label className="block text-sm font-medium text-slate-800">What are you saving for?
+            <input required value={reserveName} onChange={e=>setReserveName(e.target.value)}
+              placeholder="e.g. Gas, Groceries, Car maintenance" className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3"/>
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm font-medium text-slate-800">Set aside now ($)
+              <input required inputMode="decimal" value={reserveAmount} onChange={e=>setReserveAmount(e.target.value)}
+                placeholder="0.00" className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3"/>
+            </label>
+            <label className="block text-sm font-medium text-slate-800">Goal ($), optional
+              <input inputMode="decimal" value={reserveTarget} onChange={e=>setReserveTarget(e.target.value)}
+                placeholder="Same as reserve" className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3"/>
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-800">
+            <input type="checkbox" checked={reserveEssential} onChange={e=>setReserveEssential(e.target.checked)}
+              className="h-4 w-4 accent-teal-800"/>Exclude this amount from safe-to-spend
+          </label>
+          <button type="submit" className="min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-bold text-white">Save reserve</button>
+        </form>}
+        {!reserves.length&&<p className="mb-3 text-sm text-slate-600">No reserves yet. Add one to protect money for essentials.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {reserves.map((res) => (
             <div key={res.id} className="p-3.5 bg-slate-50/90 border border-slate-200 rounded-2xl">
@@ -451,8 +575,11 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                   +$5
                 </button>
                 <span className="text-[11px] text-slate-600 ml-auto">
-                  Target: {formatCents(res.targetCents)}
+                  Goal: {formatCents(res.targetCents)}
                 </span>
+                <button type="button" aria-label={'Delete reserve '+res.name}
+                 onClick={()=>{if(window.confirm('Remove '+res.name+' from your reserves? This changes safe-to-spend but does not move money.'))deleteReserve(res.id);}}
+                 className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-2 text-xs text-rose-800">Remove</button>
               </div>
             </div>
           ))}
@@ -467,8 +594,8 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             <p className="text-xs text-slate-600">Recent manual expenses and income entries</p>
           </div>
           <button
-            onClick={onOpenQuickAdd}
-            className="text-xs text-teal-700 hover:text-teal-800 font-medium"
+            onClick={()=>onOpenQuickAdd('transaction')}
+            className="min-h-[44px] text-xs text-teal-700 hover:text-teal-800 font-medium"
           >
             + Add Transaction
           </button>
@@ -516,7 +643,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                       {formatCents(tx.amountCents)}
                     </span>
                     <button
-                      onClick={() => deleteTransaction(tx.id)}
+                      onClick={() => {if(window.confirm('Delete this transaction and reverse its balance effect?'))deleteTransaction(tx.id)}}
                       className="p-1.5 text-slate-600 hover:text-rose-700"
                       title="Delete transaction"
                     >
@@ -543,6 +670,13 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             </p>
 
             <form onSubmit={handleRecordAdvance} className="space-y-3 text-xs">
+              <label className="block text-sm font-semibold text-slate-800">Deposit into account
+                <select required value={advanceAccountId} onChange={e=>setAdvanceAccountId(e.target.value)}
+                 className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                 <option value="">Choose an account</option>
+                 {activeAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </label>
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">
                   Advance Amount ($)
@@ -606,11 +740,18 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
           <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-5 shadow-2xl animate-in zoom-in-95">
             <h3 className="font-bold text-base text-slate-900 mb-2">Reconcile Payday Deposit</h3>
             <p className="text-xs text-slate-600 mb-4">
-              When your actual paycheck deposits, enter the final net amount received to update your
-              balances and clear this cycle&apos;s advances.
+              Record the money actually deposited into the account you choose. Your transaction history and balance will update together.
             </p>
 
             <form onSubmit={handleReconcilePaycheck} className="space-y-3 text-xs">
+              <p className="text-xs text-amber-900">Record only the amount actually deposited. If you already entered this income elsewhere, don't record it again.</p>
+              <label className="block text-sm font-semibold text-slate-800">Received into account
+                <select required value={depositAccountId} onChange={e=>setDepositAccountId(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="">Choose an account</option>
+                  {activeAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </label>
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">
                   Actual Net Deposited ($)
@@ -637,7 +778,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold min-h-[44px]"
                 >
-                  Confirm Reconciliation
+                  Save deposit
                 </button>
               </div>
             </form>

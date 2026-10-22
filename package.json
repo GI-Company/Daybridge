@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/travel.test.ts",
     "test:auth": "node --experimental-strip-types --test tests/username.test.ts",
+    "test:budget": "node --experimental-strip-types --test tests/budget-ledger.test.ts",
     "test:medications": "node --experimental-strip-types --test tests/medication.test.ts"
   },
   "dependencies": {
