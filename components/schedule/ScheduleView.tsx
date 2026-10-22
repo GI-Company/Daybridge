@@ -55,7 +55,9 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
 
   const categories = [
     { id: 'all', label: 'All Events' },
-    { id: 'court', label: 'Court & Classes' },
+    { id: 'court', label: 'Court' },
+    { id: 'class', label: 'Classes' },
+    { id: 'drug_testing', label: 'Drug Testing' },
     { id: 'work', label: 'Work Shifts' },
     { id: 'therapy', label: 'Therapy' },
     { id: 'case_management', label: 'Case Mgmt' },
@@ -121,7 +123,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
         <div className="space-y-3">
           {filteredOccurrences.map((occ) => {
             const isToday = occ.startTime.toDateString() === now.toDateString();
-            const isCourt = occ.category === 'court';
+            const isCourt = occ.category === 'court' || occ.category === 'class' || occ.category === 'drug_testing';
             const isAttended = occ.attendanceStatus === 'attended_self_reported';
             const isNotAttended = occ.attendanceStatus === 'not_attended_self_reported';
 

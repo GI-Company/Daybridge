@@ -233,7 +233,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {[
-                    { id: 'court', label: 'Court / Class', icon: Scale },
+                    { id: 'court', label: 'Court', icon: Scale },
+                    { id: 'class', label: 'Class / Group', icon: Calendar },
+                    { id: 'drug_testing', label: 'Drug Testing', icon: CheckSquare },
                     { id: 'therapy', label: 'Therapy', icon: HeartHandshake },
                     { id: 'work', label: 'Work Shift', icon: Briefcase },
                     { id: 'case_management', label: 'Case Mgmt', icon: CheckSquare },
@@ -311,7 +313,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 <label htmlFor="event-saved-location" className="block text-sm font-semibold text-teal-950">Choose a saved location</label>
                 <select id="event-saved-location" value={savedPlaces.find(p=>p.address===eventLocation)?.id??''} onChange={e=>{const picked=savedPlaces.find(p=>p.id===e.target.value);if(picked)setEventLocation(picked.address);}} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900">
                  <option value="">Enter an address manually</option>
-                 {savedPlaces.map(p=><option key={p.id} value={p.id}>{p.label} · {p.category.replace('_',' ')}</option>)}
+                 {[...savedPlaces].sort((a,b)=>Number(b.category===(eventCategory==='therapy'?'therapy':eventCategory==='court'?'court':eventCategory==='class'?'class':eventCategory==='drug_testing'?'drug_testing':eventCategory==='work'?'work':'other'))-Number(a.category===(eventCategory==='therapy'?'therapy':eventCategory==='court'?'court':eventCategory==='class'?'class':eventCategory==='drug_testing'?'drug_testing':eventCategory==='work'?'work':'other'))).map(p=><option key={p.id} value={p.id}>{p.label} · {p.category.replace('_',' ')}</option>)}
                 </select>
                 <p className="text-xs text-teal-900">Selecting one fills the appointment address automatically. Add more in Locations & maps.</p>
               </div>}

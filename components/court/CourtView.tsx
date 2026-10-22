@@ -32,7 +32,7 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
 
   // Filter only court and case management events
   const courtEvents = events.filter(
-    (e) => e.category === 'court' || e.category === 'case_management'
+    (e) => e.category === 'court' || e.category === 'class' || e.category === 'drug_testing' || e.category === 'case_management'
   );
 
   const courtOccurrences = courtEvents.flatMap((evt) =>
