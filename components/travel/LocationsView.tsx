@@ -51,7 +51,6 @@ export function LocationsView(){
    });
   return()=>{valid=false};
  // The existing Supabase preference load runs once when entering Locations & Maps.
- // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
  const selected=savedPlaces.find(p=>p.id===destinationId)||
   (destinationId==='__searched'&&searchedDestination
