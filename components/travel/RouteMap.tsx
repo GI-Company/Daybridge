@@ -1,6 +1,7 @@
 'use client';
 import React,{useEffect,useRef,useState} from 'react';
 import type {Point,Route} from '../../lib/travel/types';
+import {projectRoute} from '../../lib/travel/projection';
 const publicKey=process.env.NEXT_PUBLIC_TOMTOM_MAP_KEY;
 export function RouteMap({origin,destination,route}:{origin:Point;destination:Point;route:Route}){
  const holder=useRef<HTMLDivElement>(null),[failure,setFailure]=useState('');
@@ -29,19 +30,23 @@ export function RouteMap({origin,destination,route}:{origin:Point;destination:Po
   void initialize();
   return()=>{removed=true;instance?.mapLibreMap.remove()};
  },[origin.lat,origin.lon,destination.lat,destination.lon,route]);
-const raw=route.points.length?route.points:[origin,destination];
- const x=raw.map(p=>p.lon),y=raw.map(p=>p.lat);
- const minX=Math.min(...x),maxX=Math.max(...x),minY=Math.min(...y),maxY=Math.max(...y);
- const scaleX=(lon:number)=>20+(lon-minX)/(maxX-minX||1)*360;
- const scaleY=(lat:number)=>180-(lat-minY)/(maxY-minY||1)*160;
- const line=raw.filter((_,i)=>i%Math.max(1,Math.floor(raw.length/800))===0).map(p=>scaleX(p.lon).toFixed(1)+','+scaleY(p.lat).toFixed(1)).join(' ');
+const [mapFailed,setMapFailed]=useState(false);
+ const projected=projectRoute(route.points,origin,destination);
+ const mapQuery=new URLSearchParams({
+  lat:projected.center.lat.toFixed(6),
+  lon:projected.center.lon.toFixed(6),zoom:String(projected.zoom)
+ });
  if(!publicKey)return <div className="rounded-2xl border border-slate-200 bg-white p-3">
-  <svg viewBox="0 0 400 200" className="w-full rounded-lg bg-teal-50" role="img" aria-label="Route geometry preview derived from TomTom route coordinates; this is not a street map">
-   <polyline points={line} stroke="#0f766e" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-   <circle cx={scaleX(origin.lon)} cy={scaleY(origin.lat)} r="7" fill="#0f766e"/>
-   <circle cx={scaleX(destination.lon)} cy={scaleY(destination.lat)} r="7" fill="#b45309"/>
-  </svg>
-  <p className="mt-2 text-xs text-slate-700">Actual TomTom route shape. Street-map tiles require a separately restricted map-display key; route ETA and external navigation remain available.</p>
+  <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-teal-50">
+   {!mapFailed&&<img alt="" src={'/api/travel/static-map?'+mapQuery.toString()} onError={()=>setMapFailed(true)} className="absolute inset-0 h-full w-full" loading="lazy" draggable={false}/>}
+   <svg viewBox="0 0 640 320" className="absolute inset-0 h-full w-full" role="img" aria-label="TomTom route overlay with start and destination; street map shown when available">
+    <polyline points={projected.line} stroke="#fff" strokeWidth="8" opacity="0.9" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    <polyline points={projected.line} stroke="#0f766e" strokeWidth="5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx={projected.start.x} cy={projected.start.y} r="8" fill="#0f766e" stroke="#fff" strokeWidth="2"/>
+    <circle cx={projected.finish.x} cy={projected.finish.y} r="8" fill="#b45309" stroke="#fff" strokeWidth="2"/>
+   </svg>
+  </div>
+  <p className="mt-2 text-xs text-slate-700">{mapFailed?'Street-map imagery unavailable; showing the route geometry instead.':'Street map and route supplied by TomTom. Open navigation for live spoken guidance.'}</p>
  </div>;
  return <div><div ref={holder} aria-label="TomTom route map" role="img" className="h-64 w-full rounded-xl border border-slate-200 bg-slate-100"/>{failure&&<p className="mt-2 text-xs text-slate-600" role="status">{failure}</p>}</div>;
 }
