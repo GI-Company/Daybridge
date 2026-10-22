@@ -18,15 +18,23 @@ export async function GET(request:Request){
   if(!parsed.success)return jsonError('Invalid static map coordinates',400);
   if(!await checkRateLimit(auth.db,auth.userId,30))return jsonError('Map request limit reached',429);
   const {lat,lon,zoom}=parsed.data;
-  // Dedicated Map Display key stays on the server and is never returned to the PWA.
-  // Legacy fallback preserves maps in deployments not yet configured with MAPS_DISPLAY.
-  const displayKey=process.env.MAPS_DISPLAY?.trim() || tomTomKey();
+  // The existing tom_tom server key has Map Display permission.
+  // Do not prefer MAPS_DISPLAY here: it may refer to a different, unentitled key.
+  // Never expose this credential to the browser.
+  const displayKey=tomTomKey();
   const api=new URL('https://api.tomtom.com/map/1/staticimage');
   for(const [key,value] of Object.entries({key:displayKey,center:lon.toFixed(6)+','+lat.toFixed(6),zoom:String(zoom),
    width:'640',height:'320',format:'png',layer:'basic',style:'main',language:'en-US',view:'Unified'}))
    api.searchParams.set(key,value);
   const upstream=await fetch(api.toString(),{cache:'no-store',signal:AbortSignal.timeout(8000)});
-  if(!upstream.ok)return jsonError('Street map temporarily unavailable',502);
+  if(!upstream.ok){
+   // Only report the HTTP status. Never log URLs containing credentials or coordinates.
+   console.warn('TomTom Map Display upstream request rejected',{status:upstream.status});
+   if(upstream.status===401||upstream.status===403)
+    return jsonError('TomTom Map Display access denied (HTTP '+upstream.status+'). Check the tom_tom key permissions.',502);
+   if(upstream.status===429)return jsonError('TomTom Map Display rate limit reached (HTTP 429).',429);
+   return jsonError('TomTom Map Display unavailable (HTTP '+upstream.status+').',502);
+  }
   const type=upstream.headers.get('content-type')||'';
   if(!type.startsWith('image/'))return jsonError('Invalid map response',502);
   const bytes=await upstream.arrayBuffer();
