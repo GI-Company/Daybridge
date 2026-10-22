@@ -167,7 +167,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         destinationLon:matchedPlace?.lon,
         contactInfo: eventContact.trim(),
         rrule,
-        travelBufferMinutes: parseInt(eventTravelBuffer, 10) || 0,
+        travelBufferMinutes: eventVenue==='in_person'?(parseInt(eventTravelBuffer, 10) || 0):0,
         prepChecklist: [],
       });
     } else if (activeType === 'medication') {
@@ -306,86 +306,87 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={eventDate}
-                    onChange={(e) => setEventDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Start Time</label>
-                  <input
-                    type="time"
-                    required
-                    value={eventStartTime}
-                    onChange={(e) => {setEventStartTime(e.target.value);setEventEndTime(hourLater(e.target.value));}}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">End Time</label>
-                  <input
-                    type="time"
-                    required
-                    value={eventEndTime}
-                    onChange={(e) => setEventEndTime(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500"
-                  />
-                </div>
-              </div>
 
-              {eventVenue==='in_person'&&<div className="rounded-xl border border-teal-200 bg-teal-50 p-3 space-y-2">
-                <label htmlFor="event-saved-location" className="block text-sm font-semibold text-teal-950">Choose a saved location</label>
-                <select id="event-saved-location" value={savedPlaces.find(p=>p.address===eventLocation)?.id??''} onChange={e=>{const picked=savedPlaces.find(p=>p.id===e.target.value);if(picked)setEventLocation(picked.address);}} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900">
-                 <option value="">Enter an address manually</option>
-                 {[...savedPlaces].sort((a,b)=>Number(b.category===(eventCategory==='therapy'?'therapy':eventCategory==='court'?'court':eventCategory==='class'?'class':eventCategory==='drug_testing'?'drug_testing':eventCategory==='work'?'work':'other'))-Number(a.category===(eventCategory==='therapy'?'therapy':eventCategory==='court'?'court':eventCategory==='class'?'class':eventCategory==='drug_testing'?'drug_testing':eventCategory==='work'?'work':'other'))).map(p=><option key={p.id} value={p.id}>{p.label} · {p.category.replace('_',' ')}</option>)}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm font-medium text-slate-800">Date
+                  <input type="date" required value={eventDate}
+                    onChange={e=>setEventDate(e.target.value)}
+                    className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+                </label>
+                <label className="block text-sm font-medium text-slate-800">Start time
+                  <input type="time" required value={eventStartTime}
+                    onChange={e=>{setEventStartTime(e.target.value);setEventEndTime(hourLater(e.target.value));}}
+                    className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+                </label>
+              </div>
+              {!!savedPlaces.length&&<label className="block text-sm font-medium text-slate-800">Choose a saved location (optional)
+                <select value={savedPlaces.find(p=>p.address===eventLocation)?.id||''}
+                  onChange={e=>{const place=savedPlaces.find(p=>p.id===e.target.value);if(place)setEventLocation(place.address);}}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="">Enter a location instead</option>
+                  {savedPlaces.map(place=><option key={place.id} value={place.id}>{place.label}</option>)}
                 </select>
-                <p className="text-xs text-teal-900">Selecting one fills the appointment address automatically. Add more in Locations & maps.</p>
-              </div>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Location or Meeting Link</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Room 204 or Telehealth URL"
-                    value={eventLocation}
-                    onChange={(e) => setEventLocation(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Travel Buffer (min)</label>
-                  <select
-                    value={eventTravelBuffer}
-                    onChange={(e) => setEventTravelBuffer(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500 min-h-[42px]"
-                  >
-                    <option value="0">0 minutes</option>
+              </label>}
+              <label className="block text-sm font-medium text-slate-800">Location or meeting link (optional)
+                <input type="text" value={eventLocation} onChange={e=>setEventLocation(e.target.value)}
+                  placeholder="Address, room, or video link"
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+              </label>
+              {(activeType==='class'||activeType==='self_help')&&<label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-800">
+                <input type="checkbox" checked={eventRepeatWeekly} onChange={e=>setEventRepeatWeekly(e.target.checked)}
+                  className="h-4 w-4 accent-teal-800"/>Repeat weekly on this day
+              </label>}
+              <button type="button" onClick={()=>setAdvanced(prev=>!prev)}
+                aria-expanded={advanced}
+                className="flex w-full min-h-[44px] items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-teal-900">
+                {advanced?'Hide optional settings':'More options (optional)'}
+                <span aria-hidden="true">{advanced?'−':'+'}</span>
+              </button>
+              {advanced&&<div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <label className="block text-sm font-medium text-slate-800">End time
+                  <input type="time" required value={eventEndTime} onChange={e=>setEventEndTime(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+                </label>
+                {activeType==='event'&&<label className="block text-sm font-medium text-slate-800">Appointment type
+                  <select value={eventCategory} onChange={e=>setEventCategory(e.target.value as EventCategory)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                    <option value="personal">Personal appointment</option>
+                    <option value="court">Court appearance</option>
+                    <option value="drug_testing">Drug testing</option>
+                    <option value="therapy">Therapy</option>
+                    <option value="work">Work shift</option>
+                    <option value="case_management">Case management</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>}
+                <label className="block text-sm font-medium text-slate-800">Meeting format
+                  <select value={eventVenue} onChange={e=>setEventVenue(e.target.value as VenueType)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                    <option value="in_person">In person</option>
+                    <option value="virtual">Online</option>
+                    <option value="phone">By phone</option>
+                  </select>
+                </label>
+                {eventVenue==='in_person'&&<label className="block text-sm font-medium text-slate-800">Travel preparation (minutes)
+                  <select value={eventTravelBuffer} onChange={e=>setEventTravelBuffer(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                    <option value="0">No buffer</option>
                     <option value="15">15 minutes</option>
                     <option value="30">30 minutes</option>
                     <option value="45">45 minutes</option>
                     <option value="60">60 minutes</option>
                   </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="repeatWeekly"
-                  checked={eventRepeatWeekly}
-                  onChange={(e) => setEventRepeatWeekly(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-teal-500 focus:ring-teal-400 bg-slate-50"
-                />
-                <label htmlFor="repeatWeekly" className="text-xs text-slate-700">
-                  Repeat weekly on this day (e.g. every Wednesday class)
+                </label>}
+                {activeType==='event'&&<label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-800">
+                  <input type="checkbox" checked={eventRepeatWeekly} onChange={e=>setEventRepeatWeekly(e.target.checked)}
+                    className="h-4 w-4 accent-teal-800"/>Repeat weekly
+                </label>}
+                <label className="block text-sm font-medium text-slate-800">Contact or instructor (optional)
+                  <input type="text" value={eventContact} onChange={e=>setEventContact(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"
+                    placeholder="Name or phone number"/>
                 </label>
-              </div>
+              </div>}
             </>
           )}
 
