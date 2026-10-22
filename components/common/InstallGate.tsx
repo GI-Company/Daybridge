@@ -22,7 +22,7 @@ export function InstallGate({children}:{children:React.ReactNode}){
   document.addEventListener('visibilitychange',refresh);
   return()=>{window.removeEventListener('beforeinstallprompt',capture);window.removeEventListener('appinstalled',refresh);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh)};
  },[]);
- useEffect(()=>{if(ready&&'serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}},[ready]);
+ useEffect(()=>{if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}},[]);
  if(ready===null) return <div className="min-h-screen bg-slate-50"/>;
  if(ready)return <>{children}</>;
  return <main className="min-h-screen flex items-center justify-center bg-slate-50 px-5 py-8">

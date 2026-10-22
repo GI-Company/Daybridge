@@ -176,12 +176,18 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const updateEvent = (id: string, updates: Partial<CalendarEvent>) => {
+    if(updates.startTime!==undefined||updates.endTime!==undefined||updates.venueType!==undefined){
+      const backend=createClient();
+      void backend?.from('travel_appointments').update({enabled:false,cancelled:true}).eq('source_event_id',id);
+    }
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, ...updates, updatedAt: new Date().toISOString() } : e))
     );
   };
 
   const deleteEvent = (id: string) => {
+    const backend=createClient();
+    void backend?.from('travel_appointments').update({enabled:false,cancelled:true}).eq('source_event_id',id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setEventOccurrences((prev) => prev.filter((o) => o.eventId !== id));
   };
