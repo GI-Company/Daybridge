@@ -49,7 +49,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [medName, setMedName] = useState('');
   const [medStrength, setMedStrength] = useState('');
   const [medInstructions, setMedInstructions] = useState('');
-  const [medTimeOfDay, setMedTimeOfDay] = useState('08:00');
+  const [medTimes, setMedTimes] = useState<string[]>(['08:00']);
+  const [medDays, setMedDays] = useState<number[]>([0,1,2,3,4,5,6]);
+  const [medError,setMedError]=useState('');
   const [medInventory, setMedInventory] = useState('30');
   const [medIsPrn, setMedIsPrn] = useState(false);
 
@@ -108,6 +110,11 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       });
     } else if (activeType === 'medication') {
       if (!medName.trim()) return;
+      const times=[...new Set(medTimes)].sort();
+      if(!medIsPrn&&(medDays.length===0||times.length===0||times.length!==medTimes.length||times.some(t=>!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)))){
+        setMedError('Select at least one repeat day and unique, valid dose times.');return;
+      }
+      setMedError('');
       addMedication(
         {
           name: medName.trim(),
@@ -118,15 +125,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
           refillThreshold: 7,
           notes: '',
         },
-        medIsPrn
-          ? []
-          : [
-              {
-                timeOfDay: medTimeOfDay,
-                daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-                dosageLabel: medStrength.trim() || '1 dose',
-              },
-            ]
+        medIsPrn ? [] : times.map(timeOfDay=>({
+          timeOfDay,daysOfWeek:[...medDays],dosageLabel:medStrength.trim()||'1 dose'
+        }))
       );
     } else if (activeType === 'task') {
       if (!taskTitle.trim()) return;
@@ -421,14 +422,25 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
               </div>
 
               {!medIsPrn && (
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Daily Schedule Time</label>
-                  <input
-                    type="time"
-                    value={medTimeOfDay}
-                    onChange={(e) => setMedTimeOfDay(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500"
-                  />
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <fieldset className="space-y-2">
+                   <legend className="text-sm font-semibold text-slate-900">Scheduled dose times</legend>
+                   <p className="text-xs text-slate-700">Add a time for each dose prescribed on the label, e.g. morning and evening.</p>
+                   {medTimes.map((time,index)=>(
+                    <div key={index} className="flex items-center gap-2">
+                     <label className="flex-1 text-xs text-slate-700">Dose {index+1}
+                      <input type="time" required value={time} onChange={e=>{setMedError('');setMedTimes(prev=>prev.map((v,i)=>i===index?e.target.value:v))}} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"/>
+                     </label>
+                     {medTimes.length>1&&<button type="button" onClick={()=>setMedTimes(prev=>prev.filter((_,i)=>i!==index))} className="mt-4 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs text-rose-800">Remove</button>}
+                    </div>
+                   ))}
+                   {medTimes.length<8&&<button type="button" onClick={()=>setMedTimes(prev=>[...prev,'20:00'])} className="rounded-lg border border-teal-300 bg-white px-3 py-2 text-xs font-semibold text-teal-900">+ Add another time</button>}
+                  </fieldset>
+                  <fieldset className="space-y-2">
+                   <legend className="text-xs font-semibold text-slate-700">Repeat on</legend>
+                   <div className="grid grid-cols-7 gap-1">{['Su','Mo','Tu','We','Th','Fr','Sa'].map((day,i)=><label key={day} className="flex flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 text-[11px]"><input type="checkbox" checked={medDays.includes(i)} onChange={e=>setMedDays(prev=>e.target.checked?[...prev,i].sort():prev.filter(x=>x!==i))}/>{day}</label>)}</div>
+                  </fieldset>
+                  {medError&&<p role="alert" className="text-xs text-rose-800">{medError}</p>}
                 </div>
               )}
 

@@ -45,10 +45,9 @@ export function getMedicationSlotsForDay(
       const slotIso = slotDate.toISOString();
 
       // Check if logged
-      const matchLog = logs.find((l) => {
+      const matchLog = [...logs].reverse().find((l) => {
         if (l.medicationId !== med.id) return false;
-        const loggedSlot = new Date(l.scheduledSlotUtc);
-        return Math.abs(loggedSlot.getTime() - slotDate.getTime()) < 3600000; // 1 hr window match
+        return l.scheduledSlotUtc === slotIso; // Exact slot identity: nearby doses must not share a log
       });
 
       // Display format (e.g. 8:00 AM)
@@ -92,7 +91,8 @@ export function calculateRefillForecast(
   const medSchedules = schedules.filter((s) => s.medicationId === medication.id);
   // Calculate average daily doses
   const totalWeeklyDoses = medSchedules.reduce((sum, s) => sum + s.daysOfWeek.length, 0);
-  const dailyRate = totalWeeklyDoses > 0 ? totalWeeklyDoses / 7 : 1;
+  const dailyRate = medication.isPrn ? 0 : totalWeeklyDoses / 7;
+  if(dailyRate===0)return {estimatedRunoutDate:null,daysRemaining:null,needsRefillSoon:false};
 
   const daysRemaining = Math.max(0, Math.floor(medication.inventoryCount / dailyRate));
   const runout = new Date();

@@ -81,6 +81,7 @@ interface DayBridgeContextType {
     schedules: { timeOfDay: string; daysOfWeek: number[]; dosageLabel: string }[]
   ) => void;
   updateMedication: (id: string, updates: Partial<Medication>) => void;
+  replaceMedicationSchedules: (medicationId:string,times:string[],days:number[]) => void;
   deleteMedication: (id: string) => void;
   logDose: (medicationId: string, scheduledSlotUtc: string, action: DoseAction, reason?: string) => void;
 
@@ -310,6 +311,25 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
     setMedications((prev) => [...prev, newMed]);
     setMedicationSchedules((prev) => [...prev, ...newSchedules]);
+  };
+
+  const replaceMedicationSchedules = (medicationId:string,times:string[],days:number[]) => {
+    const unique=[...new Set(times)].sort();
+    if(!medications.some(m=>m.id===medicationId&&!m.isPrn))return;
+    if(!unique.length||unique.length>8||unique.length!==times.length||!unique.every(t=>/^([01]\d|2[0-3]):[0-5]\d$/.test(t))||
+       !days.length||days.some(d=>!Number.isInteger(d)||d<0||d>6))return;
+    setMedicationSchedules(prev=>{
+      const existing=prev.filter(s=>s.medicationId===medicationId);
+      const kept=prev.filter(s=>s.medicationId!==medicationId);
+      const labels=existing[0]?.dosageLabel||'1 dose';
+      const next=unique.map(timeOfDay=>{
+        const old=existing.find(s=>s.timeOfDay===timeOfDay);
+        return {id:old?.id||`sch-${medicationId}-${crypto.randomUUID()}`,
+          medicationId,userId:profile.id,timeOfDay,daysOfWeek:[...days].sort(),
+          dosageLabel:old?.dosageLabel||labels};
+      });
+      return [...kept,...next];
+    });
   };
 
   const updateMedication = (id: string, updates: Partial<Medication>) => {
@@ -547,6 +567,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
         addMedication,
         updateMedication,
+        replaceMedicationSchedules,
         deleteMedication,
         logDose,
 
