@@ -5,7 +5,7 @@ export const metadata: Metadata = {
  description:'A private personal organizer for scheduling, budget, prescriptions and everyday tasks.',
  manifest:'/manifest.webmanifest',
  robots:{index:false,follow:false},
- icons:{icon:'/icon.svg',apple:'/icon.svg'},
+ icons:{icon:'/icon-192.png',apple:'/icon-192.png'},
  appleWebApp:{capable:true,title:'DayBridge',statusBarStyle:'default'},
 };
 export const viewport: Viewport = {width:'device-width',initialScale:1,themeColor:'#f8fafc'};

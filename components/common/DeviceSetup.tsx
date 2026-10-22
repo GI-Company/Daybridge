@@ -30,7 +30,7 @@ export function DeviceSetup(){
    const vapid=process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
    if(!vapid){setMessage('Device notifications work, but scheduled remote push still needs a VAPID key and delivery worker.');return}
    const existing=await reg.pushManager.getSubscription();
-   const subscription=existing??await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:toBytes(vapid)});
+   const subscription=existing??await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:toBytes(vapid).buffer as ArrayBuffer});
    const user=await client?.auth.getUser();
    if(!client||!user?.data.user){setMessage('Please sign in before enabling remote reminders.');return}
    const json=subscription.toJSON();

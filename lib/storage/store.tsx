@@ -127,7 +127,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       if(error){setSyncStatus('offline');return;}
       const saved=data?.payload as Record<string,unknown>|undefined;
       if(saved){
-        if(saved.profile&&typeof saved.profile==='object')setProfile({...DEFAULT_PROFILE,...saved.profile as Partial<UserProfile>,id:userId});
+        if(saved.profile&&typeof saved.profile==='object')setProfile({...DEFAULT_PROFILE,...(saved.profile as Partial<UserProfile>),id:userId});
         if(Array.isArray(saved.events))setEvents(saved.events);
         if(Array.isArray(saved.eventOccurrences))setEventOccurrences(saved.eventOccurrences);
         if(Array.isArray(saved.tasks))setTasks(saved.tasks);
