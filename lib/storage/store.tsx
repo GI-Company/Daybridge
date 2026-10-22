@@ -21,6 +21,7 @@ import {
   AttendanceStatus,
 } from '../types';
 import { isSupabaseConfigured, createClient } from '../supabase/client';
+import {readDeviceSnapshot,writeDeviceSnapshot,requestDurableStorage,type DeviceSnapshot} from './device-cache';
 
 // Initial realistic baseline data
 const DEFAULT_PROFILE: UserProfile = {
@@ -57,7 +58,7 @@ interface DayBridgeContextType {
   bills: Bill[];
   reserves: BudgetReserve[];
   contacts: ResourceContact[];
-  syncStatus: 'synced' | 'local_only' | 'syncing' | 'offline';
+  syncStatus: 'synced' | 'device_saved' | 'local_only' | 'syncing' | 'offline';
   syncIssue: string | null;
   retrySync: () => void;
   isLiveSupabase: boolean;
@@ -122,74 +123,114 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const [reserves, setReserves] = useState<BudgetReserve[]>([]);
   const [contacts, setContacts] = useState<ResourceContact[]>([]);
 
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'local_only' | 'syncing' | 'offline'>('local_only');
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'device_saved' | 'local_only' | 'syncing' | 'offline'>('local_only');
   const [isLoaded, setIsLoaded] = useState(false);
-  const [syncIssue, setSyncIssue] = useState<string|null>(null);
-  const revisionRef = useRef(0);
-  const hydratedRef = useRef(false);
-  const savedFingerprintRef = useRef('');
-  const pendingRef = useRef<{payload:Record<string,unknown>;fingerprint:string}|null>(null);
-  const unknownFieldsRef = useRef<Record<string,unknown>>({});
-  const savingRef = useRef(false);
-  const conflictRef = useRef(false);
-  const saveTimerRef = useRef<number|null>(null);
-  const aliveRef = useRef(true);
+  const [syncIssue,setSyncIssue]=useState<string|null>(null);
+  const revisionRef=useRef(0);
+  const hydratedRef=useRef(false);
+  const savedFingerprintRef=useRef('');
+  const pendingRef=useRef<{payload:Record<string,unknown>;fingerprint:string}|null>(null);
+  const unknownFieldsRef=useRef<Record<string,unknown>>({});
+  const savingRef=useRef(false);
+  const conflictRef=useRef(false);
+  const localFailedRef=useRef(false);
+  const deviceWritingRef=useRef(false);
+  const deviceWriteChain=useRef<Promise<void>>(Promise.resolve());
+  const saveTimerRef=useRef<number|null>(null);
+  const aliveRef=useRef(true);
 
-  // Only the latest snapshot can be written, and requests are serialized.
-  // The Postgres RPC atomically rejects a save based on a stale revision.
-  const flushSnapshot = useCallback(async () => {
-    if(savingRef.current || conflictRef.current || !pendingRef.current)return;
+  // A per-user, encrypted IndexedDB write-ahead copy. Serialize device writes,
+  // so a slow previous encryption cannot overwrite a newer local edit.
+  const saveOnDevice=useCallback((data:DeviceSnapshot)=>{
+    deviceWritingRef.current=true;
+    const next=deviceWriteChain.current.catch(()=>undefined).then(()=>writeDeviceSnapshot(userId,data));
+    deviceWriteChain.current=next;
+    void next.then(()=>{
+      localFailedRef.current=false;
+      if(aliveRef.current&&pendingRef.current&&pendingRef.current.fingerprint===JSON.stringify(data.payload)){
+        setSyncStatus(navigator.onLine?'syncing':'device_saved');
+      }
+    }).catch(()=>{
+      localFailedRef.current=true;
+      if(aliveRef.current){
+        setSyncStatus('offline');
+        setSyncIssue('Device storage failed (possibly full or blocked). Keep the app open, free storage, and retry saving. Cloud sync is paused until device storage succeeds.');
+      }
+    }).finally(()=>{if(deviceWriteChain.current===next)deviceWritingRef.current=false;});
+    return next;
+  },[userId]);
+
+  // Never write to Supabase until the local encrypted copy is safely committed.
+  // The revision-checked RPC prevents overwriting newer edits from other devices.
+  const flushSnapshot=useCallback(async()=>{
+    if(savingRef.current||conflictRef.current||!pendingRef.current)return;
     const client=createClient();
-    if(!client){setSyncStatus('offline');setSyncIssue('Cloud storage is unavailable. Do not close this tab or update.');return;}
+    if(!client||!navigator.onLine){
+      if(aliveRef.current&&!localFailedRef.current)setSyncStatus('device_saved');
+      return;
+    }
     savingRef.current=true;
     let failed=false;
     try{
-      while(pendingRef.current && !conflictRef.current){
+      while(pendingRef.current&&!conflictRef.current){
+        try{await deviceWriteChain.current;}catch{
+          failed=true;break;
+        }
+        if(localFailedRef.current){failed=true;break}
         const item=pendingRef.current;
         pendingRef.current=null;
-        let result: {data:unknown;error:{message:string}|null};
+        let result:{data:unknown;error:{message:string}|null};
         try{
           result=await client.rpc('save_private_snapshot',{
             p_payload:item.payload,p_expected_revision:revisionRef.current
           });
-        }catch{
-          result={data:null,error:{message:'Network connection failed'}};
-        }
-        if(result.error || !Number.isSafeInteger(Number(result.data))){
-          // Keep the most recent unsaved data in memory. Never claim success
-          // and never silently overwrite data saved by another device.
-          if(!pendingRef.current)pendingRef.current=item;
+        }catch{result={data:null,error:{message:'Network error'}};}
+        const nextRev=Number(result.data);
+        if(result.error||!Number.isSafeInteger(nextRev)||nextRev<0){
           failed=true;
-          const isConflict=String(result.error?.message??'').includes('snapshot_conflict');
-          if(isConflict)conflictRef.current=true;
+          if(!pendingRef.current)pendingRef.current=item;
+          const conflict=String(result.error?.message??'').includes('snapshot_conflict');
+          if(conflict)conflictRef.current=true;
           if(aliveRef.current){
-            setSyncIssue(isConflict
-              ? 'Another device has saved a newer version. Your edits are still on this screen. Export them from Settings before refreshing; do not overwrite the other device.'
-              : 'Unable to save to Supabase. Keep this app open; check your connection and use Retry save.');
-            setSyncStatus('offline');
+            setSyncIssue(conflict
+             ? 'Another device has newer cloud changes. This device has preserved your unsynced records. Export them from Settings before resolving the conflict.'
+             : 'Your changes are saved on this device; Supabase is unavailable. Sync will retry when the connection returns.');
+            setSyncStatus('device_saved');
           }
           break;
         }
-        revisionRef.current=Number(result.data);
+        revisionRef.current=nextRev;
         savedFingerprintRef.current=item.fingerprint;
+        // Keep a clean local copy, unless a newer local edit is already staged.
+        // Durable writes are ordered after all previous writes.
+        try{
+          await saveOnDevice({
+            payload:pendingRef.current?.payload??item.payload,
+            dirty:Boolean(pendingRef.current),
+            revision:nextRev,updatedAt:Date.now()
+          });
+        }catch{failed=true;break}
       }
     }finally{
       savingRef.current=false;
-      if(aliveRef.current && !failed && !pendingRef.current){
+      if(aliveRef.current&&!failed&&!pendingRef.current&&!localFailedRef.current){
         setSyncIssue(null);
         setSyncStatus('synced');
       }
     }
-  },[]);
+  },[saveOnDevice]);
 
-  const retrySync = useCallback(() => {
+  const retrySync=useCallback(()=>{
     if(conflictRef.current)return;
     if(saveTimerRef.current){clearTimeout(saveTimerRef.current);saveTimerRef.current=null;}
     if(pendingRef.current){
-      setSyncStatus('syncing');
-      void flushSnapshot();
+      if(localFailedRef.current){
+        const item=pendingRef.current;
+        void saveOnDevice({payload:item.payload,dirty:true,revision:revisionRef.current,updatedAt:Date.now()})
+          .then(()=>void flushSnapshot()).catch(()=>undefined);
+      }else void flushSnapshot();
     }
-  },[flushSnapshot]);
+  },[flushSnapshot,saveOnDevice]);
 
   useEffect(()=>{
     aliveRef.current=true;
@@ -200,95 +241,167 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   },[]);
   useEffect(()=>{
     const onRetry=()=>retrySync();
-    const onOnline=()=>retrySync();
-    const onVisibility=()=>{if(document.visibilityState==='hidden')retrySync();};
+    const onVisibility=()=>{if(document.visibilityState==='visible')retrySync();};
     const onBeforeUnload=(event:BeforeUnloadEvent)=>{
-      if(pendingRef.current || savingRef.current || conflictRef.current){
-        event.preventDefault();
-        event.returnValue='';
+      if(deviceWritingRef.current||localFailedRef.current||conflictRef.current){
+        event.preventDefault();event.returnValue='';
       }
     };
+    const interval=window.setInterval(()=>retrySync(),30000);
     window.addEventListener('daybridge:save-now',onRetry);
-    window.addEventListener('online',onOnline);
+    window.addEventListener('online',onRetry);
+    window.addEventListener('focus',onRetry);
     window.addEventListener('beforeunload',onBeforeUnload);
     document.addEventListener('visibilitychange',onVisibility);
     return()=>{
+      window.clearInterval(interval);
       window.removeEventListener('daybridge:save-now',onRetry);
-      window.removeEventListener('online',onOnline);
+      window.removeEventListener('online',onRetry);
+      window.removeEventListener('focus',onRetry);
       window.removeEventListener('beforeunload',onBeforeUnload);
       document.removeEventListener('visibilitychange',onVisibility);
     };
   },[retrySync]);
 
-
-  const isLive = isSupabaseConfigured();
-
-  // The PWA update banner listens for cloud sync state before offering a reload.
-  // No private record content is exposed in this browser event.
+  const isLive=isSupabaseConfigured();
   useEffect(()=>{
     window.dispatchEvent(new CustomEvent('daybridge:sync-state',{detail:syncStatus}));
     return()=>{window.dispatchEvent(new CustomEvent('daybridge:sync-state',{detail:null}));};
   },[syncStatus]);
 
-  // RLS-protected cloud storage. No plaintext offline personal cache.
+  // Restore durable local edits BEFORE accepting server data. Never load an
+  // empty default account when both cloud and cache are unavailable.
   useEffect(()=>{
-    let active=true;const client=createClient();
-    if(!client){setSyncStatus('offline');return;}
-    client.from('private_snapshots').select('payload,revision').eq('user_id',userId).maybeSingle().then(({data,error}: {data:{payload:unknown;revision:number}|null;error:unknown})=>{
+    let active=true;
+    const keys=['profile','savedPlaces','events','eventOccurrences','tasks',
+      'medications','medicationSchedules','medicationLogs','accounts',
+      'transactions','paycheckPlan','advances','bills','reserves','contacts'];
+    const hydrate=(saved:Record<string,unknown>)=>{
+      unknownFieldsRef.current=Object.fromEntries(Object.entries(saved).filter(([k])=>!keys.includes(k)));
+      if(saved.profile&&typeof saved.profile==='object')setProfile({...DEFAULT_PROFILE,...(saved.profile as Partial<UserProfile>),id:userId});
+      if(Array.isArray(saved.savedPlaces))setSavedPlaces(saved.savedPlaces as SavedPlace[]);
+      if(Array.isArray(saved.events))setEvents(saved.events as CalendarEvent[]);
+      if(Array.isArray(saved.eventOccurrences))setEventOccurrences(saved.eventOccurrences as EventOccurrence[]);
+      if(Array.isArray(saved.tasks))setTasks(saved.tasks as TaskItem[]);
+      if(Array.isArray(saved.medications))setMedications(saved.medications as Medication[]);
+      if(Array.isArray(saved.medicationSchedules))setMedicationSchedules(saved.medicationSchedules as MedicationSchedule[]);
+      if(Array.isArray(saved.medicationLogs))setMedicationLogs(saved.medicationLogs as MedicationLog[]);
+      if(Array.isArray(saved.accounts))setAccounts(saved.accounts as BudgetAccount[]);
+      if(Array.isArray(saved.transactions))setTransactions(saved.transactions as MoneyTransaction[]);
+      if(saved.paycheckPlan)setPaycheckPlan(saved.paycheckPlan as PaycheckPlan);
+      if(Array.isArray(saved.advances))setAdvances(saved.advances as WageAdvance[]);
+      if(Array.isArray(saved.bills))setBills(saved.bills as Bill[]);
+      if(Array.isArray(saved.reserves))setReserves(saved.reserves as BudgetReserve[]);
+      if(Array.isArray(saved.contacts))setContacts(saved.contacts as ResourceContact[]);
+    };
+    const load=async()=>{
+      let device:DeviceSnapshot|null=null;
+      let deviceError=false;
+      try{device=await readDeviceSnapshot(userId);}
+      catch{deviceError=true;localFailedRef.current=true;}
       if(!active)return;
-      if(error){setSyncStatus('offline');return;}
-      revisionRef.current=data?.revision??0;
-      const saved=data?.payload as Record<string,unknown>|undefined;
-      if(saved){const known=new Set(['profile','savedPlaces','events','eventOccurrences','tasks','medications','medicationSchedules','medicationLogs','accounts','transactions','paycheckPlan','advances','bills','reserves','contacts']);unknownFieldsRef.current=Object.fromEntries(Object.entries(saved).filter(([key])=>!known.has(key)));}
-      if(saved){
-        if(saved.profile&&typeof saved.profile==='object')setProfile({...DEFAULT_PROFILE,...(saved.profile as Partial<UserProfile>),id:userId});
-        if(Array.isArray(saved.savedPlaces))setSavedPlaces(saved.savedPlaces as SavedPlace[]);
-        if(Array.isArray(saved.events))setEvents(saved.events);
-        if(Array.isArray(saved.eventOccurrences))setEventOccurrences(saved.eventOccurrences);
-        if(Array.isArray(saved.tasks))setTasks(saved.tasks);
-        if(Array.isArray(saved.medications))setMedications(saved.medications);
-        if(Array.isArray(saved.medicationSchedules))setMedicationSchedules(saved.medicationSchedules);
-        if(Array.isArray(saved.medicationLogs))setMedicationLogs(saved.medicationLogs);
-        if(Array.isArray(saved.accounts))setAccounts(saved.accounts);
-        if(Array.isArray(saved.transactions))setTransactions(saved.transactions);
-        if(saved.paycheckPlan)setPaycheckPlan(saved.paycheckPlan as PaycheckPlan);
-        if(Array.isArray(saved.advances))setAdvances(saved.advances);
-        if(Array.isArray(saved.bills))setBills(saved.bills);
-        if(Array.isArray(saved.reserves))setReserves(saved.reserves);
-        if(Array.isArray(saved.contacts))setContacts(saved.contacts);
+      const client=createClient();
+      let remote:{payload:Record<string,unknown>;revision:number}|null=null;
+      let online=false;
+      if(client&&navigator.onLine){
+        try{
+          const query=client.from('private_snapshots').select('payload,revision')
+            .eq('user_id',userId).maybeSingle();
+          const response=await Promise.race([
+            query,
+            new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('Cloud read timed out')),9000))
+          ]);
+          if(!response.error){
+            const row=response.data as {payload:Record<string,unknown>;revision:number}|null;
+            remote=row?{payload:row.payload,revision:row.revision}:null;
+            online=true;
+          }
+        }catch{/* Local copy can still be opened without network. */}
       }
-      setSyncStatus('synced');setIsLoaded(true);
-    });
+      if(!active)return;
+      if(deviceError){
+        setSyncStatus('offline');
+        setSyncIssue('The encrypted device cache cannot be opened. It was not cleared. Recover storage access before editing; use cloud recovery backups if necessary.');
+        return;
+      }
+      if(device?.dirty){
+        // Local unsynced changes take precedence; never wipe them with a cloud read.
+        revisionRef.current=device.revision;
+        hydrate(device.payload);
+        pendingRef.current={payload:device.payload,fingerprint:JSON.stringify(device.payload)};
+        if(online&&remote&&remote.revision!==device.revision){
+          conflictRef.current=true;
+          setSyncIssue('Another device changed these records. Local changes are safe on this device but were not merged. Export before resolving the conflict.');
+        }else if(!online){
+          setSyncIssue('Your changes were restored from this device. Cloud synchronization will resume when available.');
+        }
+        setSyncStatus('device_saved');
+        setIsLoaded(true);
+        if(online&&!conflictRef.current)window.setTimeout(()=>void flushSnapshot(),0);
+        return;
+      }
+      if(online){
+        const payload=remote?.payload??(device?.payload??{});
+        const revision=remote?.revision??(device?.revision??0);
+        revisionRef.current=revision;
+        hydrate(payload);
+        try{
+          await saveOnDevice({payload,revision,dirty:false,updatedAt:Date.now()});
+        }catch{
+          setSyncIssue('Cloud records loaded, but encrypted device storage is unavailable. Offline edits are not protected.');
+        }
+        if(!active)return;
+        setSyncStatus(localFailedRef.current?'offline':'synced');
+        setIsLoaded(true);
+        void requestDurableStorage();
+        return;
+      }
+      if(device){
+        revisionRef.current=device.revision;
+        hydrate(device.payload);
+        setSyncStatus('device_saved');
+        setSyncIssue('Showing encrypted records saved on this device. Cloud synchronization is offline.');
+        setIsLoaded(true);
+        return;
+      }
+      setSyncIssue('No cloud connection or encrypted device backup is available. Reconnect to load records safely.');
+      setSyncStatus('offline');
+    };
+    void load();
     return()=>{active=false};
-  },[userId]);
+  },[userId,flushSnapshot,saveOnDevice]);
+
   useEffect(()=>{
     if(!isLoaded)return;
-    // Retain unrecognized fields from newer releases instead of dropping them
-    // when an older tab saves a known property.
     const payload:Record<string,unknown>={...unknownFieldsRef.current,
       profile,savedPlaces,events,eventOccurrences,tasks,medications,
       medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,
       advances,bills,reserves,contacts};
     const fingerprint=JSON.stringify(payload);
     if(!hydratedRef.current){
-      // Reading records is not a change. An update must never overwrite the
-      // loaded snapshot just because the application mounted.
       hydratedRef.current=true;
+      // Initial load is never a user edit. Only restored dirty state is synced.
       savedFingerprintRef.current=fingerprint;
       return;
     }
-    if(fingerprint===savedFingerprintRef.current && !pendingRef.current)return;
+    if(fingerprint===savedFingerprintRef.current&&!pendingRef.current)return;
     pendingRef.current={payload,fingerprint};
-    setSyncStatus('syncing'); // Debounce is UNSAVED time, not 'synced' time.
+    setSyncStatus('syncing');
+    // Encrypt and durably stage before attempting any network update.
+    void saveOnDevice({payload,revision:revisionRef.current,dirty:true,updatedAt:Date.now()})
+      .then(()=>{
+        if(aliveRef.current&&!navigator.onLine)setSyncStatus('device_saved');
+      }).catch(()=>undefined);
     if(saveTimerRef.current)clearTimeout(saveTimerRef.current);
     saveTimerRef.current=window.setTimeout(()=>{
       saveTimerRef.current=null;
       void flushSnapshot();
-    },850);
+    },900);
     return()=>{if(saveTimerRef.current)clearTimeout(saveTimerRef.current);};
   },[isLoaded,profile,savedPlaces,events,eventOccurrences,tasks,medications,
     medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,
-    advances,bills,reserves,contacts,flushSnapshot]);
+    advances,bills,reserves,contacts,flushSnapshot,saveOnDevice]);
+
   // Saved places stay private to this user, persist alongside the other cloud records,
   // and are never queried by name from a public directory.
   const addSavedPlace=(input:Omit<SavedPlace,'id'|'userId'|'createdAt'|'updatedAt'>)=>{
