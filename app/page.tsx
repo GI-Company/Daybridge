@@ -27,8 +27,9 @@ export default function HomePage() {
 function PrivateWorkspace({userId}:{userId:string}) {
   const [currentTab, setCurrentTab] = useState<string>('today');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickAddDate,setQuickAddDate]=useState<string|undefined>(undefined);
   const [quickAddType,setQuickAddType]=useState<'event'|'medication'|'transaction'|'bill'|'task'|'contact'|undefined>(undefined);
-  const openQuickAdd=(type?:'event'|'medication'|'transaction'|'bill'|'task'|'contact')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
+  const openQuickAdd=(type?:'event'|'medication'|'transaction'|'bill'|'task'|'contact',date?:string)=>{setQuickAddType(type);setQuickAddDate(date);setIsQuickAddOpen(true)};
 
   return (
     <DayBridgeProvider userId={userId}>
@@ -58,7 +59,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
           )}
 
           {currentTab === 'schedule' && (
-            <ScheduleView onOpenQuickAdd={() => openQuickAdd('event')} />
+            <ScheduleView onOpenQuickAdd={date => openQuickAdd('event',date)} />
           )}
 
           {currentTab === 'locations' && <LocationsView />}
@@ -94,8 +95,9 @@ function PrivateWorkspace({userId}:{userId:string}) {
 
         {/* Unified Quick Add Modal */}
         <QuickAddModal
-          key={quickAddType+'-'+(isQuickAddOpen?'open':'closed')}
+          key={quickAddType+'-'+(quickAddDate||'today')+'-'+(isQuickAddOpen?'open':'closed')}
           initialType={quickAddType}
+          initialDate={quickAddDate}
           isOpen={isQuickAddOpen}
           onClose={() => setIsQuickAddOpen(false)}
         />
