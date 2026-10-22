@@ -96,3 +96,14 @@ Do not activate until you have set Vercel secrets, inserted Vault secret, confir
 - Opening the appointment's travel section automatically loads route choices when a saved starting location was approved. Only explicitly started foreground guidance uses current phone GPS. While foreground guidance remains open, it refreshes live routes as the user moves, keeping the fastest displayed option selected. This is not a full turn-by-turn navigation engine; an external navigation app remains recommended while driving.
 - Permanent/background GPS tracking, automatic changes to an external navigation application's active route, and guaranteed real-time delivery while the phone is offline are not supported.
 
+
+
+## Actionable phone notifications (October 22, 2026)
+- Push notifications include the trip duration, traffic delay, updated leave-by time, and possible late-arrival estimate *in the notification itself*. They do not require opening DayBridge to read these figures.
+- The **Hide destination in notifications** switch defaults to on. When enabled, notification bodies omit street addresses and appointment identity but still show usable travel times. When disabled, the destination address can appear in the notification. The Android system can additionally hide or suppress notifications based on lock-screen settings.
+- Where the Android/browser notification API supports action buttons, **On my way** calls the authenticated `/api/travel/acknowledge` endpoint from the service worker, with no need to open the application. DayBridge only confirms success after the server persists it. **View route** opens the relevant calendar day. If action buttons are unavailable, the same acknowledgment can be made in appointment travel details.
+- An acknowledgment means the user said they are departing; it does **not** establish GPS-verified motion, arrival, or court attendance. The server stops repeating unneeded leave-now reminders, but keeps checking meaningful traffic changes. After acknowledgment, background changes are explicitly labeled saved-route forecasts, never current-location ETAs.
+- If the phone is offline, cookies expire, the user signs out, or the acknowledgment POST fails, the service worker shows **Departure not confirmed** rather than silently marking departure. On supported devices, the user can open the appointment to retry.
+- High-priority late/departure push messages use shorter TTLs to limit stale delivery. The Supabase scheduler continues running independently of the installed app. A push provider accepting a message does not prove the notification appeared on the phone.
+- Migration `20261022180000_departure_acknowledgments.sql` adds `departed_at` and `departure_ack_source` to monitored travel appointments; existing rows remain unchanged.
+
