@@ -118,6 +118,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
   const isLive = isSupabaseConfigured();
 
+  // The PWA update banner listens for cloud sync state before offering a reload.
+  // No private record content is exposed in this browser event.
+  useEffect(()=>{
+    window.dispatchEvent(new CustomEvent('daybridge:sync-state',{detail:syncStatus}));
+    return()=>{window.dispatchEvent(new CustomEvent('daybridge:sync-state',{detail:null}));};
+  },[syncStatus]);
+
   // RLS-protected cloud storage. No plaintext offline personal cache.
   useEffect(()=>{
     let active=true;const client=createClient();

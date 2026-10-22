@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { DayBridgeProvider } from '../lib/storage/store';
 import { InstallGate } from '../components/common/InstallGate';
 import { SecureAppGate } from '../components/common/SecureAppGate';
+import { UpdateMonitor } from '../components/common/UpdateMonitor';
 import { Header } from '../components/common/Header';
 import { Navigation } from '../components/common/Navigation';
 import { QuickAddModal } from '../components/common/QuickAddModal';
@@ -18,7 +19,7 @@ import { ResourcesView } from '../components/resources/ResourcesView';
 import { SettingsView } from '../components/settings/SettingsView';
 
 export default function HomePage() {
-  return <InstallGate><SecureAppGate>{userId => <PrivateWorkspace key={userId} userId={userId}/>}</SecureAppGate></InstallGate>;
+  return <><UpdateMonitor/><InstallGate><SecureAppGate>{userId => <PrivateWorkspace key={userId} userId={userId}/>}</SecureAppGate></InstallGate></>;
 }
 
 function PrivateWorkspace({userId}:{userId:string}) {
