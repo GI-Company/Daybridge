@@ -71,36 +71,36 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-6 pb-20">
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-2">
-          <Settings className="w-6 h-6 text-teal-400" />
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <Settings className="w-6 h-6 text-teal-700" />
           <span>Application Settings</span>
         </h2>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-600">
           Preferences, quiet hours, notifications, and privacy options
         </p>
       </div>
 
       {/* 1. PROFILE & TIMEZONE */}
-      <section className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
-        <h3 className="font-bold text-base text-slate-100">Personal Profile & Timezone</h3>
+      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
+        <h3 className="font-bold text-base text-slate-900">Personal Profile & Timezone</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           <div>
-            <label className="block text-slate-400 font-semibold mb-1">Your Name</label>
+            <label className="block text-slate-600 font-semibold mb-1">Your Name</label>
             <input
               type="text"
               value={profile.fullName}
               onChange={(e) => updateProfile({ fullName: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 text-sm focus:border-teal-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 text-sm focus:border-teal-500"
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 font-semibold mb-1">Timezone (IANA)</label>
+            <label className="block text-slate-600 font-semibold mb-1">Timezone (IANA)</label>
             <select
               value={profile.timezone}
               onChange={(e) => updateProfile({ timezone: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 text-sm focus:border-teal-500 min-h-[44px]"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 text-sm focus:border-teal-500 min-h-[44px]"
             >
               <option value="America/New_York">Eastern Time (America/New_York)</option>
               <option value="America/Chicago">Central Time (America/Chicago)</option>
@@ -114,84 +114,84 @@ export const SettingsView: React.FC = () => {
       </section>
 
       {/* 2. QUIET HOURS & NOTIFICATIONS */}
-      <section className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
+      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
         <div className="flex items-center gap-2">
-          <Moon className="w-5 h-5 text-indigo-400" />
-          <h3 className="font-bold text-base text-slate-100">Quiet Hours & Reminders</h3>
+          <Moon className="w-5 h-5 text-indigo-700" />
+          <h3 className="font-bold text-base text-slate-900">Quiet Hours & Reminders</h3>
         </div>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-600">
           Non-critical notification sounds will be muted during your resting window.
         </p>
 
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div>
-            <label className="block text-slate-400 mb-1">Quiet Hours Start</label>
+            <label className="block text-slate-600 mb-1">Quiet Hours Start</label>
             <input
               type="time"
               value={profile.quietHoursStart}
               onChange={(e) => updateProfile({ quietHoursStart: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900"
             />
           </div>
           <div>
-            <label className="block text-slate-400 mb-1">Quiet Hours End</label>
+            <label className="block text-slate-600 mb-1">Quiet Hours End</label>
             <input
               type="time"
               value={profile.quietHoursEnd}
               onChange={(e) => updateProfile({ quietHoursEnd: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900"
             />
           </div>
         </div>
 
         {/* Test Notification Trigger */}
-        <div className="pt-3 border-t border-slate-850 flex items-center justify-between">
+        <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-slate-200 block">Test Web Push Reminder</span>
-            <span className="text-[11px] text-slate-400">
+            <span className="text-xs font-semibold text-slate-800 block">Test Web Push Reminder</span>
+            <span className="text-[11px] text-slate-600">
               Permission status: <strong className="capitalize">{notificationPermission}</strong>
             </span>
           </div>
 
           <button
             onClick={handleTestNotification}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 font-semibold text-xs border border-slate-700 min-h-[44px]"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-300 min-h-[44px]"
           >
-            <Bell className="w-4 h-4 text-teal-400" />
+            <Bell className="w-4 h-4 text-teal-700" />
             <span>{testNotificationSent ? 'Sent!' : 'Send Test'}</span>
           </button>
         </div>
       </section>
 
       {/* 3. PWA & DEVICE INSTALLATION */}
-      <section className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-lg space-y-3">
+      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-lg space-y-3">
         <div className="flex items-center gap-2">
-          <Smartphone className="w-5 h-5 text-teal-400" />
-          <h3 className="font-bold text-base text-slate-100">Install to Home Screen (PWA)</h3>
+          <Smartphone className="w-5 h-5 text-teal-700" />
+          <h3 className="font-bold text-base text-slate-900">Install to Home Screen (PWA)</h3>
         </div>
-        <p className="text-xs text-slate-400 leading-relaxed">
+        <p className="text-xs text-slate-600 leading-relaxed">
           DayBridge is a Progressive Web App designed to look and feel like a native app with fast
-          tap response and offline storage.
+          tap response and private cloud storage once signed in.
         </p>
 
-        <div className="p-3 bg-slate-950 rounded-xl text-xs text-slate-300 space-y-1.5">
+        <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 space-y-1.5">
           <div>
-            <strong>iPhone / iPad (Safari):</strong> Tap the Share button (<span className="text-teal-400">􀈂</span>), then choose &apos;Add to Home Screen&apos;.
+            <strong>iPhone / iPad (Safari):</strong> Tap the Share button (<span className="text-teal-700">􀈂</span>), then choose &apos;Add to Home Screen&apos;.
           </div>
           <div>
-            <strong>Android (Chrome):</strong> Tap the three-dot menu (<span className="text-teal-400">⋮</span>), then choose &apos;Install app&apos; or &apos;Add to Home Screen&apos;.
+            <strong>Android (Chrome):</strong> Tap the three-dot menu (<span className="text-teal-700">⋮</span>), then choose &apos;Install app&apos; or &apos;Add to Home Screen&apos;.
           </div>
         </div>
       </section>
 
       {/* 4. BACKUP, EXPORT & DATA HYGIENE */}
-      <section className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
-        <h3 className="font-bold text-base text-slate-100">Data Backup & Privacy Controls</h3>
+      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
+        <h3 className="font-bold text-base text-slate-900">Data Backup & Privacy Controls</h3>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleExportJSON}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-850 hover:bg-slate-800 text-slate-200 text-xs font-semibold border border-slate-750 min-h-[44px]"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-750 min-h-[44px]"
           >
             <Download className="w-4 h-4" />
             <span>Export All Data (JSON Backup)</span>
@@ -203,14 +203,14 @@ export const SettingsView: React.FC = () => {
                 resetToDefaults();
               }
             }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-850 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700 min-h-[44px]"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-300 min-h-[44px]"
           >
             <RotateCcw className="w-4 h-4" />
             <span>Reset Demo Data</span>
           </button>
         </div>
 
-        <div className="pt-3 border-t border-slate-850">
+        <div className="pt-3 border-t border-slate-200">
           <button
             onClick={() => {
               if (confirm('Clear all local user records and storage completely? This cannot be undone.')) {
