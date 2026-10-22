@@ -1,4 +1,4 @@
-import { Medication, MedicationSchedule, MedicationLog, DoseAction } from './types';
+import type { Medication, MedicationSchedule, MedicationLog } from './types';
 
 export interface DueMedicationSlot {
   slotId: string;

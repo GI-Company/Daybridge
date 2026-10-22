@@ -349,35 +349,23 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     action: DoseAction,
     reason: string = ''
   ) => {
-    setMedicationLogs((prev) => {
-      // Enforce slot uniqueness: remove any previous log for this exact slot
-      const filtered = prev.filter(
-        (l) => !(l.medicationId === medicationId && l.scheduledSlotUtc === scheduledSlotUtc)
-      );
-      const newLog: MedicationLog = {
-        id: `log-${Date.now()}`,
-        userId: profile.id,
-        medicationId,
-        scheduledSlotUtc,
-        action,
-        recordedAtUtc: new Date().toISOString(),
-        skipReason: reason,
-      };
-
-      // If taken and medication has inventory count, decrement count
-      if (action === 'taken') {
-        setMedications((mList) =>
-          mList.map((m) => {
-            if (m.id === medicationId && typeof m.inventoryCount === 'number') {
-              return { ...m, inventoryCount: Math.max(0, m.inventoryCount - 1) };
-            }
-            return m;
-          })
-        );
-      }
-
-      return [...filtered, newLog];
-    });
+    // Update inventory only when the slot changes between taken/not taken.
+    // Keeping the inventory adjustment outside a state updater avoids duplicated
+    // side effects when React replays state updates during development.
+    const previous=medicationLogs.find(l=>l.medicationId===medicationId&&l.scheduledSlotUtc===scheduledSlotUtc);
+    const wasTaken=previous?.action==='taken';
+    const willBeTaken=action==='taken';
+    if(wasTaken!==willBeTaken){
+      const delta=willBeTaken?-1:1;
+      setMedications(prev=>prev.map(m=>m.id===medicationId&&typeof m.inventoryCount==='number'
+        ? {...m,inventoryCount:Math.max(0,m.inventoryCount+delta)}
+        :m));
+    }
+    const newLog:MedicationLog={
+      id:crypto.randomUUID(),userId:profile.id,medicationId,scheduledSlotUtc,action,
+      recordedAtUtc:new Date().toISOString(),skipReason:reason,
+    };
+    setMedicationLogs(prev=>[...prev.filter(l=>!(l.medicationId===medicationId&&l.scheduledSlotUtc===scheduledSlotUtc)),newLog]);
   };
 
   const updateAccountBalance = (accountId: string, newBalanceCents: number) => {
