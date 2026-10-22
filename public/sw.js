@@ -75,33 +75,79 @@ self.addEventListener('message',event=>{
  })());
 });
 
+// Push actions are supported by Chromium-based Android PWAs. Browsers may
+// omit the buttons; tapping the notification body still opens the event.
+const isAppointmentId=value=>typeof value==='string'&&
+ /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
 self.addEventListener('push',event=>{
  let message={};
  try{message=event.data?.json()||{}}catch{}
  const kind=String(message.kind||'general').replace(/[^a-z_]/g,'').slice(0,24);
  const title=typeof message.title==='string'?message.title.slice(0,100):'DayBridge reminder';
- const body=typeof message.body==='string'?message.body.slice(0,240):'Open DayBridge to review an upcoming item.';
- const pushTag=typeof message.tag==='string'&&/^daybridge-[a-z_-]+-[a-f0-9-]{36}$/.test(message.tag)?message.tag:'daybridge-'+kind;
+ const body=typeof message.body==='string'?message.body.slice(0,300):'DayBridge has a new reminder.';
+ const tag=typeof message.tag==='string'&&/^daybridge-[a-z_-]+-[a-f0-9-]{36}$/.test(message.tag)
+  ?message.tag:'daybridge-'+kind;
  let url='/';
  try{
   const target=new URL(typeof message.url==='string'?message.url:'/',self.location.origin);
-  // Push payloads can only navigate inside the private DayBridge home shell.
   if(target.origin===self.location.origin&&target.pathname==='/')url=target.pathname+target.search;
  }catch{}
- const options={body,icon:'/icon.svg',badge:'/icon.svg',tag:pushTag,
-  data:{url},renotify:false};
- event.waitUntil(self.registration.showNotification(title,options));
-});
-self.addEventListener('notificationclick',event=>{
- event.notification.close();
- const destination=event.notification.data?.url||'/';
- event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(async clients=>{
-  const existing=clients.find(c=>new URL(c.url).origin===self.location.origin);
-  if(existing){
-   const focused=await existing.focus();
-   focused.postMessage({type:'DAYBRIDGE_TRAVEL_NOTIFICATION',url:destination});
-   return;
-  }
-  await self.clients.openWindow(destination);
+ const appointmentId=isAppointmentId(message.appointmentId)?message.appointmentId:null;
+ const canAcknowledge=appointmentId&&message.canAcknowledge===true;
+ const actions=canAcknowledge?[
+  {action:'on-my-way',title:'On my way'},
+  {action:'view-route',title:'View route'}
+ ]:appointmentId?[{action:'view-route',title:'View route'}]:[];
+ const sentAt=Number(message.sentAt);
+ if(kind==='leave_now'&&Number.isFinite(sentAt)&&sentAt>0&&Date.now()-sentAt>15*60000)return;
+ event.waitUntil(self.registration.showNotification(title,{
+  body,icon:'/icon.svg',badge:'/icon.svg',tag,renotify:false,
+  timestamp:Number.isFinite(sentAt)&&sentAt>0?sentAt:Date.now(),
+  actions,data:{url,appointmentId,kind,canAcknowledge}
  }));
+});
+
+async function openAppointment(url){
+ const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+ const existing=clients.find(client=>new URL(client.url).origin===self.location.origin);
+ if(existing){
+  const focused=await existing.focus();
+  focused.postMessage({type:'DAYBRIDGE_TRAVEL_NOTIFICATION',url});
+ }else await self.clients.openWindow(url);
+}
+self.addEventListener('notificationclick',event=>{
+ const data=event.notification.data||{};
+ const destination=typeof data.url==='string'&&data.url.startsWith('/')?data.url:'/';
+ if(event.action==='on-my-way'&&isAppointmentId(data.appointmentId)){
+  event.notification.close();
+  event.waitUntil((async()=>{
+   try{
+    const response=await fetch('/api/travel/acknowledge',{
+     method:'POST',credentials:'include',mode:'same-origin',cache:'no-store',
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({appointmentId:data.appointmentId,source:'notification'})
+    });
+    if(!response.ok)throw new Error('Acknowledgment not accepted');
+    await self.registration.showNotification('On my way confirmed',{
+     body:'Your departure was acknowledged. DayBridge will keep watching traffic on the planned route.',
+     icon:'/icon.svg',badge:'/icon.svg',
+     tag:'daybridge-ack-'+data.appointmentId,
+     data:{url:destination},silent:true
+    });
+   }catch{
+    // An action is NEVER treated as acknowledged until the server confirms it.
+    await self.registration.showNotification('Departure not confirmed',{
+     body:'Could not save On my way. Open DayBridge to retry while signed in and online.',
+     icon:'/icon.svg',badge:'/icon.svg',
+     tag:'daybridge-ack-error-'+data.appointmentId,
+     actions:[{action:'view-route',title:'Open appointment'}],
+     data:{url:destination}
+    }).catch(()=>undefined);
+   }
+  })());
+  return;
+ }
+ event.notification.close();
+ event.waitUntil(openAppointment(destination));
 });
