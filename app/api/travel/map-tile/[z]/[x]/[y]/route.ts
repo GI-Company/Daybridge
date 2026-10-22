@@ -3,6 +3,7 @@ import {z} from 'zod';
 import {authenticated,jsonError} from '../../../../../../../lib/travel/auth';
 import {adminClient} from '../../../../../../../lib/travel/monitor';
 import {tomTomKey} from '../../../../../../../lib/travel/tomtom';
+import {orbisRasterTileUrl} from '../../../../../../../lib/travel/map-layers';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -38,13 +39,9 @@ export async function GET(
   if(limitError)return jsonError('Map rate limiter temporarily unavailable',503);
   if(!allowed)return jsonError('Street map request limit reached',429);
 
-  const url=new URL('https://api.tomtom.com/maps/orbis/display/raster/tile/'+z+'/'+x+'/'+y);
-  url.searchParams.set('apiVersion','2');
-  url.searchParams.set('style','street-light');
-  url.searchParams.set('tileSize','256');
-  url.searchParams.set('geopoliticalView','Unified');
+  const url=orbisRasterTileUrl('streets',z,x,y);
   const upstream=await fetch(url.toString(),{
-   headers:{'TomTom-Api-Key':tomTomKey(),'TomTom-Api-Version':'2',
+   headers:{'TomTom-Api-Key':process.env.MAPS_DISPLAY?.trim()||tomTomKey(),'TomTom-Api-Version':'2',
     'Accept':'image/png'},
    cache:'no-store',
    signal:AbortSignal.timeout(8000)
