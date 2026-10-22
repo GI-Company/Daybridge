@@ -28,7 +28,11 @@ export function AutomaticTravelReminders(){
   for(const event of events){
    if(event.venueType!=='in_person')continue;
    if(!event.rrule&&Date.parse(event.startTime)<=Date.now())continue;
-   const place=savedPlaces.find(p=>p.address.trim()===event.location?.trim());
+   const saved=savedPlaces.find(p=>p.address.trim()===event.location?.trim());
+   const place=saved||(
+     event.location&&Number.isFinite(event.destinationLat)&&Number.isFinite(event.destinationLon)
+      ?{address:event.location,lat:event.destinationLat!,lon:event.destinationLon!}:null
+   );
    if(!place)continue;
    const marker=[event.id,event.startTime,event.location,event.rrule||'',revision].join(':');
    if(enrolled.current.has(marker))continue;

@@ -82,14 +82,26 @@ self.addEventListener('push',event=>{
  const title=typeof message.title==='string'?message.title.slice(0,100):'DayBridge reminder';
  const body=typeof message.body==='string'?message.body.slice(0,240):'Open DayBridge to review an upcoming item.';
  const pushTag=typeof message.tag==='string'&&/^daybridge-[a-z_-]+-[a-f0-9-]{36}$/.test(message.tag)?message.tag:'daybridge-'+kind;
+ let url='/';
+ try{
+  const target=new URL(typeof message.url==='string'?message.url:'/',self.location.origin);
+  // Push payloads can only navigate inside the private DayBridge home shell.
+  if(target.origin===self.location.origin&&target.pathname==='/')url=target.pathname+target.search;
+ }catch{}
  const options={body,icon:'/icon.svg',badge:'/icon.svg',tag:pushTag,
-  data:{url:'/'},renotify:false};
+  data:{url},renotify:false};
  event.waitUntil(self.registration.showNotification(title,options));
 });
 self.addEventListener('notificationclick',event=>{
  event.notification.close();
- event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(clients=>{
+ const destination=event.notification.data?.url||'/';
+ event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(async clients=>{
   const existing=clients.find(c=>new URL(c.url).origin===self.location.origin);
-  return existing?existing.focus():self.clients.openWindow('/');
+  if(existing){
+   const focused=await existing.focus();
+   focused.postMessage({type:'DAYBRIDGE_TRAVEL_NOTIFICATION',url:destination});
+   return;
+  }
+  await self.clients.openWindow(destination);
  }));
 });

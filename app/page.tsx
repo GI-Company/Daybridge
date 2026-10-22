@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DayBridgeProvider } from '../lib/storage/store';
 import { InstallGate } from '../components/common/InstallGate';
 import { SecureAppGate } from '../components/common/SecureAppGate';
@@ -26,6 +26,32 @@ export default function HomePage() {
 
 function PrivateWorkspace({userId}:{userId:string}) {
   const [currentTab, setCurrentTab] = useState<string>('today');
+  const [scheduleFocusDate,setScheduleFocusDate]=useState<string|undefined>(undefined);
+  useEffect(()=>{
+    const openDeepLink=(raw:string)=>{
+      try{
+        const link=new URL(raw,window.location.origin);
+        if(link.origin!==window.location.origin||link.pathname!=='/')return;
+        const tab=link.searchParams.get('tab');
+        if(tab!=='schedule')return;
+        const day=link.searchParams.get('date');
+        if(day&&/^\d{4}-\d{2}-\d{2}$/.test(day))setScheduleFocusDate(day);
+        setCurrentTab('schedule');
+      }catch{/* Ignore malformed push links. */}
+    };
+    openDeepLink(window.location.href);
+    const onMessage=(event:MessageEvent)=>{
+      if(event.data?.type==='DAYBRIDGE_TRAVEL_NOTIFICATION'&&
+        typeof event.data?.url==='string')openDeepLink(event.data.url);
+    };
+    const onPop=()=>openDeepLink(window.location.href);
+    navigator.serviceWorker?.addEventListener('message',onMessage);
+    window.addEventListener('popstate',onPop);
+    return()=>{
+      navigator.serviceWorker?.removeEventListener('message',onMessage);
+      window.removeEventListener('popstate',onPop);
+    };
+  },[]);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddDate,setQuickAddDate]=useState<string|undefined>(undefined);
   const [quickAddType,setQuickAddType]=useState<'event'|'medication'|'transaction'|'bill'|'task'|'contact'|undefined>(undefined);
@@ -59,7 +85,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
           )}
 
           {currentTab === 'schedule' && (
-            <ScheduleView onOpenQuickAdd={date => openQuickAdd('event',date)} />
+            <ScheduleView focusDate={scheduleFocusDate} onOpenQuickAdd={date => openQuickAdd('event',date)} />
           )}
 
           {currentTab === 'locations' && <LocationsView />}

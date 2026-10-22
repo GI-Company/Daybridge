@@ -4,14 +4,14 @@
 - The Route Planner and Travel Preferences screens are integrated with Supabase and TomTom routing and require a signed-in user.
 - TomTom's production \`tom_tom\` is consumed server-side only.
 - Supabase Edge Function \`daybridge-travel-dispatch\` is deployed in a **fail-closed** state.
-- **Background worker active as of October 22, 2026:** a five-minute Supabase `pg_cron` job invokes `daybridge-travel-dispatch` using a secret referenced from Vault. An authenticated manual dispatch returned HTTP 200 from the Vercel worker. Push delivery remains best effort and requires an eligible appointment, approved saved origin, verified saved destination, and active push subscription.
+- **Background worker active as of October 22, 2026:** a five-minute Supabase `pg_cron` job invokes `daybridge-travel-dispatch` using a secret referenced from Vault. An authenticated manual dispatch returned HTTP 200 from the Vercel worker. Push delivery remains best effort and requires an eligible appointment, approved saved origin, verified appointment destination, and active push subscription.
 - A key with access to Map Display must be **separately restricted to the production origin** before setting \`NEXT_PUBLIC_TOMTOM_MAP_KEY\`. Never copy the server routing key to a public variable.
-- App currently defaults to current origin, navigation true, notifications true, 15-minute buffer, private lock screen. **User must explicitly approve a saved origin and enable monitoring on each appointment** to receive background route checks.
+- App currently defaults to current origin, navigation true, notifications true, 15-minute buffer, private lock screen. **User must explicitly approve a saved origin and enable traffic notifications**. Eligible appointments with a verified destination enroll automatically; each appointment can still have monitoring disabled.
 
 
 ## Guided Add and automatic traffic updates (October 22, 2026)
 - Global Add opens a category chooser; classes/groups and self-help meetings are distinct private categories. No GPS attendance verification or staff dashboard is included.
-- For an in-person event matching a verified saved place, DayBridge enrolls its future occurrence(s) into private server-side travel monitoring only when traffic notifications are enabled and the user has separately approved saved-origin coordinates. Weekly events are enrolled up to a rolling one-year horizon when the app synchronizes; a deliberately disabled travel plan is not re-enabled.
+- For an in-person event with a verified destination (selected saved place or address verified in the Add form), DayBridge enrolls its future occurrence(s) into private server-side travel monitoring only when traffic notifications are enabled and the user has separately approved saved-origin coordinates. Weekly events are enrolled up to a rolling one-year horizon when the app synchronizes; a deliberately disabled travel plan is not re-enabled.
 - The scheduler checks traffic every five minutes and sends a deduplicated `preparation` notification on the first check within 60 minutes of appointment start. Leave-by warnings can also fire when they are due, including before the final hour for longer trips.
 - Private lock-screen mode hides route specifics in push previews. Disabling private mode allows ETA, estimated delay, and leave-by wording. The service worker now displays the server-provided notification rather than always substituting a generic message.
 - Missing browser notification permission, a device being offline, an unverified address, or an origin without explicit consent prevents a guaranteed delivery. The app never obtains closed-app live GPS.
@@ -87,3 +87,12 @@ Do not activate until you have set Vercel secrets, inserted Vault secret, confir
 - Routing to a far-future appointment uses modelled/historical estimates, not guaranteed live traffic.
 - Multiple edits and stale client state are not yet transactionally reconciled across devices.
 - Supabase stores coordinates and appointment metadata to run private monitoring; not end-to-end encrypted.
+
+## Traffic ETA changes, late risk, and faster alternatives
+- Server monitoring continues every five minutes for eligible scheduled appointments with verified coordinates, push permission, traffic notifications enabled, and a separately approved saved origin. Both total trip time and traffic delay are compared to the last successful check; shifts of five minutes or more can trigger a deduplicated travel update.
+- During the final two hours the worker requests up to two alternatives alongside the fastest TomTom route. The recommended route is the quickest of the returned candidates. If departing from the saved origin now risks arriving after appointment start, the worker prioritizes a possible-lateness notice; it does not claim to know the user's live location.
+- For far-future appointments TomTom supplies forecast/historical estimates; close to departure the route is calculated using current traffic. Estimates and arrival times are not guarantees, and a faster route is not always available.
+- Traffic push notifications link to the appointment's local calendar date. Sensitive route and appointment details stay off the lock screen when private notification wording is enabled.
+- Opening the appointment's travel section automatically loads route choices when a saved starting location was approved. Only explicitly started foreground guidance uses current phone GPS. While foreground guidance remains open, it refreshes live routes as the user moves, keeping the fastest displayed option selected. This is not a full turn-by-turn navigation engine; an external navigation app remains recommended while driving.
+- Permanent/background GPS tracking, automatic changes to an external navigation application's active route, and guaranteed real-time delivery while the phone is offline are not supported.
+

@@ -27,10 +27,95 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   });
   return()=>{valid=false};
  },[eventId,at]);
- useEffect(()=>{if(!guiding)return; if(!navigator.geolocation){setGuidance('Device GPS unavailable.');return}
-  const id=navigator.geolocation.watchPosition(p=>setGuidance('Position updated at '+new Date(p.timestamp).toLocaleTimeString()+'. Follow the mapped route and road signs.'),()=>setGuidance('Current GPS signal unavailable.'),{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
-  return()=>navigator.geolocation.clearWatch(id);
- },[guiding]);
+ useEffect(()=>{
+  if(!guiding)return;
+  if(!place){setGuidance('Verify a destination before starting live route updates.');return;}
+  if(!navigator.geolocation){
+   setGuidance('Device GPS is unavailable. Open your preferred navigation app.');return;
+  }
+  let stopped=false;
+  let activeRequest=false;
+  let lastCheck=0;
+  let lastPoint:Point|null=null;
+  const controller=new AbortController();
+  const distanceMeters=(a:Point,b:Point)=>{
+   const r=6371000,rad=Math.PI/180;
+   const dLat=(b.lat-a.lat)*rad,dLon=(b.lon-a.lon)*rad;
+   const q=Math.sin(dLat/2)**2+
+    Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)**2;
+   return 2*r*Math.asin(Math.min(1,Math.sqrt(q)));
+  };
+  const watchId=navigator.geolocation.watchPosition(position=>{
+   if(stopped)return;
+   const point={lat:position.coords.latitude,lon:position.coords.longitude};
+   const now=Date.now();
+   // Refresh after meaningful movement, or every five minutes when stopped.
+   // We use foreground GPS only after the user explicitly starts guidance.
+   const moved=lastPoint?distanceMeters(point,lastPoint):Infinity;
+   if(activeRequest||(lastPoint&&now-lastCheck<120000)||
+      (lastPoint&&moved<50&&now-lastCheck<300000))return;
+   lastPoint=point;lastCheck=now;activeRequest=true;
+   setOrigin(point);
+   setGuidance('Checking live traffic and faster routes from your current location…');
+   void (async()=>{
+    try{
+     const response=await fetch('/api/travel/route',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({origin:point,destination:{lat:place.lat,lon:place.lon},
+       travelMode:prefs.travel_mode,arriveAt:at}),signal:controller.signal
+     });
+     if(!response.ok)throw Error('Route refresh temporarily unavailable');
+     const data=await response.json() as RouteResult;
+     if(stopped||!data.routes?.length)return;
+     const ranked={...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)};
+     setEstimate(ranked);
+     setChoice(0);
+     const best=ranked.routes[0];
+     const minutes=Math.ceil(best.durationSeconds/60);
+     const late=Math.max(0,Math.ceil((Date.now()+best.durationSeconds*1000-Date.parse(at))/60000));
+     setGuidance((late>0
+      ?'From your live position, arrival could be about '+late+' minutes after the appointment. '
+      :'Live route refreshed. Fastest travel time: '+minutes+' minutes. ')+
+      (ranked.routes.length>1?'Alternatives are available below. ':'')+
+      'Follow road signs and use a full navigation app for turn-by-turn guidance.');
+    }catch{
+     if(!stopped)setGuidance('Live route update unavailable. Use an external navigation app and follow road signs.');
+    }finally{activeRequest=false;}
+   })();
+  },()=>{if(!stopped)setGuidance('GPS signal unavailable or location permission denied.');},
+  {enableHighAccuracy:true,maximumAge:10000,timeout:15000});
+  return()=>{stopped=true;controller.abort();navigator.geolocation.clearWatch(watchId);};
+ },[guiding,place?.lat,place?.lon,prefs.travel_mode,at]);
+ useEffect(()=>{
+  if(guiding||!place||prefs.saved_origin_lat===null||prefs.saved_origin_lon===null||
+     !prefs.traffic_notifications)return;
+  // A previously approved saved origin needs no new GPS permission.
+  // Populate the appointment's route details automatically on open.
+  const from={lat:prefs.saved_origin_lat,lon:prefs.saved_origin_lon};
+  const controller=new AbortController();
+  let cancelled=false;
+  void (async()=>{
+   try{
+    const response=await fetch('/api/travel/route',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({origin:from,destination:{lat:place.lat,lon:place.lon},
+      travelMode:prefs.travel_mode,arriveAt:at}),signal:controller.signal
+    });
+    if(!response.ok)throw Error();
+    const data=await response.json() as RouteResult;
+    if(cancelled||!data.routes.length)return;
+    setOrigin(from);
+    setEstimate({...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)});
+    setChoice(0);
+    setStatus('Latest travel estimate loaded from your approved starting location.');
+   }catch{
+    if(!cancelled)setStatus('Automatic route preview unavailable. Tap Preview to retry.');
+   }
+  })();
+  return()=>{cancelled=true;controller.abort();};
+ },[guiding,place?.lat,place?.lon,prefs.saved_origin_lat,prefs.saved_origin_lon,
+    prefs.travel_mode,prefs.traffic_notifications,at]);
+
  async function geocode(){
   setBusy(true);setOptions([]);setPlace(null);setEstimate(null);setStatus('');
   try{const r=await fetch('/api/travel/geocode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address})});if(!r.ok)throw Error();const j=await r.json();setOptions(j.results||[]);setStatus(j.results?.length?'Select the matching destination.':'No matches found.');}
@@ -53,7 +138,7 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   try{
    const result=await fetch('/api/travel/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origin:from,destination:{lat:place.lat,lon:place.lon},travelMode:prefs.travel_mode,arriveAt:at})});
    if(!result.ok)throw Error();
-   const data=await result.json() as RouteResult;setEstimate(data);setChoice(0);setStatus('Route updated. Times are estimates, not guarantees.');
+   const data=await result.json() as RouteResult;setEstimate({...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)});setChoice(0);setStatus('Route updated. Times are estimates, not guarantees.');
   }catch{setStatus('Routing unavailable. The appointment remains scheduled.');setEstimate(null)}finally{setBusy(false)}
  }
  async function saveMonitor(){
@@ -88,7 +173,7 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
  const destination=place?{lat:place.lat,lon:place.lon}:null;
  return <section className="mt-4 space-y-3 rounded-2xl border border-teal-200 bg-teal-50/50 p-4" aria-label="Appointment travel planner">
   <h4 className="flex items-center gap-2 font-bold text-teal-950"><MapPinned className="h-5 w-5"/>Appointment travel</h4>
-  <p className="text-xs text-slate-700">Appointment: {title}. Optional navigation and alerts will not start without your action.</p>
+  <p className="text-xs text-slate-700">Appointment: {title}. Background traffic checks use only your approved saved starting location. Tap Start foreground guidance to refresh routes automatically from live GPS while this screen stays open.</p>
   <label className="block text-sm font-semibold text-slate-800">Destination street address</label>
   {!!savedPlaces.length&&<select aria-label="Choose saved destination" value={savedPlaces.find(p=>p.address===place?.label)?.id||''} onChange={e=>{const p=savedPlaces.find(p=>p.id===e.target.value);if(p){setPlace({label:p.address,lat:p.lat,lon:p.lon});setAddress(p.address);setOptions([]);setEstimate(null)}}} className="w-full rounded-xl border border-teal-300 bg-white p-3 text-sm"><option value="">Choose a saved location</option>{savedPlaces.map(p=><option key={p.id} value={p.id}>{p.label} · {p.category.replace('_',' ')}</option>)}</select>}
   <div className="flex gap-2"><input value={address} onChange={e=>{setAddress(e.target.value);setPlace(null);setEstimate(null)}} placeholder="Street address, city, state" className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white p-2 text-sm"/><button type="button" onClick={()=>void geocode()} disabled={busy||address.length<6} className="rounded-xl bg-teal-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Verify</button></div>
