@@ -274,3 +274,10 @@ export interface WeeklyReviewSummary {
   totalSpentCents: number;
   unpaidBillsCount: number;
 }
+
+export type SavedPlaceCategory = 'home'|'work'|'therapy'|'class'|'drug_testing'|'court'|'other';
+/** User-approved coordinates; accessible only in this account's RLS-scoped private snapshot. */
+export interface SavedPlace {
+  id:string;userId:string;label:string;category:SavedPlaceCategory;
+  address:string;lat:number;lon:number;createdAt:string;updatedAt:string;
+}

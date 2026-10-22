@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   UserProfile,
+  SavedPlace,
   CalendarEvent,
   EventOccurrence,
   TaskItem,
@@ -39,6 +40,10 @@ const DEFAULT_PROFILE: UserProfile = {
 
 interface DayBridgeContextType {
   profile: UserProfile;
+  savedPlaces: SavedPlace[];
+  addSavedPlace:(place:Omit<SavedPlace,'id'|'userId'|'createdAt'|'updatedAt'>)=>void;
+  updateSavedPlace:(id:string,place:Partial<Pick<SavedPlace,'label'|'category'|'address'|'lat'|'lon'>>)=>void;
+  deleteSavedPlace:(id:string)=>void;
   events: CalendarEvent[];
   eventOccurrences: EventOccurrence[];
   tasks: TaskItem[];
@@ -99,6 +104,7 @@ const DayBridgeContext = createContext<DayBridgeContextType | null>(null);
 
 export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: string }> = ({ children, userId }) => {
   const [profile, setProfile] = useState<UserProfile>({...DEFAULT_PROFILE,id:userId});
+  const [savedPlaces,setSavedPlaces]=useState<SavedPlace[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [eventOccurrences, setEventOccurrences] = useState<EventOccurrence[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -135,6 +141,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       const saved=data?.payload as Record<string,unknown>|undefined;
       if(saved){
         if(saved.profile&&typeof saved.profile==='object')setProfile({...DEFAULT_PROFILE,...(saved.profile as Partial<UserProfile>),id:userId});
+        if(Array.isArray(saved.savedPlaces))setSavedPlaces(saved.savedPlaces as SavedPlace[]);
         if(Array.isArray(saved.events))setEvents(saved.events);
         if(Array.isArray(saved.eventOccurrences))setEventOccurrences(saved.eventOccurrences);
         if(Array.isArray(saved.tasks))setTasks(saved.tasks);
@@ -156,7 +163,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   useEffect(()=>{
     if(!isLoaded)return;
     const client=createClient();if(!client)return;
-    const payload={profile,events,eventOccurrences,tasks,medications,medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,advances,bills,reserves,contacts};
+    const payload={profile,savedPlaces,events,eventOccurrences,tasks,medications,medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,advances,bills,reserves,contacts};
     // Protect data during the debounce window, not just during network transfer.
     setSyncStatus('syncing');
     const timer=window.setTimeout(async()=>{
@@ -165,7 +172,17 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       setSyncStatus(error?'offline':'synced');
     },900);
     return()=>window.clearTimeout(timer);
-  },[isLoaded,userId,profile,events,eventOccurrences,tasks,medications,medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,advances,bills,reserves,contacts]);
+  },[isLoaded,userId,profile,savedPlaces,events,eventOccurrences,tasks,medications,medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,advances,bills,reserves,contacts]);
+  // Saved places stay private to this user, persist alongside the other cloud records,
+  // and are never queried by name from a public directory.
+  const addSavedPlace=(input:Omit<SavedPlace,'id'|'userId'|'createdAt'|'updatedAt'>)=>{
+    const now=new Date().toISOString();
+    setSavedPlaces(prev=>[...prev,{...input,id:crypto.randomUUID(),userId,createdAt:now,updatedAt:now}]);
+  };
+  const updateSavedPlace=(id:string,updates:Partial<Pick<SavedPlace,'label'|'category'|'address'|'lat'|'lon'>>)=>{
+    setSavedPlaces(prev=>prev.map(p=>p.id===id?{...p,...updates,updatedAt:new Date().toISOString()}:p));
+  };
+  const deleteSavedPlace=(id:string)=>setSavedPlaces(prev=>prev.filter(p=>p.id!==id));
   // Actions
   const updateProfile = (updates: Partial<UserProfile>) => {
     setProfile((prev) => ({ ...prev, ...updates, updatedAt: new Date().toISOString() }));
@@ -486,6 +503,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const resetToDefaults=()=>{
+    setSavedPlaces([]);
     setProfile({...DEFAULT_PROFILE,id:userId});setEvents([]);setEventOccurrences([]);setTasks([]);
     setMedications([]);setMedicationSchedules([]);setMedicationLogs([]);setAccounts([]);
     setTransactions([]);setPaycheckPlan(null);setAdvances([]);setBills([]);setReserves([]);setContacts([]);
@@ -497,6 +515,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     <DayBridgeContext.Provider
       value={{
         profile,
+        savedPlaces,
+        addSavedPlace,
+        updateSavedPlace,
+        deleteSavedPlace,
         events,
         eventOccurrences,
         tasks,
