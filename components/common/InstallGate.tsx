@@ -22,7 +22,23 @@ export function InstallGate({children}:{children:React.ReactNode}){
   document.addEventListener('visibilitychange',refresh);
   return()=>{window.removeEventListener('beforeinstallprompt',capture);window.removeEventListener('appinstalled',refresh);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh)};
  },[]);
- useEffect(()=>{if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}},[]);
+ useEffect(()=>{
+  if(!('serviceWorker' in navigator))return;
+  const warm=async()=>{
+   try{
+    await navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'});
+    const registration=await navigator.serviceWorker.ready;
+    const assets=new Set<string>();
+    document.querySelectorAll('script[src],link[href]').forEach(node=>{
+     const value=node.getAttribute('src')||node.getAttribute('href');
+     if(value)assets.add(new URL(value,location.origin).href);
+    });
+    performance.getEntriesByType('resource').forEach(entry=>assets.add(entry.name));
+    registration.active?.postMessage({type:'DAYBRIDGE_WARM_SHELL',assets:[...assets]});
+  }catch{/* The workspace still works online if service workers are unavailable. */}
+  };
+  void warm();
+ },[]);
  if(ready===null) return <div className="min-h-screen bg-slate-50"/>;
  if(ready)return <>{children}</>;
  return <main className="min-h-screen flex items-center justify-center bg-slate-50 px-5 py-8">
