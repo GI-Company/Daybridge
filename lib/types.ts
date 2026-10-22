@@ -40,6 +40,9 @@ export interface CalendarEvent {
   contactInfo?: string;
   rrule?: string; // e.g., "FREQ=WEEKLY;BYDAY=WE"
   travelBufferMinutes: number;
+  destinationLat?:number;
+  destinationLon?:number;
+  travelMode?:'car'|'pedestrian'|'bicycle';
   prepChecklist: PrepChecklistItem[];
   createdAt: string;
   updatedAt: string;

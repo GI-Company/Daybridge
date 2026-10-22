@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
 import { DeviceSetup } from '../common/DeviceSetup';
+import { TravelPreferencesCard } from '../travel/TravelPreferences';
 
 export const SettingsView: React.FC = () => {
   const data=useDayBridge();
@@ -73,6 +74,7 @@ export const SettingsView: React.FC = () => {
       </div>
 
       <DeviceSetup />
+      <TravelPreferencesCard />
 
       {/* 1. PROFILE & TIMEZONE */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
