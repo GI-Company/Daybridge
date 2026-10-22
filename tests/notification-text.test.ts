@@ -27,9 +27,9 @@ test('leave-now alert includes ETA and can be acknowledged without opening app',
 });
 test('risk alert says possibly late, never verified late or current GPS position',()=>{
  const result=travelNotificationText({...base,kind:'traffic_change',
-   nowMs:Date.UTC(2026,9,22,17,54),arrivedLateMinutes:2});
+   nowMs:Date.UTC(2026,9,22,18,1),arrivedLateMinutes:4});
  assert.match(result.title,/Possible late arrival/);
- assert.match(result.body,/if leaving now/);
+ assert.match(result.body,/if departing now from your approved start/);
  assert.doesNotMatch(result.body,/GPS confirmed|location verified/);
 });
 test('after acknowledging departure, traffic changes continue without stale-position ETA claims',()=>{
