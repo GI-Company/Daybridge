@@ -15,7 +15,7 @@ export function SecureAppGate({children}:{children:(id:string)=>React.ReactNode}
  useEffect(()=>{
    if(!client){setPending(false);return}
    let active=true;
-   client.auth.getUser().then((result: {data:{user:User};error:unknown})=>{if(active){setUser(result.error?null:result.data.user);setPending(false)}}).catch(()=>{if(active){setUser(null);setPending(false)}});
+   client.auth.getUser().then((result: {data:{user:User|null};error:unknown})=>{if(active){setUser(result.error?null:result.data.user);setPending(false)}}).catch(()=>{if(active){setUser(null);setPending(false)}});
    const {data:{subscription}}=client.auth.onAuthStateChange((_event:AuthChangeEvent,session:Session|null)=>{if(active){setUser(session?.user??null);setPending(false)}});
    return()=>{active=false;subscription.unsubscribe()};
  },[client]);
