@@ -157,6 +157,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     if(!isLoaded)return;
     const client=createClient();if(!client)return;
     const payload={profile,events,eventOccurrences,tasks,medications,medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,advances,bills,reserves,contacts};
+    // Protect data during the debounce window, not just during network transfer.
+    setSyncStatus('syncing');
     const timer=window.setTimeout(async()=>{
       setSyncStatus('syncing');
       const {error}=await client.from('private_snapshots').upsert({user_id:userId,payload,updated_at:new Date().toISOString()},{onConflict:'user_id'});
