@@ -136,6 +136,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const localFailedRef=useRef(false);
   const deviceWritingRef=useRef(false);
   const volatileEditRef=useRef(false);
+  const latestStagedFingerprintRef=useRef('');
   const deviceWriteChain=useRef<Promise<void>>(Promise.resolve());
   const saveTimerRef=useRef<number|null>(null);
   const aliveRef=useRef(true);
@@ -148,7 +149,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     deviceWriteChain.current=next;
     void next.then(()=>{
       localFailedRef.current=false;
-      if(pendingRef.current?.fingerprint===JSON.stringify(data.payload))volatileEditRef.current=false;
+      if(latestStagedFingerprintRef.current===JSON.stringify(data.payload))volatileEditRef.current=false;
       if(aliveRef.current&&pendingRef.current&&pendingRef.current.fingerprint===JSON.stringify(data.payload)){
         setSyncStatus(navigator.onLine?'syncing':'device_saved');
       }
@@ -388,6 +389,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     }
     if(fingerprint===savedFingerprintRef.current&&!pendingRef.current)return;
     pendingRef.current={payload,fingerprint};
+    latestStagedFingerprintRef.current=fingerprint;
     volatileEditRef.current=true;
     setSyncStatus('syncing');
     // Encrypt and durably stage before attempting any network update.
