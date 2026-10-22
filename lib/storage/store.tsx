@@ -99,6 +99,8 @@ interface DayBridgeContextType {
   addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>, depositAccountId:string) => void;
   markBillPaid: (billId: string, createTransaction?: boolean, accountId?:string) => void;
   addBill: (bill: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => void;
+  addReserve: (reserve: Pick<BudgetReserve,'name'|'category'|'targetCents'|'allocatedCents'|'isEssential'>)=>void;
+  deleteReserve: (reserveId:string)=>void;
   updateReserve: (reserveId: string, allocatedCents: number) => void;
 
   addContact: (contact: Omit<ResourceContact, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => void;
@@ -751,6 +753,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     setBills((prev) => [...prev, newBill]);
   };
 
+  const addReserve=(input:Pick<BudgetReserve,'name'|'category'|'targetCents'|'allocatedCents'|'isEssential'>)=>{
+    const now=new Date().toISOString();
+    setReserves(prev=>[...prev,{...input,name:input.name.trim().slice(0,80),id:crypto.randomUUID(),userId,
+      createdAt:now,updatedAt:now}]);
+  };
+  const deleteReserve=(reserveId:string)=>setReserves(prev=>prev.filter(r=>r.id!==reserveId));
+
   const updateReserve = (reserveId: string, allocatedCents: number) => {
     setReserves((prev) =>
       prev.map((r) => (r.id === reserveId ? { ...r, allocatedCents } : r))
@@ -834,6 +843,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         addAdvance,
         markBillPaid,
         addBill,
+        addReserve,
+        deleteReserve,
         updateReserve,
 
         addContact,
