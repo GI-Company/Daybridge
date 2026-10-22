@@ -57,10 +57,13 @@ export function BackgroundReadiness({userId}:{userId:string}){
   document.addEventListener('visibilitychange',onReturn);
   window.addEventListener('focus',onChanged);
   window.addEventListener('daybridge:travel-prefs-updated',onChanged);
+  const reopen=()=>{setDismissed(false);void refresh();};
+  window.addEventListener('daybridge:open-background-setup',reopen);
   return()=>{
    document.removeEventListener('visibilitychange',onReturn);
    window.removeEventListener('focus',onChanged);
    window.removeEventListener('daybridge:travel-prefs-updated',onChanged);
+   window.removeEventListener('daybridge:open-background-setup',reopen);
   };
  },[key,refresh]);
  function dismiss(){
