@@ -88,12 +88,13 @@ interface DayBridgeContextType {
   deleteMedication: (id: string) => void;
   logDose: (medicationId: string, scheduledSlotUtc: string, action: DoseAction, reason?: string) => void;
 
+  addAccount: (account: Pick<BudgetAccount,'name'|'accountType'|'balanceCents'>) => string;
   updateAccountBalance: (accountId: string, newBalanceCents: number) => void;
   addTransaction: (tx: Omit<MoneyTransaction, 'id' | 'userId' | 'createdAt'>) => void;
   deleteTransaction: (id: string) => void;
   updatePaycheckPlan: (plan: Partial<PaycheckPlan>) => void;
   addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => void;
-  markBillPaid: (billId: string, createTransaction?: boolean) => void;
+  markBillPaid: (billId: string, createTransaction?: boolean, accountId?:string) => void;
   addBill: (bill: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => void;
   updateReserve: (reserveId: string, allocatedCents: number) => void;
 
@@ -605,6 +606,16 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     setMedicationLogs(prev=>[...prev.filter(l=>!(l.medicationId===medicationId&&l.scheduledSlotUtc===scheduledSlotUtc)),newLog]);
   };
 
+  const addAccount = (input: Pick<BudgetAccount,'name'|'accountType'|'balanceCents'>) => {
+    const id=crypto.randomUUID();
+    const now=new Date().toISOString();
+    const account:BudgetAccount={id,userId,name:input.name.trim().slice(0,80),
+      accountType:input.accountType,balanceCents:input.balanceCents,
+      lastConfirmedAt:now,isActive:true};
+    setAccounts(prev=>[...prev,account]);
+    return id;
+  };
+
   const updateAccountBalance = (accountId: string, newBalanceCents: number) => {
     setAccounts((prev) =>
       prev.map((a) =>
@@ -618,7 +629,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const addTransaction = (txData: Omit<MoneyTransaction, 'id' | 'userId' | 'createdAt'>) => {
     const newTx: MoneyTransaction = {
       ...txData,
-      id: `tx-${Date.now()}`,
+      id: crypto.randomUUID(),
       userId: profile.id,
       createdAt: new Date().toISOString(),
     };
@@ -688,9 +699,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     }
   };
 
-  const markBillPaid = (billId: string, createTransaction: boolean = true) => {
+  const markBillPaid = (billId: string, createTransaction: boolean = true, accountId?: string) => {
     const bill = bills.find((b) => b.id === billId);
-    if (!bill) return;
+    if (!bill || bill.isPaid) return;
+    if(createTransaction && !accounts.some(a=>a.id===accountId && a.isActive))return;
 
     setBills((prev) =>
       prev.map((b) =>
@@ -704,9 +716,9 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       )
     );
 
-    if (createTransaction && accounts.length > 0) {
+    if (createTransaction && accountId) {
       addTransaction({
-        accountId: accounts[0].id,
+        accountId,
         amountCents: -bill.amountCents,
         transactionType: 'expense',
         category: bill.category,
@@ -798,6 +810,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         deleteMedication,
         logDose,
 
+        addAccount,
         updateAccountBalance,
         addTransaction,
         deleteTransaction,
