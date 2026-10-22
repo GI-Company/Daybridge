@@ -17,8 +17,10 @@ import {
   Lock,
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
+import { DeviceSetup } from '../common/DeviceSetup';
 
 export const SettingsView: React.FC = () => {
+  const data=useDayBridge();
   const {
     profile,
     updateProfile,
@@ -46,26 +48,18 @@ export const SettingsView: React.FC = () => {
 
     if (perm === 'granted') {
       // Send safe, generic payload as required by threat model
-      new Notification('DayBridge Reminder', {
-        body: 'Scheduled item reminder — tap to open your daily view.',
-        icon: '/icon.svg',
-      });
+      const registration=await navigator.serviceWorker.ready;
+      await registration.showNotification('DayBridge Reminder', {body:'Open DayBridge to view a scheduled item.',icon:'/icon.svg'});
       setTestNotificationSent(true);
       setTimeout(() => setTestNotificationSent(false), 3000);
     }
   };
 
-  const handleExportJSON = () => {
-    const raw = localStorage.getItem('daybridge_store_v1');
-    if (!raw) return;
-    const blob = new Blob([raw], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `daybridge_export_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleExportJSON=()=>{
+    if(!window.confirm('This export is an unencrypted JSON file containing sensitive personal data. Save it only to a private device. Continue?'))return;
+    const snapshot=Object.fromEntries(['profile','events','eventOccurrences','tasks','medications','medicationSchedules','medicationLogs','accounts','transactions','paycheckPlan','advances','bills','reserves','contacts'].map(key=>[key,(data as unknown as Record<string,unknown>)[key]]));
+    const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='daybridge-private-export.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
 
   return (
@@ -79,6 +73,8 @@ export const SettingsView: React.FC = () => {
           Preferences, quiet hours, notifications, and privacy options
         </p>
       </div>
+
+      <DeviceSetup />
 
       {/* 1. PROFILE & TIMEZONE */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">
@@ -170,8 +166,7 @@ export const SettingsView: React.FC = () => {
           <h3 className="font-bold text-base text-slate-900">Install to Home Screen (PWA)</h3>
         </div>
         <p className="text-xs text-slate-600 leading-relaxed">
-          DayBridge is a Progressive Web App designed to look and feel like a native app with fast
-          tap response and private cloud storage once signed in.
+          DayBridge is an installable Progressive Web App. App installation is required before accessing your private workspace.
         </p>
 
         <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 space-y-1.5">
