@@ -132,7 +132,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const unknownFieldsRef = useRef<Record<string,unknown>>({});
   const savingRef = useRef(false);
   const conflictRef = useRef(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const saveTimerRef = useRef<number|null>(null);
   const aliveRef = useRef(true);
 
   // Only the latest snapshot can be written, and requests are serialized.
