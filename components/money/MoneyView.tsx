@@ -153,7 +153,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             {formatCents(safeToSpend.netSpendableCents)}
           </div>
           {safeToSpend.shortfallCents > 0 && (
-            <div className="text-xs font-bold text-rose-400 mt-1">
+            <div className="text-xs font-bold text-rose-700 mt-1">
               Shortfall of -{formatCents(safeToSpend.shortfallCents)} to cover pre-payday obligations
             </div>
           )}
@@ -161,25 +161,25 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
 
         {/* Breakdown details */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-4 border-t border-slate-200 text-xs">
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-200">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-[10px] text-slate-600 block mb-0.5">Confirmed Cash</span>
             <span className="font-bold text-slate-800">
               {formatCents(safeToSpend.totalConfirmedCents)}
             </span>
           </div>
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-200">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-[10px] text-slate-600 block mb-0.5">Pre-Payday Bills</span>
             <span className="font-bold text-amber-800">
               -{formatCents(safeToSpend.unpaidPrePaydayBillsCents)}
             </span>
           </div>
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-200">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-[10px] text-slate-600 block mb-0.5">Essential Reserves</span>
             <span className="font-bold text-slate-700">
               -{formatCents(safeToSpend.earmarkedReservesCents)}
             </span>
           </div>
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-200">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-[10px] text-slate-600 block mb-0.5">Emergency Buffer</span>
             <span className="font-bold text-slate-700">
               -{formatCents(safeToSpend.emergencyBufferCents)}
@@ -316,7 +316,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                   {formatCents(remainingPaycheck.netRemainingCents)}
                 </span>
                 {remainingPaycheck.overadvancedCents > 0 && (
-                  <span className="text-[10px] text-rose-400 font-bold block">
+                  <span className="text-[10px] text-rose-700 font-bold block">
                     Overadvanced by {formatCents(remainingPaycheck.overadvancedCents)}!
                   </span>
                 )}
@@ -381,7 +381,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
               key={bill.id}
               className={`p-3.5 rounded-2xl border flex items-center justify-between transition ${
                 bill.isPaid
-                  ? 'bg-slate-950/40 border-slate-200 opacity-60'
+                  ? 'bg-slate-50 border-slate-200 opacity-60'
                   : 'bg-slate-50/90 border-slate-200'
               }`}
             >
@@ -481,14 +481,14 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
               return (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-200"
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className={`p-2 rounded-lg ${
                         isIncome
                           ? 'bg-emerald-500/20 text-emerald-800'
-                          : 'bg-rose-500/20 text-rose-300'
+                          : 'bg-rose-500/20 text-rose-800'
                       }`}
                     >
                       {isIncome ? (
@@ -517,7 +517,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                     </span>
                     <button
                       onClick={() => deleteTransaction(tx.id)}
-                      className="p-1.5 text-slate-600 hover:text-rose-400"
+                      className="p-1.5 text-slate-600 hover:text-rose-700"
                       title="Delete transaction"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

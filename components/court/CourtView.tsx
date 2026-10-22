@@ -70,11 +70,11 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
       </div>
 
       {/* Mandatory Disclaimer */}
-      <div className="p-4 bg-amber-50 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-200">
+      <div className="p-4 bg-amber-50 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-900">
         <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
         <div className="text-xs space-y-1">
           <span className="font-bold text-amber-800 block">Personal Self-Report Notice:</span>
-          <p className="text-amber-200/90 leading-relaxed">
+          <p className="text-amber-900/90 leading-relaxed">
             Attendance recorded here is personal self-reported documentation for your own
             organization. It does NOT constitute an official court attendance certificate, and
             compliance scores are never officially calculated by this app.
@@ -200,7 +200,7 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
             {pastCourtOccurrences.map((occ) => (
               <div
                 key={occ.id}
-                className="p-3 bg-slate-950/60 border border-slate-200 rounded-xl flex items-center justify-between text-xs"
+                className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs"
               >
                 <div>
                   <span className="font-semibold text-slate-800 block">{occ.title}</span>

@@ -32,7 +32,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd }) => {
   });
 
   const priorityColors: Record<PriorityLevel, string> = {
-    urgent: 'bg-rose-950 text-rose-300 border-rose-800/60',
+    urgent: 'bg-rose-950 text-rose-800 border-rose-800/60',
     high: 'bg-amber-50 text-amber-800 border-amber-800/60',
     medium: 'bg-sky-50 text-sky-800 border-sky-800/60',
     low: 'bg-slate-100 text-slate-700 border-slate-700/60',
@@ -85,7 +85,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd }) => {
               key={task.id}
               className={`p-3.5 sm:p-4 rounded-2xl border transition ${
                 task.completed
-                  ? 'bg-slate-950/40 border-slate-200 opacity-60'
+                  ? 'bg-slate-50 border-slate-200 opacity-60'
                   : 'bg-white border-slate-200 hover:border-slate-300'
               }`}
             >
@@ -150,7 +150,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd }) => {
 
                   <button
                     onClick={() => deleteTask(task.id)}
-                    className="p-2 text-slate-600 hover:text-rose-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                    className="p-2 text-slate-600 hover:text-rose-700 min-h-[44px] min-w-[44px] flex items-center justify-center"
                     aria-label="Delete task"
                   >
                     <Trash2 className="w-4 h-4" />

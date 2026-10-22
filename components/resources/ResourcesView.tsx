@@ -70,7 +70,7 @@ export const ResourcesView: React.FC<ResourcesViewProps> = ({ onOpenQuickAdd }) 
       {/* Emergency & Crisis Support Cards */}
       <div className="p-4 bg-rose-950/40 border border-rose-800/60 rounded-3xl space-y-3">
         <div className="flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-rose-400" />
+          <ShieldAlert className="w-5 h-5 text-rose-700" />
           <h3 className="font-bold text-sm text-rose-200">24/7 Crisis & Immediate Support</h3>
         </div>
         <p className="text-xs text-rose-200/80">
@@ -99,7 +99,7 @@ export const ResourcesView: React.FC<ResourcesViewProps> = ({ onOpenQuickAdd }) 
             </div>
             <a
               href="sms:741741"
-              className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-rose-300 font-bold text-xs min-h-[44px] flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-rose-800 font-bold text-xs min-h-[44px] flex items-center gap-1.5"
             >
               <span>Text</span>
             </a>
@@ -186,7 +186,7 @@ export const ResourcesView: React.FC<ResourcesViewProps> = ({ onOpenQuickAdd }) 
                       )}
                       <button
                         onClick={() => deleteContact(contact.id)}
-                        className="p-2 text-slate-600 hover:text-rose-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                        className="p-2 text-slate-600 hover:text-rose-700 min-h-[44px] min-w-[44px] flex items-center justify-center"
                         title="Delete contact"
                       >
                         <Trash2 className="w-4 h-4" />

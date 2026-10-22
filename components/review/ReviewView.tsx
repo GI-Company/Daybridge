@@ -166,14 +166,14 @@ export const ReviewView: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-3 bg-amber-50 print:bg-amber-50 border border-amber-800/60 print:border-amber-300 rounded-xl text-amber-200 print:text-amber-900 text-xs">
+          <div className="p-3 bg-amber-50 print:bg-amber-50 border border-amber-800/60 print:border-amber-300 rounded-xl text-amber-900 print:text-amber-900 text-xs">
             <strong>Notice:</strong> Personal self-reported weekly organization summary — not an official court attendance record or clinical compliance certificate.
           </div>
         </div>
 
         {/* METRICS ROW */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <div className="p-3.5 bg-slate-950/60 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
+          <div className="p-3.5 bg-slate-50 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
             <span className="text-[10px] uppercase font-bold text-slate-600 print:text-gray-600 block mb-1">
               Court Classes Attended
             </span>
@@ -185,7 +185,7 @@ export const ReviewView: React.FC = () => {
             </span>
           </div>
 
-          <div className="p-3.5 bg-slate-950/60 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
+          <div className="p-3.5 bg-slate-50 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
             <span className="text-[10px] uppercase font-bold text-slate-600 print:text-gray-600 block mb-1">
               Doses Logged
             </span>
@@ -197,7 +197,7 @@ export const ReviewView: React.FC = () => {
             </span>
           </div>
 
-          <div className="p-3.5 bg-slate-950/60 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
+          <div className="p-3.5 bg-slate-50 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
             <span className="text-[10px] uppercase font-bold text-slate-600 print:text-gray-600 block mb-1">
               Tasks Completed
             </span>
@@ -209,7 +209,7 @@ export const ReviewView: React.FC = () => {
             </span>
           </div>
 
-          <div className="p-3.5 bg-slate-950/60 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
+          <div className="p-3.5 bg-slate-50 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300">
             <span className="text-[10px] uppercase font-bold text-slate-600 print:text-gray-600 block mb-1">
               Weekly Outflows
             </span>
@@ -232,7 +232,7 @@ export const ReviewView: React.FC = () => {
               {events.map((evt) => (
                 <div
                   key={evt.id}
-                  className="p-2.5 bg-slate-950/40 print:bg-gray-50 rounded-lg flex items-center justify-between"
+                  className="p-2.5 bg-slate-50 print:bg-gray-50 rounded-lg flex items-center justify-between"
                 >
                   <div>
                     <span className="font-semibold text-slate-800 print:text-black">{evt.title}</span>
@@ -261,7 +261,7 @@ export const ReviewView: React.FC = () => {
             {medications.map((med) => (
               <div
                 key={med.id}
-                className="p-2.5 bg-slate-950/40 print:bg-gray-50 rounded-lg flex items-center justify-between"
+                className="p-2.5 bg-slate-50 print:bg-gray-50 rounded-lg flex items-center justify-between"
               >
                 <div>
                   <span className="font-semibold text-slate-800 print:text-black">

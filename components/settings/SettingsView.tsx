@@ -74,9 +74,8 @@ export const SettingsView: React.FC = () => {
         </p>
       </div>
 
-      <DeviceSetup />
-      <ChangePasswordCard />
-      <TravelPreferencesCard />
+      <details className="rounded-3xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-bold text-slate-900">Devices, push notifications & sign-in security</summary><div className="mt-4 space-y-4"><DeviceSetup/><ChangePasswordCard/></div></details>
+      <details className="rounded-3xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-bold text-slate-900">Travel notifications & location settings</summary><div className="mt-4"><TravelPreferencesCard/></div></details>
 
       {/* 1. PROFILE & TIMEZONE */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4">

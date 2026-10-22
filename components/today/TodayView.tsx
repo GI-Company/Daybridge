@@ -133,6 +133,11 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
           </button>
         </div>
 
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Quick actions">
+          <button type="button" onClick={()=>onNavigate('locations')} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 py-3 text-xs font-semibold text-teal-900"><MapPin className="h-4 w-4"/>My places & routes</button>
+          <button type="button" onClick={()=>onNavigate('health')} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-900"><Pill className="h-4 w-4"/>My medications</button>
+          <button type="button" onClick={onOpenQuickAdd} className="col-span-2 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-900 sm:col-span-1"><Calendar className="h-4 w-4"/>New appointment</button>
+        </div>
         {/* Potential Conflict Warning Alert (Only if conflicts exist) */}
         {conflicts.length > 0 && (
           <div className="mb-4 p-3.5 bg-amber-50 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-950">
@@ -508,6 +513,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
       </section>
 
       {/* 5. TOMORROW PREVIEW */}
+      <details className="rounded-3xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer p-3 text-sm font-semibold text-slate-900">Tomorrow's preview · Expand</summary>
       <section className="bg-white border border-slate-200 rounded-3xl p-5">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -547,6 +553,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
           <p className="text-xs text-slate-600 py-1">Nothing scheduled for tomorrow yet.</p>
         )}
       </section>
+      </details>
     </div>
   );
 };
