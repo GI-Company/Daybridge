@@ -93,6 +93,8 @@ interface DayBridgeContextType {
   addTransaction: (tx: Omit<MoneyTransaction, 'id' | 'userId' | 'createdAt'>) => void;
   deleteTransaction: (id: string) => void;
   updatePaycheckPlan: (plan: Partial<PaycheckPlan>) => void;
+  setPaycheckForecast: (plan:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>void;
+  recordPaycheckDeposit: (accountId:string,amountCents:number)=>boolean;
   addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => void;
   markBillPaid: (billId: string, createTransaction?: boolean, accountId?:string) => void;
   addBill: (bill: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => void;
@@ -674,6 +676,32 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     setPaycheckPlan((prev) => (prev ? { ...prev, ...planUpdates } : null));
   };
 
+  const setPaycheckForecast=(details:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>{
+    setPaycheckPlan(prev=>({
+      id:prev?.id||crypto.randomUUID(),userId,
+      expectedNetCents:details.expectedNetCents,
+      nextPayday:details.nextPayday,
+      recurringFrequency:details.recurringFrequency,
+      confidence:details.confidence,
+      // Every newly saved payday is a new forecast, not a prior deposit.
+      actualNetCents:undefined,reconciledAt:undefined
+    }));
+  };
+
+  const recordPaycheckDeposit=(accountId:string,amountCents:number)=>{
+    if(!paycheckPlan||paycheckPlan.reconciledAt||amountCents<=0||
+       !accounts.some(a=>a.id===accountId&&a.isActive))return false;
+    addTransaction({
+      accountId,amountCents,transactionType:'income',category:'wages',
+      transactionDate:new Date().toLocaleDateString('en-CA'),notes:'Paycheck deposit',
+      isPending:false
+    });
+    setPaycheckPlan(prev=>prev?{...prev,actualNetCents:amountCents,reconciledAt:new Date().toISOString()}:null);
+    setAdvances(prev=>prev.map(a=>!a.isReconciled&&(!a.paycheckPlanId||a.paycheckPlanId===paycheckPlan.id)
+      ?{...a,isReconciled:true,updatedAt:new Date().toISOString()}:a));
+    return true;
+  };
+
   const addAdvance = (advData: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
     const newAdv: WageAdvance = {
       ...advData,
@@ -815,6 +843,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         addTransaction,
         deleteTransaction,
         updatePaycheckPlan,
+        setPaycheckForecast,
+        recordPaycheckDeposit,
         addAdvance,
         markBillPaid,
         addBill,
