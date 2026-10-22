@@ -318,13 +318,13 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
               data-daybridge-edit-button="true" className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 border border-slate-300 min-h-[44px]"
             >
               + Record Advance
-            </button>
-            {!paycheckPlan.reconciledAt&&<button
+            </button>}
+            {paycheckPlan&&!paycheckPlan.reconciledAt&&<button
               onClick={() => {setDepositAccountId(activeAccounts.length===1?activeAccounts[0].id:'');setShowReconcileModal(true)}}
               className="px-3 py-1.5 rounded-xl bg-teal-500/20 text-teal-800 border border-teal-500/30 hover:bg-teal-500/30 text-xs font-bold min-h-[44px]"
             >
               Record deposit
-            </button>}</>
+            </button>}
           </div>
         </div>
         {showPaycheckSetup&&<div className="mb-4"><PaycheckSetup onSaved={()=>{setShowPaycheckSetup(false);setBudgetMessage('Paycheck forecast saved. It does not change your account balance.')}} onCancel={()=>setShowPaycheckSetup(false)}/></div>}
