@@ -3,7 +3,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import type {User,Session,AuthChangeEvent} from '@supabase/supabase-js';
 import {Fingerprint,KeyRound,ShieldCheck} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
-import {usernameToAuthEmail} from '../../lib/auth/username';
+import {loginIdentifierToEmail} from '../../lib/auth/username';
 
 export function SecureAppGate({children}:{children:(id:string)=>React.ReactNode}){
  const client=useMemo(()=>createClient(),[]);
@@ -25,8 +25,8 @@ export function SecureAppGate({children}:{children:(id:string)=>React.ReactNode}
  if(user)return <>{children(user.id)}</>;
  const login=async(e:React.FormEvent)=>{
   e.preventDefault();
-  const email=usernameToAuthEmail(username);
-  if(!email){setMessage('Use your assigned username (3–32 letters, numbers, underscores or hyphens; start with a letter).');return;}
+  const email=loginIdentifierToEmail(username);
+  if(!email){setMessage('Enter your assigned username or the email used for an existing Supabase account.');return;}
   setBusy(true);setMessage('');
   try{
     const {error}=await client.auth.signInWithPassword({email,password});
@@ -42,9 +42,9 @@ export function SecureAppGate({children}:{children:(id:string)=>React.ReactNode}
  <section className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
   <div className="inline-flex rounded-xl bg-teal-50 p-3 text-teal-800"><ShieldCheck className="h-7 w-7"/></div>
   <h1 className="mt-4 text-2xl font-bold text-slate-950">Unlock DayBridge</h1>
-  <p className="mt-2 text-sm leading-6 text-slate-700">Sign in with the username and password assigned by your DayBridge administrator. Only approved accounts can access this workspace.</p>
+  <p className="mt-2 text-sm leading-6 text-slate-700">Sign in with your assigned username and password. If your account was originally created using a regular email address in Supabase, you can also sign in with that email. Only approved accounts can access this workspace.</p>
   <form onSubmit={login} className="mt-6 space-y-4">
-   <label className="block text-sm font-semibold text-slate-800">Username<input required type="text" autoCapitalize="none" spellCheck={false} minLength={3} maxLength={32} pattern="[A-Za-z][A-Za-z0-9_-]{2,31}" autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900"/></label>
+   <label className="block text-sm font-semibold text-slate-800">Username or email<input required type="text" autoCapitalize="none" spellCheck={false} maxLength={254} autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900"/></label>
    <label className="block text-sm font-semibold text-slate-800">Password<input required type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900"/></label>
    <button disabled={busy} type="submit" className="w-full rounded-xl bg-teal-800 px-4 py-3 font-semibold text-white hover:bg-teal-900 disabled:opacity-50"><KeyRound className="mr-2 inline h-4 w-4"/>Sign in</button>
   </form>

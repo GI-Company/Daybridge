@@ -20,3 +20,15 @@ export function usernameToAuthEmail(value: string): string | null {
     ? `${username}@${AUTH_ALIAS_DOMAIN}`
     : null;
 }
+
+/**
+ * Existing admin-created users may already use a real email address.
+ * Permit email/password sign-in for those users without a database migration.
+ * New username accounts continue to use internal aliases.
+ */
+export function loginIdentifierToEmail(value: string): string | null {
+  const identifier = value.trim().toLowerCase();
+  if (!identifier.includes('@')) return usernameToAuthEmail(identifier);
+  if (identifier.length > 254 || !/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(identifier)) return null;
+  return identifier;
+}

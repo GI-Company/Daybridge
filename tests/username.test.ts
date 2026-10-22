@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AUTH_ALIAS_DOMAIN, normalizedUsername, usernameToAuthEmail} from '../lib/auth/username.ts';
+import {AUTH_ALIAS_DOMAIN, normalizedUsername, usernameToAuthEmail, loginIdentifierToEmail} from '../lib/auth/username.ts';
 
 test('admin username maps deterministically to a non-mailbox Auth identity',()=>{
  assert.equal(usernameToAuthEmail('Taylor_01'),`taylor_01@${AUTH_ALIAS_DOMAIN}`);
@@ -14,4 +14,10 @@ test('rejects full email identifiers and malformed usernames',()=>{
 test('username mapping does not accidentally normalize away allowed uniqueness',()=>{
  assert.equal(normalizedUsername(' TeSt_02 '),'test_02');
  assert.notEqual(usernameToAuthEmail('test_02'),usernameToAuthEmail('test-02'));
+});
+
+test('existing admin-created email accounts can sign in without alias migration', () => {
+ assert.equal(loginIdentifierToEmail(' testing@gmail.com '),'testing@gmail.com');
+ assert.equal(loginIdentifierToEmail('TeSt_02'),'test_02@accounts.daybridge.example.com');
+ for(const bad of ['a@b', 'x@@test.com', 'john smith@example.com']) assert.equal(loginIdentifierToEmail(bad),null);
 });
