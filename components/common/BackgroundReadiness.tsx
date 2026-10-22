@@ -71,7 +71,15 @@ export function BackgroundReadiness({userId}:{userId:string}){
   setBusy(true);setMessage('');
   try{
    await enableDevicePush();
-   setMessage('This device is registered for background Web Push.');
+   // This validates server acceptance, not guaranteed phone delivery.
+   const response=await fetch('/api/travel/push-test',{method:'POST',cache:'no-store'}).catch(()=>null);
+   if(response?.ok){
+    const result=await response.json() as {sent?:number};
+    setMessage('Background push registered. A test notification was sent to '+
+      Number(result.sent||0)+' registered device(s); check that it arrives.');
+   }else{
+    setMessage('Background push registered. A delivery test was unavailable; reminders remain best-effort.');
+   }
   }catch(error){setMessage(error instanceof Error?error.message:'Could not register background notifications.')}
   finally{await refresh();setBusy(false);}
  }
