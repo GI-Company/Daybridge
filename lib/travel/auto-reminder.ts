@@ -2,6 +2,7 @@
 
 import {createClient} from '../supabase/client';
 import type {CalendarEvent,SavedPlace} from '../types';
+export type VerifiedDestination=Pick<SavedPlace,'address'|'lat'|'lon'>;
 
 /**
  * Auto-enrolls appointments with a verified saved destination when the user
@@ -9,7 +10,7 @@ import type {CalendarEvent,SavedPlace} from '../types';
  * Does not access GPS, expose credentials, or block saving the appointment.
  * The server cron worker uses the same plans for closed-app reminders.
  */
-export async function enrollTrafficAlerts(event:CalendarEvent,destination:SavedPlace):Promise<boolean>{
+export async function enrollTrafficAlerts(event:CalendarEvent,destination:VerifiedDestination):Promise<boolean>{
  if(event.venueType!=='in_person'||!event.startTime||!event.location||
     event.location.trim()!==destination.address.trim())return false;
  const db=createClient();
