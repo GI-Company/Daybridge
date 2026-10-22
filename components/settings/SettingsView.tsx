@@ -24,8 +24,6 @@ export const SettingsView: React.FC = () => {
   const {
     profile,
     updateProfile,
-    clearAllUserData,
-    resetToDefaults,
     isLiveSupabase,
   } = useDayBridge();
 
@@ -171,7 +169,7 @@ export const SettingsView: React.FC = () => {
 
         <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 space-y-1.5">
           <div>
-            <strong>iPhone / iPad (Safari):</strong> Tap the Share button (<span className="text-teal-700">􀈂</span>), then choose &apos;Add to Home Screen&apos;.
+            <strong>iPhone / iPad (Safari):</strong> Tap the Share button (<span className="text-teal-700">Share icon</span>), then choose &apos;Add to Home Screen&apos;.
           </div>
           <div>
             <strong>Android (Chrome):</strong> Tap the three-dot menu (<span className="text-teal-700">⋮</span>), then choose &apos;Install app&apos; or &apos;Add to Home Screen&apos;.
@@ -186,38 +184,14 @@ export const SettingsView: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleExportJSON}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-750 min-h-[44px]"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold border border-slate-300 min-h-[44px]"
           >
             <Download className="w-4 h-4" />
             <span>Export All Data (JSON Backup)</span>
           </button>
 
-          <button
-            onClick={() => {
-              if (confirm('Reset to initial sample schedule and budget?')) {
-                resetToDefaults();
-              }
-            }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-300 min-h-[44px]"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset Demo Data</span>
-          </button>
         </div>
-
-        <div className="pt-3 border-t border-slate-200">
-          <button
-            onClick={() => {
-              if (confirm('Clear all local user records and storage completely? This cannot be undone.')) {
-                clearAllUserData();
-              }
-            }}
-            className="flex items-center gap-2 text-xs font-bold text-rose-400 hover:text-rose-300 p-2 rounded-xl hover:bg-rose-950/30"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Wipe Local Data</span>
-          </button>
-        </div>
+        <p className="text-xs leading-5 text-slate-600">The export contains unencrypted personal information. Data deletion and recovery workflows are intentionally unavailable until they can be confirmed and tested against the cloud database.</p>
       </section>
     </div>
   );
