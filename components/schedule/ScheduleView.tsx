@@ -1,214 +1,202 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  Calendar as CalendarIcon,
-  Clock,
-  MapPin,
-  ExternalLink,
-  Plus,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  HelpCircle,
-  Filter,
-  Scale,
-  Briefcase,
-  HeartHandshake,
-  Trash2,
-} from 'lucide-react';
-import { useDayBridge } from '../../lib/storage/store';
-import { expandEventOccurrences, detectEventConflicts } from '../../lib/recurrence';
-import { formatTime, formatDate, getRelativeDayLabel } from '../../lib/date-time';
-import { EventCategory, AttendanceStatus } from '../../lib/types';
-import { TravelPlanner } from '../travel/TravelPlanner';
+import React,{useState} from 'react';
+import {CalendarDays,ChevronLeft,ChevronRight,Plus,AlertTriangle,CheckCircle2,XCircle,
+  HelpCircle,ExternalLink,Trash2,MapPin} from 'lucide-react';
+import {useDayBridge} from '../../lib/storage/store';
+import {expandEventOccurrences,detectEventConflicts} from '../../lib/recurrence';
+import {formatTime,formatDate,getRelativeDayLabel} from '../../lib/date-time';
+import {calendarDayKey,calendarMonthDays,calendarMove,calendarRange,calendarSameDay} from '../../lib/calendar';
+import type {EventCategory} from '../../lib/types';
+import {TravelPlanner} from '../travel/TravelPlanner';
 
 interface ScheduleViewProps {
-  onOpenQuickAdd: () => void;
+ onOpenQuickAdd:(date?:string)=>void;
 }
+type Occurrence=ReturnType<typeof expandEventOccurrences>[number];
+type CalendarMode='month'|'week';
 
-export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) => {
-  const { events, eventOccurrences, recordAttendance, deleteEvent } = useDayBridge();
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedOccurrence, setSelectedOccurrence] = useState<any | null>(null);
+const categoryLabels:Record<EventCategory,string>={
+ court:'Court',class:'Class / group',self_help:'Self-help meeting',drug_testing:'Drug test',
+ therapy:'Therapy',work:'Work',case_management:'Case management',personal:'Personal',other:'Other'
+};
+const categoryDot:Record<EventCategory,string>={
+ court:'bg-amber-600',class:'bg-violet-600',self_help:'bg-emerald-700',
+ drug_testing:'bg-rose-600',therapy:'bg-sky-600',work:'bg-indigo-600',
+ case_management:'bg-amber-700',personal:'bg-teal-700',other:'bg-slate-600'
+};
+const weekLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  // Time window: today through next 14 days
-  const now = new Date();
-  const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14, 23, 59, 59);
+export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd})=>{
+ const {events,eventOccurrences,recordAttendance,deleteEvent}=useDayBridge();
+ const [view,setView]=useState<CalendarMode>('month');
+ const [selectedDate,setSelectedDate]=useState(()=>new Date());
+ const [selectedCategory,setSelectedCategory]=useState<EventCategory|'all'>('all');
+ const [selectedOccurrence,setSelectedOccurrence]=useState<Occurrence|null>(null);
+ const currentDay=new Date();
+ const {start:rangeStart,end:rangeEnd,days}=calendarRange(selectedDate,view);
+ const allOccurrences=events.flatMap(event=>expandEventOccurrences(event,rangeStart,rangeEnd,eventOccurrences))
+   .sort((a,b)=>a.startTime.getTime()-b.startTime.getTime());
+ const filteredOccurrences=allOccurrences.filter(occ=>selectedCategory==='all'||occ.category===selectedCategory);
+ const selectedDayOccurrences=filteredOccurrences.filter(occ=>calendarSameDay(occ.startTime,selectedDate));
+ const conflicts=detectEventConflicts(filteredOccurrences);
+ const selectedIds=new Set(selectedDayOccurrences.map(occ=>occ.eventId));
+ const dayConflicts=conflicts.filter(c=>selectedIds.has(c.eventId1)||selectedIds.has(c.eventId2));
+ const startLabel=view==='month'
+  ?selectedDate.toLocaleDateString(undefined,{month:'long',year:'numeric'})
+  :days[0].toLocaleDateString(undefined,{month:'short',day:'numeric'})+' – '+
+     days[6].toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+ const monthDate=new Date(selectedDate.getFullYear(),selectedDate.getMonth(),1);
+ const monthDays=calendarMonthDays(selectedDate); // six full calendar rows
+ const visibleDays=view==='month'?monthDays:days;
+ const onDayClick=(day:Date)=>setSelectedDate(new Date(day.getFullYear(),day.getMonth(),day.getDate()));
 
-  // Expand all events
-  const allOccurrences = events.flatMap((evt) =>
-    expandEventOccurrences(evt, rangeStart, rangeEnd, eventOccurrences)
-  );
+ return (
+ <div className="space-y-4 pb-24">
+  <header className="flex flex-wrap items-center justify-between gap-3">
+   <div>
+    <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">Schedule</h2>
+    <p className="text-xs text-slate-600">Your appointments, classes, meetings, and shifts in one calendar</p>
+   </div>
+   <button type="button" onClick={()=>onOpenQuickAdd(calendarDayKey(selectedDate))}
+    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800">
+    <Plus aria-hidden="true" className="h-4 w-4"/>Add event
+   </button>
+  </header>
 
-  allOccurrences.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  <section aria-label="Schedule calendar" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+   <div className="space-y-3 border-b border-slate-200 p-3 sm:p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+     <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1" role="group" aria-label="Calendar view">
+      {(['month','week'] as const).map(mode=><button type="button" key={mode} onClick={()=>setView(mode)}
+       aria-pressed={view===mode}
+       className={'min-h-[40px] rounded-lg px-4 text-sm font-semibold transition '+
+        (view===mode?'bg-teal-700 text-white shadow-sm':'text-slate-700 hover:bg-white')}>
+       {mode==='month'?'Month':'Week'}
+      </button>)}
+     </div>
+     <div className="flex items-center gap-1.5">
+      <button type="button" aria-label={view==='month'?'Previous month':'Previous week'}
+       onClick={()=>setSelectedDate(d=>calendarMove(d,view,-1))}
+       className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-800 hover:bg-slate-50">
+       <ChevronLeft className="h-5 w-5"/>
+      </button>
+      <button type="button" onClick={()=>setSelectedDate(new Date())}
+       className="min-h-[44px] rounded-xl border border-slate-200 px-3 text-sm font-semibold text-teal-900">Today</button>
+      <button type="button" aria-label={view==='month'?'Next month':'Next week'}
+       onClick={()=>setSelectedDate(d=>calendarMove(d,view,1))}
+       className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-800 hover:bg-slate-50">
+       <ChevronRight className="h-5 w-5"/>
+      </button>
+     </div>
+    </div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+     <h3 className="text-lg font-bold text-slate-950" aria-live="polite">{startLabel}</h3>
+     <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">Jump to date
+      <input type="date" value={calendarDayKey(selectedDate)}
+       onChange={e=>{if(e.target.value){const target=new Date(e.target.value+'T12:00:00');if(!Number.isNaN(target.getTime()))onDayClick(target);}}}
+       className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900"/>
+     </label>
+    </div>
+    <label className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-700">
+     <span>Show</span>
+     <select value={selectedCategory} onChange={e=>setSelectedCategory(e.target.value as EventCategory|'all')}
+      className="min-h-[44px] max-w-[72%] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900">
+      <option value="all">Everything</option>
+      {(Object.keys(categoryLabels) as EventCategory[]).map(cat=><option key={cat} value={cat}>{categoryLabels[cat]}</option>)}
+     </select>
+    </label>
+   </div>
 
-  // Detect conflicts
-  const conflicts = detectEventConflicts(allOccurrences);
+   <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50" aria-hidden="true">
+    {weekLabels.map(label=><div className="py-2 text-center text-[10px] font-bold uppercase tracking-wide text-slate-600 sm:text-xs" key={label}>{label}</div>)}
+   </div>
+   <div className="grid grid-cols-7 gap-px bg-slate-200 p-px" aria-label={view==='month'?'Month dates':'Week dates'}>
+    {visibleDays.map(day=>{
+     const dateKey=calendarDayKey(day);
+     const dayEvents=filteredOccurrences.filter(occ=>calendarSameDay(occ.startTime,day));
+     const isSelected=calendarSameDay(day,selectedDate);
+     const isToday=calendarSameDay(day,currentDay);
+     const isCurrentMonth=day.getMonth()===monthDate.getMonth()&&day.getFullYear()===monthDate.getFullYear();
+     const style=dayEvents.length>0?'font-bold':'font-medium';
+     return <button key={dateKey} type="button" onClick={()=>onDayClick(day)}
+      aria-pressed={isSelected}
+      aria-label={day.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+
+       ', '+dayEvents.length+' scheduled item'+(dayEvents.length===1?'':'s')}
+      className={'flex min-w-0 flex-col items-center gap-1 overflow-hidden p-1.5 text-left transition focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-800 sm:items-stretch sm:p-2 '+
+       (view==='week'?'min-h-[105px] sm:min-h-[150px]':'min-h-[66px] sm:min-h-[110px]')+' '+
+       (isSelected?'bg-teal-100 ring-2 ring-inset ring-teal-700':'bg-white hover:bg-teal-50')+' '+
+       (!isCurrentMonth&&view==='month'?'text-slate-400':'text-slate-900')}>
+      <span className={'inline-flex h-7 min-w-7 items-center justify-center self-center rounded-full px-1 text-xs '+style+
+       (isToday?' bg-teal-800 text-white':'')}>{day.getDate()}</span>
+      {dayEvents.length>0&&<div className="flex w-full flex-col items-center gap-1 sm:items-stretch">
+       <span className="flex items-center justify-center gap-0.5 sm:hidden" aria-hidden="true">
+        {dayEvents.slice(0,3).map((event,i)=><span key={event.id+'-'+i} className={'h-1.5 w-1.5 rounded-full '+categoryDot[event.category]}/>)}
+       </span>
+       <span className="text-[10px] font-bold text-slate-700 sm:hidden">{dayEvents.length}</span>
+       <div className="hidden space-y-1 sm:block">
+        {dayEvents.slice(0,view==='week'?4:2).map(event=><span key={event.id}
+         className="block truncate rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-900">
+         <span aria-hidden="true" className={'mr-1 inline-block h-1.5 w-1.5 rounded-full '+categoryDot[event.category]}/>
+         {formatTime(event.startTime)} {event.title}
+        </span>)}
+        {dayEvents.length>(view==='week'?4:2)&&<span className="block text-[10px] font-semibold text-slate-700">
+         +{dayEvents.length-(view==='week'?4:2)} more
+        </span>}
+       </div>
+      </div>}
+     </button>;
+    })}
+   </div>
+   <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 text-[11px] text-slate-600">
+    {(['court','class','self_help','work','personal'] as EventCategory[]).map(category=>
+     <span key={category} className="inline-flex items-center gap-1.5">
+      <span aria-hidden="true" className={'h-2 w-2 rounded-full '+categoryDot[category]}/>{categoryLabels[category]}
+     </span>)}
+   </div>
+  </section>
 
-  // Filter by category
-  const filteredOccurrences = allOccurrences.filter((occ) => {
-    if (selectedCategory === 'all') return true;
-    return occ.category === selectedCategory;
-  });
+  <section className="space-y-3" aria-label="Selected day schedule">
+   <div className="flex flex-wrap items-center justify-between gap-2">
+    <div>
+     <h3 className="text-lg font-bold text-slate-950">{getRelativeDayLabel(selectedDate)} · {formatDate(selectedDate)}</h3>
+     <p className="text-xs text-slate-600">{selectedDayOccurrences.length} scheduled item{selectedDayOccurrences.length===1?'':'s'}</p>
+    </div>
+    <button type="button" onClick={()=>onOpenQuickAdd(calendarDayKey(selectedDate))}
+     className="min-h-[44px] rounded-xl border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900">
+     + Add for this day
+    </button>
+   </div>
 
-  const categories = [
-    { id: 'all', label: 'All Events' },
-    { id: 'court', label: 'Court' },
-    { id: 'class', label: 'Classes' },
-    { id: 'self_help', label: 'Self-help meetings' },
-    { id: 'drug_testing', label: 'Drug Testing' },
-    { id: 'work', label: 'Work Shifts' },
-    { id: 'therapy', label: 'Therapy' },
-    { id: 'case_management', label: 'Case Mgmt' },
-    { id: 'personal', label: 'Personal' },
-  ];
+   {dayConflicts.length>0&&<details className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+    <summary className="flex cursor-pointer items-center gap-2 font-semibold">
+     <AlertTriangle className="h-4 w-4"/> {dayConflicts.length} scheduling notice{dayConflicts.length===1?'':'s'}
+    </summary>
+    <div className="mt-2 space-y-1">{dayConflicts.map((item,i)=><p key={i}>{item.explanation}</p>)}</div>
+   </details>}
 
-  return (
-    <div className="space-y-5 pb-20">
-      {/* Title & Add Event */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Schedule & Calendar</h2>
-          <p className="text-xs text-slate-600">
-            Appointments, court obligations, work shifts, and travel prep
-          </p>
-        </div>
-        <button
-          onClick={onOpenQuickAdd}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs min-h-[44px] transition shadow-md shadow-teal-100/70"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>New Event</span>
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-        <label className="block min-w-40 flex-1 text-sm font-semibold text-slate-800">Show appointments
-         <select value={selectedCategory} onChange={e=>setSelectedCategory(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-2.5 text-sm text-slate-900">
-          {categories.map(c=><option value={c.id} key={c.id}>{c.label}</option>)}
-         </select>
-        </label>
-        <p className="text-xs text-slate-700">{filteredOccurrences.length} upcoming item{filteredOccurrences.length===1?'':'s'} · Next 14 days</p>
-      </div>
-
-      {/* Conflict Warnings */}
-      {conflicts.length > 0 && (
-        <div className="p-4 bg-amber-50 border border-amber-800/60 rounded-2xl space-y-2">
-          <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
-            <AlertTriangle className="w-4 h-4 text-amber-700" />
-            <span>Scheduling & Buffer Notices ({conflicts.length})</span>
-          </div>
-          {conflicts.map((c, idx) => (
-            <p key={idx} className="text-xs text-amber-950 pl-6">
-              • {c.explanation}
-            </p>
-          ))}
-        </div>
-      )}
-
-      {/* Agenda Occurrence Cards */}
-      {filteredOccurrences.length > 0 ? (
-        <div className="space-y-3">
-          {filteredOccurrences.map((occ) => {
-            const isToday = occ.startTime.toDateString() === now.toDateString();
-            const isCourt = occ.category === 'court' || occ.category === 'class' || occ.category === 'drug_testing';
-            const isSelfHelp = occ.category === 'self_help';
-            const isAttended = occ.attendanceStatus === 'attended_self_reported';
-            const isNotAttended = occ.attendanceStatus === 'not_attended_self_reported';
-
-            return (
-              <div
-                key={occ.id}
-                onClick={() => setSelectedOccurrence(occ)}
-                className={`p-4 sm:p-5 rounded-2xl border transition cursor-pointer hover:border-slate-300 ${
-                  isToday
-                    ? 'bg-white border-teal-500/30 shadow-md shadow-teal-950/30'
-                    : 'bg-white/95 border-slate-200'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-teal-700">
-                        {getRelativeDayLabel(occ.startTime)} • {formatDate(occ.startTime)}
-                      </span>
-                      {(isCourt||isSelfHelp) && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-800/60">
-                          <Scale className="w-3 h-3" />
-                          <span>{isSelfHelp?'Self-help meeting':occ.category==='court'?'Court appearance':occ.category==='drug_testing'?'Drug test':'Class / group'}</span>
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="font-bold text-base text-slate-900">{occ.title}</h3>
-                  </div>
-
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg capitalize bg-slate-100 text-slate-700 border border-slate-700/60">
-                    {occ.category==='self_help'?'Self-help meeting':occ.category.replace('_', ' ')}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-700 mb-3">
-                  <span className="font-medium text-teal-800">
-                    {formatTime(occ.startTime)} – {formatTime(occ.endTime)}
-                  </span>
-                  {occ.travelBufferMinutes > 0 && (
-                    <span className="text-slate-600">
-                      Buffer: {occ.travelBufferMinutes}m travel
-                    </span>
-                  )}
-                  {occ.venueType === 'virtual' ? (
-                    <span className="text-sky-700 font-medium">Virtual / Telehealth</span>
-                  ) : (
-                    occ.location && <span className="text-slate-600">{occ.location}</span>
-                  )}
-                </div>
-
-                {/* Self-reported attendance status bar */}
-                <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    {isAttended ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Self-reported Attended</span>
-                      </span>
-                    ) : isNotAttended ? (
-                      <span className="inline-flex items-center gap-1 text-rose-700 font-semibold">
-                        <XCircle className="w-3.5 h-3.5" />
-                        <span>Self-reported Not Attended</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-slate-600">
-                        <HelpCircle className="w-3.5 h-3.5" />
-                        <span>Attendance Unconfirmed</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <span className="text-[11px] text-teal-700 hover:underline">
-                    View Details & Attendance →
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-white border border-slate-200 rounded-3xl p-6">
-          <CalendarIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-          <h3 className="font-semibold text-slate-700 text-sm mb-1">No events in this category</h3>
-          <p className="text-xs text-slate-600 mb-4">
-            Add your court classes, work shifts, and appointments to stay organized.
-          </p>
-          <button
-            onClick={onOpenQuickAdd}
-            className="px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs"
-          >
-            Add an Event
-          </button>
-        </div>
-      )}
+   {selectedDayOccurrences.length?selectedDayOccurrences.map(occ=><button type="button" key={occ.id}
+    onClick={()=>setSelectedOccurrence(occ)}
+    className="flex min-h-[70px] w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-teal-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">
+    <span aria-hidden="true" className={'h-11 w-1 shrink-0 rounded '+categoryDot[occ.category]}/>
+    <span className="min-w-0 flex-1">
+     <span className="block text-xs font-semibold text-teal-900">{formatTime(occ.startTime)} – {formatTime(occ.endTime)}</span>
+     <strong className="block truncate text-sm text-slate-950">{occ.title}</strong>
+     <span className="block truncate text-xs text-slate-600">
+      {categoryLabels[occ.category]}{occ.location?' · '+occ.location:''}
+     </span>
+    </span>
+    {occ.attendanceStatus==='attended_self_reported'
+     ?<CheckCircle2 aria-label="Self-reported attended" className="h-5 w-5 shrink-0 text-emerald-700"/>
+     :occ.attendanceStatus==='not_attended_self_reported'
+      ?<XCircle aria-label="Self-reported missed" className="h-5 w-5 shrink-0 text-rose-700"/>
+      :<ChevronRight aria-hidden="true" className="h-5 w-5 shrink-0 text-slate-500"/>}
+   </button>):<div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+    <CalendarDays className="mx-auto mb-2 h-8 w-8 text-slate-400"/>
+    <p className="font-semibold text-slate-800">Nothing scheduled for this day</p>
+    <p className="mt-1 text-xs text-slate-600">Choose another date or add an appointment, class, or meeting.</p>
+   </div>}
+  </section>
 
       {/* Detail & Self-Report Attendance Modal */}
       {selectedOccurrence && (
