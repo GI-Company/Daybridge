@@ -205,11 +205,15 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         revisionRef.current=nextRev;
         savedFingerprintRef.current=item.fingerprint;
         // Keep a clean local copy, unless a newer local edit is already staged.
+        // Re-read after the network await: an edit may have been staged in the meantime.
+        // A getter avoids TypeScript treating the earlier ref reset as permanently null.
         // Durable writes are ordered after all previous writes.
+        const latestPending=()=>pendingRef.current;
+        const staged=latestPending();
         try{
           await saveOnDevice({
-            payload:pendingRef.current?.payload??item.payload,
-            dirty:Boolean(pendingRef.current),
+            payload:staged?.payload??item.payload,
+            dirty:Boolean(staged),
             revision:nextRev,updatedAt:Date.now()
           });
         }catch{failed=true;break}
