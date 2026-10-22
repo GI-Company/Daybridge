@@ -1,16 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f172a" />
-      <stop offset="100%" stop-color="#1e293b" />
-    </linearGradient>
-    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#14b8a6" />
-      <stop offset="100%" stop-color="#0d9488" />
-    </linearGradient>
-  </defs>
-  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
-  <path d="M28 84 C38 52, 60 52, 64 52 C68 52, 90 52, 100 84" stroke="url(#tealGrad)" stroke-width="8" stroke-linecap="round" fill="none"/>
-  <circle cx="64" cy="40" r="10" fill="#38bdf8"/>
-  <line x1="24" y1="88" x2="104" y2="88" stroke="#64748b" stroke-width="4" stroke-linecap="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#f0fdfa"/><path d="M28 82Q42 48 64 48T100 82" stroke="#0f766e" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="64" cy="39" r="11" fill="#0f766e"/><path d="M26 91H102" stroke="#0f766e" stroke-width="5" stroke-linecap="round"/></svg>

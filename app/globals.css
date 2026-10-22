@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+:root { color-scheme: light; }
+html { background:#f8fafc; }
+body { background:#f8fafc; color:#0f172a; }
+button,input,textarea,select { font:inherit; }
+button { cursor:pointer; }
+:focus-visible { outline:3px solid #0f766e; outline-offset:3px; }
+input,select,textarea { color:#0f172a; }
+::placeholder { color:#475569; opacity:1; }
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@media print {.no-print {display:none!important}}
+.safe-area-bottom {padding-bottom:env(safe-area-inset-bottom,0px)}

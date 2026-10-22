@@ -1,43 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-
 export const metadata: Metadata = {
-  title: 'DayBridge — Personal Daily Organizer',
-  description: 'Private daily-life management and accountability organizer for schedule, medication, money, and tasks.',
-  manifest: '/manifest.webmanifest',
-  icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
-  },
-  openGraph: {
-    title: 'DayBridge — Personal Daily Organizer',
-    description: 'Private daily-life management and accountability organizer for schedule, medication, money, and tasks.',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'DayBridge — Personal Daily Organizer',
-    description: 'Private daily-life management and accountability organizer for schedule, medication, money, and tasks.',
-  },
+ title:'DayBridge — Private Daily Organizer',
+ description:'A private personal organizer for scheduling, budget, prescriptions and everyday tasks.',
+ manifest:'/manifest.webmanifest',
+ robots:{index:false,follow:false},
+ icons:{icon:'/icon.svg',apple:'/icon.svg'},
+ appleWebApp:{capable:true,title:'DayBridge',statusBarStyle:'default'},
 };
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 5,
-  themeColor: '#0d9488',
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-teal-500 selection:text-white" suppressHydrationWarning>
-        {children}
-      </body>
-    </html>
-  );
-}
+export const viewport: Viewport = {width:'device-width',initialScale:1,themeColor:'#f8fafc'};
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en"><body className="min-h-screen bg-slate-50 text-slate-900 antialiased">{children}</body></html>}

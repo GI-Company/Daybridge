@@ -1,181 +1,89 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  Calendar,
-  Wallet,
-  Pill,
-  Home,
-  Menu,
-  Scale,
-  CheckSquare,
-  FileText,
-  PhoneCall,
-  Settings,
-  X,
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CalendarDays, Wallet, Pill, House, Menu, Scale, CheckSquare, FileText, ContactRound, Settings, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
-interface NavigationProps {
-  currentTab: string;
-  onTabChange: (tab: string) => void;
+type TabId = 'today' | 'schedule' | 'money' | 'health' | 'court' | 'tasks' | 'review' | 'resources' | 'settings';
+interface NavigationProps { currentTab: string; onTabChange: (tab: string) => void }
+const mainTabs = [
+ { id:'today', label:'Today', icon:House },
+ { id:'schedule', label:'Schedule', icon:CalendarDays },
+ { id:'money', label:'Budget', icon:Wallet },
+ { id:'health', label:'Prescriptions', icon:Pill },
+] as const;
+const groups = [
+ { name:'Accountability & Planning', entries:[
+   { id:'court', label:'Court & classes', icon:Scale },
+   { id:'tasks', label:'Tasks & preparation', icon:CheckSquare },
+   { id:'review', label:'Weekly review', icon:FileText },
+ ]},
+ { name:'Personal tools', entries:[
+   { id:'resources', label:'Contacts & resources', icon:ContactRound },
+   { id:'settings', label:'Settings & security', icon:Settings },
+ ]}
+] as const;
+
+export function Navigation({ currentTab, onTabChange }:NavigationProps) {
+ const [open,setOpen]=useState(false);
+ const [collapsed,setCollapsed]=useState(false);
+ const [expanded,setExpanded]=useState<Record<string,boolean>>({'Accountability & Planning':true,'Personal tools':true});
+ useEffect(()=>{ if(!open) return; const handler=(e:KeyboardEvent)=>{if(e.key==='Escape')setOpen(false)};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[open]);
+ const choose=(id:TabId)=>{onTabChange(id);setOpen(false)};
+ const menu=(prefix:string)=>(
+   <nav aria-label="DayBridge sections" className="flex flex-col gap-2 p-3">
+    <div role="tablist" aria-label="Primary sections" className="flex flex-col gap-1">
+      {mainTabs.map(({id,label,icon:Icon})=>(
+       <button key={id} id={prefix+'-'+id} type="button" role="tab"
+        aria-selected={currentTab===id} aria-controls="daybridge-active-panel"
+        tabIndex={currentTab===id?0:-1}
+        onClick={()=>choose(id)}
+        onKeyDown={e=>{const keys=['ArrowDown','ArrowUp','Home','End'];if(!keys.includes(e.key))return;e.preventDefault();const index=mainTabs.findIndex(t=>t.id===id);const next=e.key==='Home'?0:e.key==='End'?mainTabs.length-1:(index+(e.key==='ArrowDown'?1:-1)+mainTabs.length)%mainTabs.length;choose(mainTabs[next].id);document.getElementById(prefix+'-'+mainTabs[next].id)?.focus();}}
+        title={label}
+        className={'flex items-center rounded-xl gap-3 px-3 py-2.5 text-left text-sm font-semibold outline-offset-2 transition-colors '+(currentTab===id?'bg-teal-50 text-teal-900 border border-teal-200':'text-slate-700 hover:bg-slate-100 border border-transparent')}>
+        <Icon aria-hidden="true" className="h-5 w-5 shrink-0"/>
+        {(!collapsed||prefix==='mobile')&&<span>{label}</span>}
+       </button>
+      ))}
+    </div>
+    <div className="mt-3 border-t border-slate-200 pt-3 space-y-2">
+      {groups.map(group=>(
+       <section key={group.name}>
+        {(!collapsed||prefix==='mobile')&&<button type="button" onClick={()=>setExpanded(p=>({...p,[group.name]:!p[group.name]}))}
+          aria-expanded={!!expanded[group.name]} className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+          {group.name}<ChevronDown className={'h-4 w-4 transition-transform '+(expanded[group.name]?'':'-rotate-90')}/>
+        </button>}
+        {(expanded[group.name]||collapsed&&prefix==='desktop')&&<div className="space-y-1">
+          {group.entries.map(({id,label,icon:Icon})=>(
+           <button type="button" key={id} title={label} aria-current={currentTab===id?'page':undefined}
+            onClick={()=>choose(id)} className={'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors '+(currentTab===id?'bg-teal-50 border border-teal-200 text-teal-900 font-semibold':'text-slate-700 hover:bg-slate-100 border border-transparent')}>
+            <Icon aria-hidden="true" className="h-5 w-5 shrink-0"/>{(!collapsed||prefix==='mobile')&&<span>{label}</span>}
+           </button>
+          ))}
+        </div>}
+       </section>
+      ))}
+    </div>
+   </nav>
+ );
+ return <>
+  <aside className={'hidden lg:flex shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-200 '+(collapsed?'w-[76px]':'w-[248px]')} aria-label="Sidebar">
+    <div className="sticky top-[72px] flex flex-col">
+     <button type="button" className="mx-3 my-3 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={()=>setCollapsed(!collapsed)} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed}>
+      {collapsed?<ChevronRight className="h-5 w-5"/>:<><ChevronLeft className="h-5 w-5"/>Collapse</>}
+     </button>{menu('desktop')}
+    </div>
+  </aside>
+  <button type="button" onClick={()=>setOpen(true)} aria-haspopup="dialog" aria-expanded={open} className="lg:hidden fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full bg-teal-800 px-5 py-3 text-sm font-bold text-white shadow-lg hover:bg-teal-900">
+   <Menu className="h-5 w-5"/> Menu
+  </button>
+  {open&&<div className="fixed inset-0 z-50 lg:hidden">
+    <button type="button" aria-label="Close navigation" onClick={()=>setOpen(false)} className="absolute inset-0 h-full w-full bg-slate-900/45"/>
+    <aside role="dialog" aria-modal="true" aria-label="Navigation menu" className="absolute inset-y-0 left-0 w-[min(88vw,340px)] overflow-y-auto border-r border-slate-200 bg-white shadow-2xl">
+     <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <strong className="text-base text-slate-900">DayBridge menu</strong>
+      <button type="button" autoFocus onClick={()=>setOpen(false)} aria-label="Close menu" className="rounded-lg p-2 text-slate-700 hover:bg-slate-100"><X className="h-5 w-5"/></button>
+     </div>{menu('mobile')}
+    </aside>
+  </div>}
+ </>;
 }
-
-export const Navigation: React.FC<NavigationProps> = ({ currentTab, onTabChange }) => {
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-
-  const mainTabs = [
-    { id: 'today', label: 'Today', icon: Home },
-    { id: 'schedule', label: 'Schedule', icon: Calendar },
-    { id: 'money', label: 'Money', icon: Wallet },
-    { id: 'health', label: 'Health', icon: Pill },
-  ];
-
-  const moreTabs = [
-    { id: 'court', label: 'Court & Classes', icon: Scale, description: 'Self-reported accountability checklist' },
-    { id: 'tasks', label: 'Tasks & Prep', icon: CheckSquare, description: 'Priorities and appointment prep' },
-    { id: 'review', label: 'Weekly Review', icon: FileText, description: 'Printable personal summary' },
-    { id: 'resources', label: 'Contacts', icon: PhoneCall, description: 'Officer, therapist, clinic, emergency' },
-    { id: 'settings', label: 'Settings', icon: Settings, description: 'Timezone, backups, quiet hours' },
-  ];
-
-  const isMoreActive = moreTabs.some((t) => t.id === currentTab);
-
-  return (
-    <>
-      {/* Desktop Top Sub-nav Bar */}
-      <div className="hidden md:block bg-slate-900 border-b border-slate-800">
-        <div className="max-w-4xl mx-auto px-4 flex items-center justify-between">
-          <nav className="flex space-x-1 py-1.5" aria-label="Main Navigation">
-            {mainTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = currentTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => onTabChange(tab.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition ${
-                    isActive
-                      ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="flex items-center space-x-1 py-1.5">
-            {moreTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = currentTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => onTabChange(tab.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                    isActive
-                      ? 'bg-slate-800 text-teal-300 font-semibold border border-slate-700'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Bottom Navigation Bar (44px min tap targets) */}
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 px-2 py-1 safe-area-bottom"
-        aria-label="Mobile Navigation"
-      >
-        <div className="flex items-center justify-around max-w-lg mx-auto">
-          {mainTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = currentTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  onTabChange(tab.id);
-                }}
-                className={`flex flex-col items-center justify-center min-w-[56px] min-h-[50px] rounded-xl transition ${
-                  isActive ? 'text-teal-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-                <span className="text-[11px] leading-tight">{tab.label}</span>
-              </button>
-            );
-          })}
-
-          {/* More Menu Trigger */}
-          <button
-            onClick={() => setShowMoreMenu((prev) => !prev)}
-            className={`flex flex-col items-center justify-center min-w-[56px] min-h-[50px] rounded-xl transition ${
-              isMoreActive || showMoreMenu ? 'text-teal-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Menu className="w-5 h-5 mb-0.5 stroke-[1.8]" />
-            <span className="text-[11px] leading-tight">More</span>
-          </button>
-        </div>
-      </nav>
-
-      {/* Mobile "More" Drawer / Modal */}
-      {showMoreMenu && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden flex flex-col justify-end">
-          <div className="bg-slate-900 border-t border-slate-800 rounded-t-3xl p-5 shadow-2xl safe-area-bottom animate-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
-                Additional Tools
-              </h2>
-              <button
-                onClick={() => setShowMoreMenu(false)}
-                className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-slate-200"
-                aria-label="Close menu"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2">
-              {moreTabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = currentTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      onTabChange(tab.id);
-                      setShowMoreMenu(false);
-                    }}
-                    className={`flex items-center gap-3.5 p-3 rounded-xl text-left transition ${
-                      isActive
-                        ? 'bg-teal-500/15 border border-teal-500/30 text-teal-300'
-                        : 'bg-slate-850/60 hover:bg-slate-800 text-slate-200 border border-slate-800/60'
-                    }`}
-                  >
-                    <div className="p-2.5 rounded-lg bg-slate-800 text-teal-400">
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium">{tab.label}</div>
-                      <div className="text-xs text-slate-400">{tab.description}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-};
