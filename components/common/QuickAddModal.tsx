@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
 import { parseDollarsToCents } from '../../lib/budget';
+import {AddBudgetAccount} from '../money/AddBudgetAccount';
 import {enrollTrafficAlerts} from '../../lib/travel/auto-reminder';
 import { EventCategory, VenueType, PriorityLevel, SavedPlaceCategory } from '../../lib/types';
 
@@ -59,6 +60,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [advanced,setAdvanced]=useState(false);
   const [formError,setFormError]=useState('');
   const [selectedAccountId,setSelectedAccountId]=useState('');
+  const [creatingAccount,setCreatingAccount]=useState(false);
+  const activeAccounts=accounts.filter(a=>a.isActive);
+  const effectiveAccountId=selectedAccountId || (activeAccounts.length===1?activeAccounts[0].id:'');
   const [placeName,setPlaceName]=useState('');
   const [placeAddress,setPlaceAddress]=useState('');
   const [placeKind,setPlaceKind]=useState<SavedPlaceCategory>('other');
@@ -206,17 +210,19 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       });
     } else if (activeType === 'transaction') {
       const cents = parseDollarsToCents(txAmount);
-      if (!cents || cents<=0){setFormError('Enter a valid amount greater than zero.');return;}
-      if(!selectedAccountId||!accounts.some(account=>account.id===selectedAccountId&&account.isActive)){
+      if(!/^\d+(?:\.\d{1,2})?$/.test(txAmount.trim())||!Number.isSafeInteger(cents)||cents<=0){
+        setFormError('Enter an amount greater than zero, with up to two decimal places.');return;
+      }
+      if(!effectiveAccountId||!accounts.some(account=>account.id===effectiveAccountId&&account.isActive)){
         setFormError('Choose the account for this transaction.');return;
       }
       const signedCents = txType === 'expense' ? -Math.abs(cents) : Math.abs(cents);
       addTransaction({
-        accountId: selectedAccountId,
+        accountId: effectiveAccountId,
         amountCents: signedCents,
         transactionType: txType,
         category: txCategory,
-        transactionDate: new Date().toISOString().split('T')[0],
+        transactionDate: localDate(),
         notes: txNotes.trim(),
         isPending: false,
       });
@@ -262,7 +268,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
             {activeType===null?'What would you like to add?':('Add '+addChoices.find(item=>item.id===activeType)?.label)}
           </h2>
           <div className="flex items-center gap-2">
-          {activeType!==null&&<button type="button" onClick={()=>{setActiveType(null);setFormError('');}}
+          {activeType!==null&&<button type="button" onClick={()=>{if(creatingAccount)setCreatingAccount(false);else setActiveType(null);setFormError('');}}
             className="flex min-h-[44px] items-center gap-1 rounded-lg px-2 text-xs font-semibold text-teal-900">
             <ChevronLeft className="h-4 w-4"/>Back
           </button>}
@@ -289,7 +295,11 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         </div>}
 
         {/* Dynamic Form Body */}
-        {activeType!==null&&<form onSubmit={handleSave} className="max-h-[min(76vh,720px)] overflow-y-auto p-5 space-y-4">
+        {activeType==='transaction'&&creatingAccount?
+          <div className="p-4"><AddBudgetAccount
+            onCreated={id=>{setSelectedAccountId(id);setCreatingAccount(false);setFormError('')}}
+            onCancel={()=>setCreatingAccount(false)}/></div>
+          :activeType!==null&&<form onSubmit={handleSave} className="max-h-[min(76vh,720px)] overflow-y-auto p-5 space-y-4">
           <p className="text-xs text-slate-600">Only the essentials are required. Additional settings are optional.</p>
           {/* EVENT / CLASS / MEETING FORM */}
           {(activeType === 'event'||activeType === 'class'||activeType === 'self_help') && (
@@ -361,7 +371,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     <option value="therapy">Therapy</option>
                     <option value="work">Work shift</option>
                     <option value="case_management">Case management</option>
-                    <option value="other">Other</option>
+                    <option value="other">Other expense</option>
+                    </>}
                   </select>
                 </label>}
                 <label className="block text-sm font-medium text-slate-800">Meeting format
@@ -538,10 +549,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setTxType('expense')}
+                  onClick={() => {setTxType('expense');setTxCategory('fuel')}}
                   className={`flex-1 py-2 rounded-xl text-xs font-semibold min-h-[44px] transition ${
                     txType === 'expense'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      ? 'bg-rose-50 text-rose-900 border border-rose-400'
                       : 'bg-slate-100 text-slate-600'
                   }`}
                 >
@@ -549,7 +560,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTxType('income')}
+                  onClick={() => {setTxType('income');setTxCategory('wages')}}
                   className={`flex-1 py-2 rounded-xl text-xs font-semibold min-h-[44px] transition ${
                     txType === 'income'
                       ? 'bg-teal-500/20 text-teal-800 border border-teal-500/40'
@@ -574,13 +585,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
               </div>
 
               <label className="block text-sm font-semibold text-slate-800">Account
-                <select required value={selectedAccountId} onChange={e=>setSelectedAccountId(e.target.value)}
+                <select required value={effectiveAccountId} onChange={e=>setSelectedAccountId(e.target.value)}
                   className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
                   <option value="">Choose an account</option>
                   {accounts.filter(a=>a.isActive).map(account=><option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               </label>
-              {!accounts.some(a=>a.isActive)&&<p role="alert" className="text-sm text-amber-900">Add an account in Budget before recording money.</p>}
+              {activeAccounts.length===0&&<p role="status" className="text-sm text-amber-900">First, add where your money is kept. You can start with a $0 balance.</p>}
+              <button type="button" onClick={()=>setCreatingAccount(true)}
+                className="min-h-[44px] rounded-lg border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-900">+ Add an account</button>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -590,7 +603,14 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     onChange={(e) => setTxCategory(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500 min-h-[42px]"
                   >
-                    <option value="fuel">Fuel / Bus</option>
+                    {txType==='income'&&<>
+                      <option value="wages">Paycheck / wages</option>
+                      <option value="wage_advance">Wage advance</option>
+                      <option value="refund">Refund</option>
+                      <option value="other">Other income</option>
+                    </>}
+                    {txType==='expense'&&<>
+                      <option value="fuel">Fuel / Bus</option>
                     <option value="food">Groceries / Food</option>
                     <option value="prescriptions">Prescriptions</option>
                     <option value="court">Court / Fees</option>
