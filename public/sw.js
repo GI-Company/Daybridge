@@ -100,7 +100,8 @@ self.addEventListener('push',event=>{
   {action:'view-route',title:'View route'}
  ]:appointmentId?[{action:'view-route',title:'View route'}]:[];
  const sentAt=Number(message.sentAt);
- if(kind==='leave_now'&&Number.isFinite(sentAt)&&sentAt>0&&Date.now()-sentAt>15*60000)return;
+ // Keep showing a notification even on delayed delivery; TTL limits old pushes,
+ // but a service worker must not silently discard accepted user-visible pushes.
  event.waitUntil(self.registration.showNotification(title,{
   body,icon:'/icon.svg',badge:'/icon.svg',tag,renotify:false,
   timestamp:Number.isFinite(sentAt)&&sentAt>0?sentAt:Date.now(),
