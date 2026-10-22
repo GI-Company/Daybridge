@@ -30,6 +30,7 @@ interface QuickAddModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialType?: QuickAddType;
+  initialDate?: string;
 }
 
 type QuickAddType = 'event' | 'class' | 'self_help' | 'medication' | 'task' | 'transaction' | 'bill' | 'contact' | 'location';
@@ -53,7 +54,7 @@ const hourLater=(value:string)=>{
  return [String((parts[0]+1)%24).padStart(2,'0'),String(parts[1]||0).padStart(2,'0')].join(':');
 };
 
-export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType }) => {
+export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType, initialDate }) => {
   const { addEvent, addMedication, addTask, addTransaction, addBill, addContact, addSavedPlace, accounts, savedPlaces } = useDayBridge();
 
   const [activeType, setActiveType] = useState<QuickAddType|null>(initialType??null);
@@ -73,7 +74,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   // Event form state
   const [eventTitle, setEventTitle] = useState('');
   const [eventCategory, setEventCategory] = useState<EventCategory>('personal');
-  const [eventDate, setEventDate] = useState(localDate());
+  const [eventDate, setEventDate] = useState(initialDate||localDate());
   const [eventStartTime, setEventStartTime] = useState('10:00');
   const [eventEndTime, setEventEndTime] = useState('11:00');
   const [eventVenue, setEventVenue] = useState<VenueType>('in_person');
