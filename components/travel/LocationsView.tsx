@@ -34,7 +34,7 @@ export function LocationsView(){
  useEffect(()=>{let valid=true;db?.from('travel_preferences').select('travel_mode').maybeSingle().then(({data}:{data:{travel_mode?:Mode}|null})=>{if(valid&&data?.travel_mode)setMode(data.travel_mode)});return()=>{valid=false}},[]);
  const selected=savedPlaces.find(p=>p.id===destinationId)||null;
  function openAdd(forCategory:SavedPlaceCategory='therapy'){
-  setAdding(true);setEditId(null);setLabel('');setAddress('');setCategory(forCategory);setVerified(null);setResults([]);setNotice('');
+  setAdding(true);setEditId(null);setLabel(niceCategory(forCategory));setAddress('');setCategory(forCategory);setVerified(null);setResults([]);setNotice('');
  }
  function edit(place:SavedPlace){
   setAdding(true);setEditId(place.id);setLabel(place.label);setAddress(place.address);
@@ -99,7 +99,12 @@ export function LocationsView(){
   <section className="rounded-2xl border border-slate-200 bg-white p-4">
    <h3 className="font-bold text-slate-900">Your saved places</h3>
    <p className="mt-1 text-xs text-slate-600">Only your signed-in account can access these private entries.</p>
-   {!savedPlaces.length&&<div className="mt-4 rounded-xl bg-teal-50 p-4 text-sm text-teal-950">Start by saving Home, Work, Therapy, Class, Court or Drug testing. You can add more locations whenever needed.</div>}
+   {!savedPlaces.length&&<div className="mt-4 space-y-3 rounded-xl bg-teal-50 p-4 text-sm text-teal-950">
+     <p>Choose the type of place to save first. DayBridge remembers its verified address for future appointments.</p>
+     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {categories.filter(c=>c.id!=='other').map(c=><button type="button" key={c.id} onClick={()=>openAdd(c.id)} className="rounded-lg border border-teal-200 bg-white px-3 py-3 text-sm font-semibold text-teal-900">+ {c.label}</button>)}
+     </div>
+    </div>}
    <div className="mt-3 grid gap-2 sm:grid-cols-2">
     {savedPlaces.map(p=><div key={p.id} className="rounded-xl border border-slate-200 p-3">
      <p className="text-xs font-semibold uppercase text-teal-800">{niceCategory(p.category)}</p>
@@ -118,7 +123,7 @@ export function LocationsView(){
    <h3 className="font-bold text-slate-950">{editId?'Edit place':'Save a new place'}</h3>
    <div className="grid gap-3 sm:grid-cols-2">
     <label className="text-sm font-medium text-slate-800">Type of place
-     <select value={category} onChange={e=>setCategory(e.target.value as SavedPlaceCategory)} className="mt-1 block w-full rounded-lg border border-slate-300 p-3">{categories.map(c=><option value={c.id} key={c.id}>{c.label}</option>)}</select>
+     <select value={category} onChange={e=>{const newCategory=e.target.value as SavedPlaceCategory;if(label===niceCategory(category))setLabel(niceCategory(newCategory));setCategory(newCategory)}} className="mt-1 block w-full rounded-lg border border-slate-300 p-3">{categories.map(c=><option value={c.id} key={c.id}>{c.label}</option>)}</select>
     </label>
     <label className="text-sm font-medium text-slate-800">Name (e.g. Tuesday group)
      <input maxLength={80} value={label} onChange={e=>setLabel(e.target.value)} placeholder="Name this location" className="mt-1 block w-full rounded-lg border border-slate-300 p-3"/>
