@@ -63,7 +63,7 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
   ?'Open DayBridge to review your route and departure time.'
   :summarizeTrafficUpdate(update.impact,update.travelSeconds,update.delaySeconds,update.routeCount,plan.timezone);
  // The event ID and date are opaque app records, not street locations or directions.
- const date=plan.occurrence_start.slice(0,10);
+ const date=localTime(plan.occurrence_start,plan.timezone).slice(0,10);
  const url='/?tab=schedule&event='+encodeURIComponent(plan.source_event_id)+'&date='+encodeURIComponent(date);
  const message={kind,title,body,url,tag:'daybridge-'+kind+'-'+plan.id};
  let success=0;
