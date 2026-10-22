@@ -1,6 +1,6 @@
 'use client';
 
-import React,{useState} from 'react';
+import React,{useEffect,useState} from 'react';
 import {CalendarDays,ChevronLeft,ChevronRight,Plus,AlertTriangle,CheckCircle2,XCircle,
   HelpCircle,ExternalLink,Trash2,MapPin} from 'lucide-react';
 import {useDayBridge} from '../../lib/storage/store';
@@ -12,6 +12,7 @@ import {TravelPlanner} from '../travel/TravelPlanner';
 
 interface ScheduleViewProps {
  onOpenQuickAdd:(date?:string)=>void;
+ focusDate?:string;
 }
 type Occurrence=ReturnType<typeof expandEventOccurrences>[number];
 type CalendarMode='month'|'week';
@@ -27,10 +28,15 @@ const categoryDot:Record<EventCategory,string>={
 };
 const weekLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd})=>{
+export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate})=>{
  const {events,eventOccurrences,recordAttendance,deleteEvent}=useDayBridge();
  const [view,setView]=useState<CalendarMode>('month');
  const [selectedDate,setSelectedDate]=useState(()=>new Date());
+ useEffect(()=>{
+  if(!focusDate||!/^\d{4}-\d{2}-\d{2}$/.test(focusDate))return;
+  const date=new Date(focusDate+'T12:00:00');
+  if(Number.isFinite(date.getTime()))setSelectedDate(date);
+ },[focusDate]);
  const [selectedCategory,setSelectedCategory]=useState<EventCategory|'all'>('all');
  const [selectedOccurrence,setSelectedOccurrence]=useState<Occurrence|null>(null);
  const currentDay=new Date();
