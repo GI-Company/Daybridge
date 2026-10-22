@@ -1,5 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
+import {normalizeTomTomRoutePoints} from './geometry';
 
 export const coordinateSchema = z.object({
  lat:z.number().finite().min(-90).max(90),
@@ -52,14 +53,14 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
  const data=await res.json() as {routes?:Array<{
   summary?:{travelTimeInSeconds?:number;trafficDelayInSeconds?:number;lengthInMeters?:number;historicTrafficTravelTimeInSeconds?:number};
   guidance?:{instructions?:Array<{message?:string}>};
-  legs?:Array<{points?:Coordinates[]}>
+  legs?:Array<{points?:Array<{latitude?:number;longitude?:number;lat?:number;lon?:number}>}>
  }>};
  const routes=(data.routes??[]).map(r=>({
   durationSeconds:Math.max(0,Math.round(r.summary?.travelTimeInSeconds??0)),
   delaySeconds:Math.max(0,Math.round(r.summary?.trafficDelayInSeconds??0)),
   distanceMeters:Math.max(0,Math.round(r.summary?.lengthInMeters??0)),
   historicSeconds: r.summary?.historicTrafficTravelTimeInSeconds??null,
-  points:(r.legs??[]).flatMap(l=>l.points??[]).slice(0,2000),
+  points:normalizeTomTomRoutePoints((r.legs??[]).flatMap(l=>l.points??[])).slice(0,2000),
   instructions:(r.guidance?.instructions??[]).map(i=>i.message??'').filter(Boolean).slice(0,100)
  })).filter(r=>r.durationSeconds>0);
  if(!routes.length)throw new Error('No usable route found');
