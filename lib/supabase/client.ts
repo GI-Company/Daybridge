@@ -1,21 +1,10 @@
 import { createBrowserClient } from '@supabase/ssr';
-
-export function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    // Return null or dummy client if unconfigured so app gracefully falls back to local storage
-    return null;
-  }
-
-  return createBrowserClient(supabaseUrl, supabaseKey);
+let instance:ReturnType<typeof createBrowserClient>|null=null;
+export function createClient(){
+ const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
+ const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+ if(!url||!key)return null;
+ if(!instance)instance=createBrowserClient(url,key,{auth:{experimental:{passkey:true}}});
+ return instance;
 }
-
-export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
-    !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('xyzcompany')
-  );
-}
+export function isSupabaseConfigured(){return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL&&(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY));}
