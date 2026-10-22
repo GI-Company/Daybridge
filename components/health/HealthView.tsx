@@ -97,7 +97,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
                   key={slot.slotId}
                   className={`p-4 rounded-2xl border transition ${
                     isTaken
-                      ? 'bg-teal-950/20 border-teal-800/40 shadow-sm'
+                      ? 'bg-teal-50 border-teal-800/40 shadow-sm'
                       : isSkipped
                       ? 'bg-slate-950/40 border-slate-200 opacity-60'
                       : 'bg-slate-50/90 border-slate-200'
@@ -123,7 +123,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
 
                     <div>
                       {isTaken && (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-800/60">
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-800/60">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>Logged Taken</span>
                         </span>
@@ -134,7 +134,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
                         </span>
                       )}
                       {isSnoozed && (
-                        <span className="text-xs font-medium text-amber-800 bg-amber-950/80 px-2.5 py-1 rounded-full border border-amber-800/60">
+                        <span className="text-xs font-medium text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-800/60">
                           Snoozed
                         </span>
                       )}
@@ -318,7 +318,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
                         ? 'text-teal-800 bg-teal-50'
                         : log.action === 'skipped'
                         ? 'text-slate-600 bg-slate-100'
-                        : 'text-amber-800 bg-amber-950/80'
+                        : 'text-amber-800 bg-amber-50'
                     }`}
                   >
                     {log.action}

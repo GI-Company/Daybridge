@@ -70,7 +70,7 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
       </div>
 
       {/* Mandatory Disclaimer */}
-      <div className="p-4 bg-amber-950/30 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-200">
+      <div className="p-4 bg-amber-50 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-200">
         <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
         <div className="text-xs space-y-1">
           <span className="font-bold text-amber-800 block">Personal Self-Report Notice:</span>
@@ -211,7 +211,7 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
                 <span
                   className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
                     occ.attendanceStatus === 'attended_self_reported'
-                      ? 'text-emerald-800 bg-emerald-950/80 border border-emerald-800/40'
+                      ? 'text-emerald-800 bg-emerald-50 border border-emerald-800/40'
                       : 'text-slate-600 bg-slate-100'
                   }`}
                 >

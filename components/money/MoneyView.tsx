@@ -129,7 +129,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
       </div>
 
       {/* 1. SAFE-TO-SPEND HERO CARD */}
-      <section className="bg-gradient-to-br from-slate-900 to-slate-900/80 border border-teal-500/30 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+      <section className="bg-gradient-to-br from-teal-50 to-white border border-teal-500/30 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase font-bold tracking-wider text-teal-700">
@@ -389,7 +389,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm text-slate-900">{bill.title}</span>
                   {bill.isAutopay && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-800 border border-sky-800/60">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-800/60">
                       Autopay
                     </span>
                   )}

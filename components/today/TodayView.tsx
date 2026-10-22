@@ -114,7 +114,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
   return (
     <div className="space-y-6 pb-20">
       {/* 5-Second Greeting & Overview */}
-      <section className="bg-gradient-to-b from-slate-900 to-slate-900/60 border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xl">
+      <section className="bg-gradient-to-b from-teal-50 to-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -126,7 +126,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
           </div>
           <button
             onClick={() => onNavigate('review')}
-            className="self-start sm:self-auto flex items-center gap-1.5 text-xs text-teal-800 bg-teal-950/60 border border-teal-800/60 hover:bg-teal-900/50 px-3 py-1.5 rounded-xl transition"
+            className="self-start sm:self-auto flex items-center gap-1.5 text-xs text-teal-800 bg-teal-50 border border-teal-800/60 hover:bg-teal-50 px-3 py-1.5 rounded-xl transition"
           >
             <span>Weekly Summary</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -135,7 +135,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
 
         {/* Potential Conflict Warning Alert (Only if conflicts exist) */}
         {conflicts.length > 0 && (
-          <div className="mb-4 p-3.5 bg-amber-950/40 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-200">
+          <div className="mb-4 p-3.5 bg-amber-50 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-200">
             <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
             <div className="text-xs">
               <span className="font-semibold block text-amber-800">Schedule Notice:</span>
@@ -285,7 +285,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                   key={slot.slotId}
                   className={`p-3.5 rounded-2xl border transition ${
                     isTaken
-                      ? 'bg-teal-950/20 border-teal-800/40'
+                      ? 'bg-teal-50 border-teal-800/40'
                       : isSkipped
                       ? 'bg-slate-950/40 border-slate-200 opacity-60'
                       : 'bg-slate-50/90 border-slate-200 hover:border-slate-300'
@@ -320,7 +320,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                         </span>
                       )}
                       {isSnoozed && (
-                        <span className="text-[11px] font-medium text-amber-800 bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-800/40">
+                        <span className="text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-800/40">
                           Snoozed 30m
                         </span>
                       )}
@@ -332,7 +332,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                   )}
 
                   {/* Actions (44px min tap targets) */}
-                  <div className="flex items-center gap-2 pt-1 border-t border-slate-850/60">
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
                     <button
                       onClick={() =>
                         logDose(
@@ -508,7 +508,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
       </section>
 
       {/* 5. TOMORROW PREVIEW */}
-      <section className="bg-slate-900/60 border border-slate-200 rounded-3xl p-5">
+      <section className="bg-white border border-slate-200 rounded-3xl p-5">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-600" />
@@ -529,7 +529,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             {tomorrowEvents.map((evt) => (
               <div
                 key={evt.id}
-                className="p-3 rounded-xl bg-slate-950/40 border border-slate-850/80 flex items-center justify-between"
+                className="p-3 rounded-xl bg-slate-950/40 border border-slate-200 flex items-center justify-between"
               >
                 <div>
                   <div className="font-medium text-xs text-slate-800">{evt.title}</div>

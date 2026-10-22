@@ -45,12 +45,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
           <button
             onClick={() => onNavigate('settings')}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition"
-            title={isLiveSupabase ? 'Connected to private Supabase database' : 'Offline — cloud not connected'}
+            title={syncStatus === 'synced' ? 'Cloud records saved' : 'Changes may not be saved'}
           >
             {isLiveSupabase ? (
               <>
                 <Cloud className="w-3.5 h-3.5 text-teal-700" />
-                <span className="hidden sm:inline text-teal-800 font-medium">Cloud configured</span>
+                <span className="hidden sm:inline text-teal-800 font-medium">{syncStatus === 'synced' ? 'Saved' : syncStatus === 'syncing' ? 'Saving…' : 'Check sync'}</span>
               </>
             ) : (
               <>

@@ -102,7 +102,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
 
       {/* Conflict Warnings */}
       {conflicts.length > 0 && (
-        <div className="p-4 bg-amber-950/30 border border-amber-800/60 rounded-2xl space-y-2">
+        <div className="p-4 bg-amber-50 border border-amber-800/60 rounded-2xl space-y-2">
           <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
             <AlertTriangle className="w-4 h-4 text-amber-700" />
             <span>Scheduling & Buffer Notices ({conflicts.length})</span>
@@ -141,7 +141,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                         {getRelativeDayLabel(occ.startTime)} • {formatDate(occ.startTime)}
                       </span>
                       {isCourt && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-800/60">
+                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-800/60">
                           <Scale className="w-3 h-3" />
                           <span>Court Requirement</span>
                         </span>

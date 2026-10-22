@@ -34,7 +34,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd }) => {
   const priorityColors: Record<PriorityLevel, string> = {
     urgent: 'bg-rose-950 text-rose-300 border-rose-800/60',
     high: 'bg-amber-50 text-amber-800 border-amber-800/60',
-    medium: 'bg-sky-950 text-sky-800 border-sky-800/60',
+    medium: 'bg-sky-50 text-sky-800 border-sky-800/60',
     low: 'bg-slate-100 text-slate-700 border-slate-700/60',
   };
 

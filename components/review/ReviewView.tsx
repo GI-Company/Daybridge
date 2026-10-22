@@ -166,7 +166,7 @@ export const ReviewView: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-3 bg-amber-950/40 print:bg-amber-50 border border-amber-800/60 print:border-amber-300 rounded-xl text-amber-200 print:text-amber-900 text-xs">
+          <div className="p-3 bg-amber-50 print:bg-amber-50 border border-amber-800/60 print:border-amber-300 rounded-xl text-amber-200 print:text-amber-900 text-xs">
             <strong>Notice:</strong> Personal self-reported weekly organization summary — not an official court attendance record or clinical compliance certificate.
           </div>
         </div>
