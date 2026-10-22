@@ -2,12 +2,8 @@
 import React,{useState} from 'react';
 import {BellRing, Fingerprint, LogOut, ShieldCheck} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
+import {enableDevicePush} from '../../lib/notifications/device-push';
 
-function toBytes(value:string){
- const base=value.replace(/-/g,'+').replace(/_/g,'/');
- const decoded=atob(base.padEnd(Math.ceil(base.length/4)*4,'='));
- return Uint8Array.from(decoded,c=>c.charCodeAt(0));
-}
 export function DeviceSetup(){
  const [message,setMessage]=useState('');
  const [busy,setBusy]=useState(false);
@@ -22,26 +18,11 @@ export function DeviceSetup(){
  const subscribe=async()=>{
   setBusy(true);setMessage('');
   try{
-   if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){setMessage('Web Push is not supported here. Install DayBridge using your home screen and use a compatible browser.');return}
-   const permission=await Notification.requestPermission();
-   if(permission!=='granted'){setMessage('Notifications not enabled. You can change this in the device settings.');return}
-   const reg=await navigator.serviceWorker.ready;
-   await reg.showNotification('DayBridge reminders',{body:'Notifications are ready on this device.',icon:'/icon.svg',tag:'daybridge-test'});
-   const vapid=process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-   if(!vapid){setMessage('Device notifications work, but scheduled remote push still needs a VAPID key and delivery worker.');return}
-   const existing=await reg.pushManager.getSubscription();
-   const subscription=existing??await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:toBytes(vapid).buffer as ArrayBuffer});
-   const user=await client?.auth.getUser();
-   if(!client||!user?.data.user){setMessage('Please sign in before enabling remote reminders.');return}
-   const json=subscription.toJSON();
-   const {error}=await client.from('push_subscriptions').upsert({
-     user_id:user.data.user.id,endpoint:subscription.endpoint,
-     keys_p256dh:json.keys?.p256dh??'',keys_auth:json.keys?.auth??'',
-     user_agent:navigator.userAgent,updated_at:new Date().toISOString()
-   },{onConflict:'user_id,endpoint'});
-   setMessage(error?'Notification permission granted, but server subscription could not be saved.':'Device subscribed for scheduled notifications. Delivery still depends on the reminder worker.');
-  }catch{setMessage('Unable to set up notifications. Check app installation, browser support and system settings.')}
-  finally{setBusy(false)}
+   await enableDevicePush();
+   setMessage('This device is registered to receive DayBridge background reminders.');
+  }catch(error){
+   setMessage(error instanceof Error?error.message:'Could not enable remote push notifications.');
+  }finally{setBusy(false);}
  };
  const testRemote=async()=>{
   setBusy(true);setMessage('');

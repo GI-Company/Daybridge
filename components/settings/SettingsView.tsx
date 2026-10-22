@@ -76,6 +76,14 @@ export const SettingsView: React.FC = () => {
         </p>
       </div>
 
+      <section className="rounded-3xl border border-teal-200 bg-teal-50 p-4">
+        <h3 className="text-sm font-bold text-teal-950">Background reminders</h3>
+        <p className="mt-1 text-xs leading-5 text-teal-950">Check phone notification registration, your approved departure point, and offline data protection in one guided setup.</p>
+        <button type="button" onClick={()=>window.dispatchEvent(new Event('daybridge:open-background-setup'))}
+         className="mt-3 min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-semibold text-white">
+         Review background setup
+        </button>
+      </section>
       <details className="rounded-3xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-bold text-slate-900">Devices, push notifications & sign-in security</summary><div className="mt-4 space-y-4"><DeviceSetup/><ChangePasswordCard/></div></details>
       <details className="rounded-3xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-bold text-slate-900">Travel notifications & location settings</summary><div className="mt-4"><TravelPreferencesCard/></div></details>
 
