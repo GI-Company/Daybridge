@@ -162,6 +162,16 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
         <p className="text-sm text-slate-700">No money accounts yet. Add where you keep your money, even if you start with $0. Then income and expenses will update its balance automatically.</p>
         <AddBudgetAccount onCreated={()=>{setShowAccountForm(false);setBudgetMessage('Account created. You can now record income or spending.')}}/>
       </div>}
+      {transactions.length>0&&<div role="status" aria-live="polite" className="rounded-2xl border border-slate-200 bg-white p-4">
+        <p className="text-xs font-semibold uppercase text-slate-600">Latest recorded entry</p>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-slate-900">{transactions[0].notes||transactions[0].category.replaceAll('_',' ')}</p>
+            <p className="text-xs text-slate-600">{accounts.find(a=>a.id===transactions[0].accountId)?.name||'Account'} · {transactions[0].transactionDate}</p>
+          </div>
+          <strong className={transactions[0].amountCents>=0?'text-emerald-800':'text-slate-900'}>{formatCents(transactions[0].amountCents)}</strong>
+        </div>
+      </div>}
       {/* 1. SAFE-TO-SPEND HERO CARD */}
       <section className="bg-gradient-to-br from-teal-50 to-white border border-teal-500/30 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="flex items-center justify-between mb-3">
