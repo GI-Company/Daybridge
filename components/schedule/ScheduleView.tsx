@@ -51,7 +51,8 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd})=>{
  const visibleDays=view==='month'?monthDays:days;
  const onDayClick=(day:Date)=>setSelectedDate(new Date(day.getFullYear(),day.getMonth(),day.getDate()));
 
- return <div className="space-y-4 pb-24">
+ return (
+ <div className="space-y-4 pb-24">
   <header className="flex flex-wrap items-center justify-between gap-3">
    <div>
     <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">Schedule</h2>
