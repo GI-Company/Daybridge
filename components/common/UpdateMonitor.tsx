@@ -3,7 +3,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {RefreshCw,ShieldAlert,X} from 'lucide-react';
 
-type SyncState='synced'|'syncing'|'offline'|'local_only'|null;
+type SyncState='synced'|'syncing'|'offline'|'local_only'|'device_saved'|null;
 function deployedVersion(){
  return document.documentElement.dataset.daybridgeVersion || '';
 }
@@ -112,7 +112,7 @@ export function UpdateMonitor(){
      <div className="min-w-0 flex-1">
       <p className="font-bold text-slate-950">DayBridge update available</p>
       <p className="mt-1 text-sm text-slate-700">A new production release is ready. You won't need to reinstall the app.</p>
-      {(sync==='syncing'||sync==='offline'||sync==='local_only')&&<p className="mt-2 flex gap-2 text-xs text-amber-800"><ShieldAlert className="h-4 w-4 shrink-0"/>Update paused until your private data is synced.</p>}
+      {(sync!=='synced')&&<p className="mt-2 flex gap-2 text-xs text-amber-800"><ShieldAlert className="h-4 w-4 shrink-0"/>Update waits for cloud sync. Offline changes are encrypted on this device and won't be discarded.</p>}
       {lastError&&<p role="alert" className="mt-2 text-xs text-rose-800">{lastError}</p>}
      </div>
      <button aria-label="Dismiss update reminder" type="button" onClick={()=>{setVersion(null);setConfirm(false)}} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><X className="h-4 w-4"/></button>
@@ -126,7 +126,7 @@ export function UpdateMonitor(){
       </div>
      </div>:<div className="mt-4 flex flex-wrap items-center justify-end gap-2">
       {dirty&&<span className="mr-auto text-xs text-amber-800">Form edits detected</span>}
-      <button type="button" onClick={beginUpdate} disabled={sync==='syncing'||sync==='offline'||sync==='local_only'} className="rounded-xl bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-900 disabled:opacity-50">Update now</button>
+      <button type="button" onClick={beginUpdate} disabled={sync!=='synced'} className="rounded-xl bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-900 disabled:opacity-50">Update now</button>
      </div>}
    </div>
   </div>;

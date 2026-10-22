@@ -16,7 +16,23 @@ export function SecureAppGate({children}:{children:(id:string)=>React.ReactNode}
  useEffect(()=>{
    if(!client){setPending(false);return}
    let active=true;
-   client.auth.getUser().then((result: {data:{user:User|null};error:unknown})=>{if(active){setUser(result.error?null:result.data.user);setPending(false)}}).catch(()=>{if(active){setUser(null);setPending(false)}});
+   const offlineUser=async():Promise<User|null>=>{
+     // A cached, not-yet-expired Supabase session only unlocks this device's
+     // encrypted offline snapshot. Cloud operations still require a valid JWT.
+     if(navigator.onLine)return null;
+     try{
+       const {data}=await client.auth.getSession();
+       const session=data.session;
+       return session?.expires_at&&session.expires_at>Date.now()/1000 ? session.user:null;
+     }catch{return null}
+   };
+   void client.auth.getUser().then(async(result: {data:{user:User|null};error:unknown})=>{
+     const user=result.error?await offlineUser():result.data.user;
+     if(active){setUser(user);setPending(false)}
+   }).catch(async()=>{
+     const user=await offlineUser();
+     if(active){setUser(user);setPending(false)}
+   });
    const {data:{subscription}}=client.auth.onAuthStateChange((_event:AuthChangeEvent,session:Session|null)=>{if(active){setUser(session?.user??null);setPending(false)}});
    return()=>{active=false;subscription.unsubscribe()};
  },[client]);
