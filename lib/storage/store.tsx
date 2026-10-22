@@ -95,7 +95,7 @@ interface DayBridgeContextType {
   updatePaycheckPlan: (plan: Partial<PaycheckPlan>) => void;
   setPaycheckForecast: (plan:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>void;
   recordPaycheckDeposit: (accountId:string,amountCents:number)=>boolean;
-  addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => void;
+  addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>, depositAccountId:string) => void;
   markBillPaid: (billId: string, createTransaction?: boolean, accountId?:string) => void;
   addBill: (bill: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => void;
   updateReserve: (reserveId: string, allocatedCents: number) => void;
@@ -702,7 +702,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     return true;
   };
 
-  const addAdvance = (advData: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
+  const addAdvance = (advData: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,depositAccountId:string) => {
+    if(!accounts.some(a=>a.id===depositAccountId&&a.isActive))return;
     const newAdv: WageAdvance = {
       ...advData,
       id: `adv-${Date.now()}`,
@@ -712,11 +713,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     };
     setAdvances((prev) => [newAdv, ...prev]);
 
-    // An advance gives immediate cash, so add to checking account if an account exists
-    if (accounts.length > 0) {
-      const primaryAcc = accounts[0];
-      addTransaction({
-        accountId: primaryAcc.id,
+    // Record the actual advance receipt in the explicitly chosen account.
+    // This is cash received now, not a second paycheck.
+    addTransaction({
+        accountId: depositAccountId,
         amountCents: advData.advanceAmountCents,
         transactionType: 'income',
         category: 'wage_advance',
@@ -724,7 +724,6 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         notes: `Wage advance received (${advData.notes || 'early payout'})`,
         isPending: false,
       });
-    }
   };
 
   const markBillPaid = (billId: string, createTransaction: boolean = true, accountId?: string) => {
