@@ -35,7 +35,14 @@ function validSource(event:SourceEvent|undefined,plan:Plan){
  const weekday=(v:string)=>new Date(v.slice(0,10)+'T12:00:00Z').getUTCDay();
  return source.slice(11)===target.slice(11)&&weekday(source)===weekday(target)&&target.slice(0,10)>=source.slice(0,10);
 }
-async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'preliminary'|'preparation'|'leave_now'|'traffic_change',time:number){
+type TravelUpdate={travelSeconds:number;delaySeconds:number;leaveByMs:number;lockscreenPrivate:boolean};
+function trafficMessage(update:TravelUpdate,timezone:string){
+ const travelMinutes=Math.ceil(update.travelSeconds/60);
+ const delayMinutes=Math.ceil(update.delaySeconds/60);
+ const leaveBy=new Date(update.leaveByMs).toLocaleTimeString('en-US',{timeZone:timezone,hour:'numeric',minute:'2-digit'});
+ return 'Travel about '+travelMinutes+' min ('+delayMinutes+' min traffic delay). Leave by '+leaveBy+'.';
+}
+async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'preliminary'|'preparation'|'leave_now'|'traffic_change',time:number,update:TravelUpdate){
  const key=[plan.id,plan.source_revision,kind,kind==='traffic_change'?Math.floor(time/(15*60000)):'once'].join(':');
  const {data:existing}=await admin.from('notification_deliveries').select('*').eq('user_id',plan.user_id).eq('dedupe_key',key).maybeSingle();
  let record=existing;
@@ -50,7 +57,13 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
  const {data:subs,error:subError}=await admin.from('push_subscriptions').select('id,endpoint,keys_auth,keys_p256dh').eq('user_id',plan.user_id).is('disabled_at',null);
  if(subError){await admin.from('notification_deliveries').update({status:'failed'}).eq('id',record.id);return}
  if(!subs?.length){await admin.from('notification_deliveries').update({status:'no_subscription'}).eq('id',record.id);return}
- const message={kind,title:'DayBridge reminder',body:'Open DayBridge to review an upcoming item.',url:'/'};
+ const title=kind==='preparation'?'Traffic update: appointment in about 1 hour'
+  :kind==='leave_now'?'Time to leave for your appointment'
+  :kind==='traffic_change'?'Traffic conditions changed':'Upcoming appointment';
+ const body=update.lockscreenPrivate
+  ?'Open DayBridge for your private route estimate and departure time.'
+  :trafficMessage(update,plan.timezone);
+ const message={kind,title,body,url:'/',tag:'daybridge-'+kind+'-'+plan.id};
  let success=0;
  for(const sub of subs){
   try{
@@ -92,15 +105,19 @@ export async function monitorTravel(){
    const best=(await calculateRoute({origin:{lat:plan.origin_lat!,lon:plan.origin_lon!},destination:{lat:plan.destination_lat,lon:plan.destination_lon},travelMode:plan.travel_mode,arriveAt:plan.occurrence_start},{alternatives:0})).routes[0];
    const leaveMs=startMs-best.durationSeconds*1000-plan.arrival_buffer_minutes*60000;
    await admin.from('travel_estimates').insert({user_id:plan.user_id,appointment_id:plan.id,travel_seconds:best.durationSeconds,traffic_delay_seconds:best.delaySeconds,historic_seconds:best.historicSeconds,leave_by:new Date(leaveMs).toISOString(),traffic_basis:startMs-now>4*3600000?'historical':'live'});
+   const update:TravelUpdate={travelSeconds:best.durationSeconds,delaySeconds:best.delaySeconds,
+     leaveByMs:leaveMs,lockscreenPrivate:pref.lockscreen_private};
    const delta=plan.last_delay_seconds===null?0:Math.abs(best.delaySeconds-plan.last_delay_seconds);
    const prev=plan.last_checked_at?Date.parse(plan.last_checked_at):0;
    await admin.from('travel_appointments').update({last_travel_seconds:best.durationSeconds,last_delay_seconds:best.delaySeconds,last_checked_at:new Date(now).toISOString()}).eq('id',plan.id).eq('user_id',plan.user_id);
    checked++;
    const remaining=startMs-now;
-   if(remaining<=24*3600000&&remaining>90*60000){await deliver(admin,plan,'preliminary',now);alerts++}
-   if(remaining<=90*60000&&remaining>0){await deliver(admin,plan,'preparation',now);alerts++}
-   if(now>=leaveMs-5*60000&&remaining>0){await deliver(admin,plan,'leave_now',now);alerts++}
-   if(delta>=300&&now-prev>=10*60000&&remaining>0){await deliver(admin,plan,'traffic_change',now);alerts++}
+   if(remaining<=24*3600000&&remaining>60*60000){await deliver(admin,plan,'preliminary',now,update);alerts++}
+   // Cron runs every five minutes. Deliver one deduplicated traffic assessment
+   // as the appointment enters the final hour, using TomTom's live traffic model.
+   if(remaining<=60*60000&&remaining>0){await deliver(admin,plan,'preparation',now,update);alerts++}
+   if(now>=leaveMs-5*60000&&remaining>0){await deliver(admin,plan,'leave_now',now,update);alerts++}
+   if(delta>=300&&now-prev>=10*60000&&remaining>0){await deliver(admin,plan,'traffic_change',now,update);alerts++}
   }catch{ /* Isolate third-party failures; next scheduled run retries. */ }
  }
  return {checked,alerts_attempted:alerts,cancelled};

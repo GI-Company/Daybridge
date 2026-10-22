@@ -15,10 +15,15 @@ import {
   Clock,
   MapPin,
   AlertCircle,
+  GraduationCap,
+  Users,
+  ChevronLeft,
+  MapPinned,
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
 import { parseDollarsToCents } from '../../lib/budget';
-import { EventCategory, VenueType, PriorityLevel } from '../../lib/types';
+import {enrollTrafficAlerts} from '../../lib/travel/auto-reminder';
+import { EventCategory, VenueType, PriorityLevel, SavedPlaceCategory } from '../../lib/types';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -26,17 +31,45 @@ interface QuickAddModalProps {
   initialType?: QuickAddType;
 }
 
-type QuickAddType = 'event' | 'medication' | 'task' | 'transaction' | 'bill' | 'contact';
+type QuickAddType = 'event' | 'class' | 'self_help' | 'medication' | 'task' | 'transaction' | 'bill' | 'contact' | 'location';
+const addChoices: {id: QuickAddType; label: string; detail: string; icon: typeof Calendar}[] = [
+ {id:'event',label:'Appointment',detail:'Court, work, or personal',icon:Calendar},
+ {id:'class',label:'Class / Group',detail:'Classes and sessions',icon:GraduationCap},
+ {id:'self_help',label:'Self-Help Meeting',detail:'AA, NA, SMART, or other',icon:Users},
+ {id:'task',label:'Task',detail:'Something to remember',icon:CheckSquare},
+ {id:'medication',label:'Medication',detail:'Doses and reminders',icon:Pill},
+ {id:'transaction',label:'Expense / Income',detail:'Track money',icon:DollarSign},
+ {id:'bill',label:'Bill',detail:'Payment due date',icon:Receipt},
+ {id:'location',label:'Saved Location',detail:'A place to remember',icon:MapPinned},
+ {id:'contact',label:'Contact',detail:'Person or resource',icon:PhoneCall}
+];
+const localDate = () => {
+ const now=new Date();
+ return [now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+};
+const hourLater=(value:string)=>{
+ const parts=value.split(':').map(Number);
+ return [String((parts[0]+1)%24).padStart(2,'0'),String(parts[1]||0).padStart(2,'0')].join(':');
+};
 
-export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType='event' }) => {
-  const { addEvent, addMedication, addTask, addTransaction, addBill, addContact, accounts, savedPlaces } = useDayBridge();
+export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType }) => {
+  const { addEvent, addMedication, addTask, addTransaction, addBill, addContact, addSavedPlace, accounts, savedPlaces } = useDayBridge();
 
-  const [activeType, setActiveType] = useState<QuickAddType>(initialType);
+  const [activeType, setActiveType] = useState<QuickAddType|null>(initialType??null);
+  const [advanced,setAdvanced]=useState(false);
+  const [formError,setFormError]=useState('');
+  const [selectedAccountId,setSelectedAccountId]=useState('');
+  const [placeName,setPlaceName]=useState('');
+  const [placeAddress,setPlaceAddress]=useState('');
+  const [placeKind,setPlaceKind]=useState<SavedPlaceCategory>('other');
+  const [locationCandidates,setLocationCandidates]=useState<Array<{label:string;lat:number;lon:number}>>([]);
+  const [verifiedLocation,setVerifiedLocation]=useState<{label:string;lat:number;lon:number}|null>(null);
+  const [locationBusy,setLocationBusy]=useState(false);
 
   // Event form state
   const [eventTitle, setEventTitle] = useState('');
-  const [eventCategory, setEventCategory] = useState<EventCategory>('court');
-  const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
+  const [eventCategory, setEventCategory] = useState<EventCategory>('personal');
+  const [eventDate, setEventDate] = useState(localDate());
   const [eventStartTime, setEventStartTime] = useState('10:00');
   const [eventEndTime, setEventEndTime] = useState('11:00');
   const [eventVenue, setEventVenue] = useState<VenueType>('in_person');
@@ -58,7 +91,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   // Task form state
   const [taskTitle, setTaskTitle] = useState('');
   const [taskPriority, setTaskPriority] = useState<PriorityLevel>('medium');
-  const [taskDueDate, setTaskDueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [taskDueDate, setTaskDueDate] = useState(localDate());
 
   // Money transaction form state
   const [txType, setTxType] = useState<'expense' | 'income'>('expense');
@@ -69,7 +102,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   // Bill form state
   const [billTitle, setBillTitle] = useState('');
   const [billAmount, setBillAmount] = useState('');
-  const [billDueDate, setBillDueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [billDueDate, setBillDueDate] = useState(localDate());
   const [billAutopay, setBillAutopay] = useState(false);
 
   // Contact form state
@@ -82,20 +115,50 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
 
   if (!isOpen) return null;
 
+  const switchType=(type:QuickAddType)=>{
+    setActiveType(type);
+    setAdvanced(false);
+    setFormError('');
+  };
+  const requestClose=()=>{
+    const hasDraft=Boolean(eventTitle.trim()||medName.trim()||taskTitle.trim()||txAmount||
+      billTitle.trim()||contactName.trim()||placeName.trim()||placeAddress.trim());
+    if(!hasDraft||window.confirm('Discard this unfinished entry?'))onClose();
+  };
+  async function verifyAddress(){
+    if(placeAddress.trim().length<6){setFormError('Enter a street address and city.');return;}
+    setLocationBusy(true);setFormError('');setLocationCandidates([]);setVerifiedLocation(null);
+    try{
+      const response=await fetch('/api/travel/geocode',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({address:placeAddress})});
+      if(!response.ok)throw Error();
+      const data=await response.json() as {results?:Array<{label:string;lat:number;lon:number}>};
+      const results=(data.results||[]).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+      setLocationCandidates(results);
+      if(!results.length)setFormError('No matching address found. Add city and state, then retry.');
+    }catch{setFormError('Address verification is unavailable. Your saved locations have not changed.');}
+    finally{setLocationBusy(false);}
+  }
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (activeType === 'event') {
-      if (!eventTitle.trim()) return;
+    setFormError('');
+    if (activeType === 'event' || activeType === 'class' || activeType === 'self_help') {
+      if (!eventTitle.trim())return;
+      const start=new Date(eventDate+'T'+eventStartTime+':00');
+      const end=new Date(eventDate+'T'+eventEndTime+':00');
+      if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<=start){
+        setFormError('Choose a valid date and an end time after the start time.');return;
+      }
       const startIso = `${eventDate}T${eventStartTime}:00`;
       const endIso = `${eventDate}T${eventEndTime}:00`;
       const rrule = eventRepeatWeekly ? 'FREQ=WEEKLY' : undefined;
 
       const matchedPlace=savedPlaces.find(place=>place.address===eventLocation.trim());
-      addEvent({
+      const created=addEvent({
         title: eventTitle.trim(),
-        category: eventCategory,
-        description: '',
+        category: activeType==='class'?'class':activeType==='self_help'?'self_help':eventCategory,
+        description: activeType==='self_help'?'Private self-help meeting':'',
         startTime: startIso,
         endTime: endIso,
         timezone: 'America/New_York',
@@ -105,9 +168,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         destinationLon:matchedPlace?.lon,
         contactInfo: eventContact.trim(),
         rrule,
-        travelBufferMinutes: parseInt(eventTravelBuffer, 10) || 0,
+        travelBufferMinutes: eventVenue==='in_person'?(parseInt(eventTravelBuffer, 10) || 0):0,
         prepChecklist: [],
       });
+      if(matchedPlace&&eventVenue==='in_person'){
+        void enrollTrafficAlerts(created,matchedPlace).catch(()=>undefined);
+      }
     } else if (activeType === 'medication') {
       if (!medName.trim()) return;
       const times=[...new Set(medTimes)].sort();
@@ -140,10 +206,13 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       });
     } else if (activeType === 'transaction') {
       const cents = parseDollarsToCents(txAmount);
-      if (!cents || accounts.length === 0) return;
+      if (!cents || cents<=0){setFormError('Enter a valid amount greater than zero.');return;}
+      if(!selectedAccountId||!accounts.some(account=>account.id===selectedAccountId&&account.isActive)){
+        setFormError('Choose the account for this transaction.');return;
+      }
       const signedCents = txType === 'expense' ? -Math.abs(cents) : Math.abs(cents);
       addTransaction({
-        accountId: accounts[0].id,
+        accountId: selectedAccountId,
         amountCents: signedCents,
         transactionType: txType,
         category: txCategory,
@@ -161,6 +230,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         nextDueDate: billDueDate,
         isAutopay: billAutopay,
       });
+    } else if(activeType==='location'){
+      if(!placeName.trim()||!verifiedLocation){
+        setFormError('Enter a name and verify the correct street address.');return;
+      }
+      if(savedPlaces.some(p=>p.category===placeKind&&p.address.toLowerCase()===verifiedLocation.label.toLowerCase())){
+        setFormError('This location is already saved in that category.');return;
+      }
+      addSavedPlace({label:placeName.trim().slice(0,80),address:verifiedLocation.label,
+        lat:verifiedLocation.lat,lon:verifiedLocation.lon,category:placeKind});
     } else if (activeType === 'contact') {
       if (!contactName.trim()) return;
       addContact({
@@ -181,163 +259,139 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50">
           <h2 className="font-semibold text-slate-900 text-base flex items-center gap-2">
-            <span>Quick Add</span>
+            {activeType===null?'What would you like to add?':('Add '+addChoices.find(item=>item.id===activeType)?.label)}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition"
+          <div className="flex items-center gap-2">
+          {activeType!==null&&<button type="button" onClick={()=>{setActiveType(null);setFormError('');}}
+            className="flex min-h-[44px] items-center gap-1 rounded-lg px-2 text-xs font-semibold text-teal-900">
+            <ChevronLeft className="h-4 w-4"/>Back
+          </button>}
+          <button type="button"
+            onClick={requestClose}
+            className="p-2 text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition"
             aria-label="Close dialog"
           >
             <X className="w-5 h-5" />
           </button>
+          </div>
         </div>
 
-        {/* Type Selector Pills (44px min tap targets) */}
-        <div className="p-3 bg-slate-50 border-b border-slate-200 overflow-x-auto flex gap-1.5 scrollbar-none">
-          {[
-            { id: 'event', label: 'Appointment / Class', icon: Calendar },
-            { id: 'medication', label: 'Medication', icon: Pill },
-            { id: 'task', label: 'Task', icon: CheckSquare },
-            { id: 'transaction', label: 'Expense / Income', icon: DollarSign },
-            { id: 'bill', label: 'Bill', icon: Receipt },
-            { id: 'contact', label: 'Contact', icon: PhoneCall },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isSelected = activeType === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveType(item.id as QuickAddType)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap min-h-[44px] transition ${
-                  isSelected
-                    ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-100/70'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-100 hover:text-slate-950 border border-slate-200'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {activeType===null&&<div className="p-4 sm:p-5">
+          <p className="mb-4 text-sm text-slate-700">Choose what you want to add. You'll only see fields for that item.</p>
+          <div className="grid grid-cols-2 gap-3">
+            {addChoices.map(({id,label,detail,icon:Icon})=><button key={id} type="button" onClick={()=>switchType(id)}
+              className="flex min-h-[100px] flex-col items-start justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-teal-400 hover:bg-teal-50 focus-visible:ring-2 focus-visible:ring-teal-700">
+              <Icon aria-hidden="true" className="h-5 w-5 text-teal-800"/>
+              <strong className="text-sm leading-tight text-slate-950">{label}</strong>
+              <span className="text-xs text-slate-600">{detail}</span>
+            </button>)}
+          </div>
+        </div>}
 
         {/* Dynamic Form Body */}
-        <form onSubmit={handleSave} className="p-5 space-y-4">
-          {/* EVENT / APPOINTMENT FORM */}
-          {activeType === 'event' && (
+        {activeType!==null&&<form onSubmit={handleSave} className="max-h-[min(76vh,720px)] overflow-y-auto p-5 space-y-4">
+          <p className="text-xs text-slate-600">Only the essentials are required. Additional settings are optional.</p>
+          {/* EVENT / CLASS / MEETING FORM */}
+          {(activeType === 'event'||activeType === 'class'||activeType === 'self_help') && (
             <>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Category
-                </label>
-                <select value={eventCategory} onChange={e=>setEventCategory(e.target.value as EventCategory)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-medium text-slate-900">
-                  <option value="court">Court appearance</option>
-                  <option value="class">Class / group session</option>
-                  <option value="drug_testing">Drug testing</option>
-                  <option value="therapy">Therapy</option>
-                  <option value="work">Work shift</option>
-                  <option value="case_management">Case management</option>
-                  <option value="personal">Personal appointment</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
+              {activeType==='self_help'&&<p className="rounded-lg bg-teal-50 p-3 text-xs text-teal-950">Self-help meetings are kept as private calendar events. Attendance is self-reported; no GPS check-in is required.</p>}
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
-                  Title / Obligation
+                  {activeType==='class'?'Class / group name':activeType==='self_help'?'Meeting name':'Title'}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Weekly Accountability Class or CBT Session"
+                  placeholder={activeType==='class'?'e.g. Weekly accountability class':activeType==='self_help'?'e.g. Thursday recovery meeting':'e.g. Appointment or shift'}
                   value={eventTitle}
                   onChange={(e) => setEventTitle(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={eventDate}
-                    onChange={(e) => setEventDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Start Time</label>
-                  <input
-                    type="time"
-                    required
-                    value={eventStartTime}
-                    onChange={(e) => setEventStartTime(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">End Time</label>
-                  <input
-                    type="time"
-                    required
-                    value={eventEndTime}
-                    onChange={(e) => setEventEndTime(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500"
-                  />
-                </div>
-              </div>
 
-              {eventVenue==='in_person'&&<div className="rounded-xl border border-teal-200 bg-teal-50 p-3 space-y-2">
-                <label htmlFor="event-saved-location" className="block text-sm font-semibold text-teal-950">Choose a saved location</label>
-                <select id="event-saved-location" value={savedPlaces.find(p=>p.address===eventLocation)?.id??''} onChange={e=>{const picked=savedPlaces.find(p=>p.id===e.target.value);if(picked)setEventLocation(picked.address);}} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900">
-                 <option value="">Enter an address manually</option>
-                 {[...savedPlaces].sort((a,b)=>Number(b.category===(eventCategory==='therapy'?'therapy':eventCategory==='court'?'court':eventCategory==='class'?'class':eventCategory==='drug_testing'?'drug_testing':eventCategory==='work'?'work':'other'))-Number(a.category===(eventCategory==='therapy'?'therapy':eventCategory==='court'?'court':eventCategory==='class'?'class':eventCategory==='drug_testing'?'drug_testing':eventCategory==='work'?'work':'other'))).map(p=><option key={p.id} value={p.id}>{p.label} · {p.category.replace('_',' ')}</option>)}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm font-medium text-slate-800">Date
+                  <input type="date" required value={eventDate}
+                    onChange={e=>setEventDate(e.target.value)}
+                    className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+                </label>
+                <label className="block text-sm font-medium text-slate-800">Start time
+                  <input type="time" required value={eventStartTime}
+                    onChange={e=>{setEventStartTime(e.target.value);setEventEndTime(hourLater(e.target.value));}}
+                    className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+                </label>
+              </div>
+              <p className="text-xs text-slate-600">For automatic traffic alerts, choose a verified saved location and approve a saved starting location in Travel settings. Notifications must be enabled.</p>
+              {!!savedPlaces.length&&<label className="block text-sm font-medium text-slate-800">Choose a saved location (optional)
+                <select value={savedPlaces.find(p=>p.address===eventLocation)?.id||''}
+                  onChange={e=>{const place=savedPlaces.find(p=>p.id===e.target.value);if(place)setEventLocation(place.address);}}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="">Enter a location instead</option>
+                  {savedPlaces.map(place=><option key={place.id} value={place.id}>{place.label}</option>)}
                 </select>
-                <p className="text-xs text-teal-900">Selecting one fills the appointment address automatically. Add more in Locations & maps.</p>
-              </div>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Location or Meeting Link</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Room 204 or Telehealth URL"
-                    value={eventLocation}
-                    onChange={(e) => setEventLocation(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Travel Buffer (min)</label>
-                  <select
-                    value={eventTravelBuffer}
-                    onChange={(e) => setEventTravelBuffer(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:border-teal-500 min-h-[42px]"
-                  >
-                    <option value="0">0 minutes</option>
+              </label>}
+              <label className="block text-sm font-medium text-slate-800">Location or meeting link (optional)
+                <input type="text" value={eventLocation} onChange={e=>setEventLocation(e.target.value)}
+                  placeholder="Address, room, or video link"
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+              </label>
+              {(activeType==='class'||activeType==='self_help')&&<label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-800">
+                <input type="checkbox" checked={eventRepeatWeekly} onChange={e=>setEventRepeatWeekly(e.target.checked)}
+                  className="h-4 w-4 accent-teal-800"/>Repeat weekly on this day
+              </label>}
+              <button type="button" onClick={()=>setAdvanced(prev=>!prev)}
+                aria-expanded={advanced}
+                className="flex w-full min-h-[44px] items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-teal-900">
+                {advanced?'Hide optional settings':'More options (optional)'}
+                <span aria-hidden="true">{advanced?'−':'+'}</span>
+              </button>
+              {advanced&&<div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <label className="block text-sm font-medium text-slate-800">End time
+                  <input type="time" required value={eventEndTime} onChange={e=>setEventEndTime(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+                </label>
+                {activeType==='event'&&<label className="block text-sm font-medium text-slate-800">Appointment type
+                  <select value={eventCategory} onChange={e=>setEventCategory(e.target.value as EventCategory)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                    <option value="personal">Personal appointment</option>
+                    <option value="court">Court appearance</option>
+                    <option value="drug_testing">Drug testing</option>
+                    <option value="therapy">Therapy</option>
+                    <option value="work">Work shift</option>
+                    <option value="case_management">Case management</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>}
+                <label className="block text-sm font-medium text-slate-800">Meeting format
+                  <select value={eventVenue} onChange={e=>setEventVenue(e.target.value as VenueType)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                    <option value="in_person">In person</option>
+                    <option value="virtual">Online</option>
+                    <option value="phone">By phone</option>
+                  </select>
+                </label>
+                {eventVenue==='in_person'&&<label className="block text-sm font-medium text-slate-800">Travel preparation (minutes)
+                  <select value={eventTravelBuffer} onChange={e=>setEventTravelBuffer(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                    <option value="0">No buffer</option>
                     <option value="15">15 minutes</option>
                     <option value="30">30 minutes</option>
                     <option value="45">45 minutes</option>
                     <option value="60">60 minutes</option>
                   </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="repeatWeekly"
-                  checked={eventRepeatWeekly}
-                  onChange={(e) => setEventRepeatWeekly(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-teal-500 focus:ring-teal-400 bg-slate-50"
-                />
-                <label htmlFor="repeatWeekly" className="text-xs text-slate-700">
-                  Repeat weekly on this day (e.g. every Wednesday class)
+                </label>}
+                {activeType==='event'&&<label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-800">
+                  <input type="checkbox" checked={eventRepeatWeekly} onChange={e=>setEventRepeatWeekly(e.target.checked)}
+                    className="h-4 w-4 accent-teal-800"/>Repeat weekly
+                </label>}
+                <label className="block text-sm font-medium text-slate-800">Contact or instructor (optional)
+                  <input type="text" value={eventContact} onChange={e=>setEventContact(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"
+                    placeholder="Name or phone number"/>
                 </label>
-              </div>
+              </div>}
             </>
           )}
 
@@ -519,6 +573,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 />
               </div>
 
+              <label className="block text-sm font-semibold text-slate-800">Account
+                <select required value={selectedAccountId} onChange={e=>setSelectedAccountId(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="">Choose an account</option>
+                  {accounts.filter(a=>a.isActive).map(account=><option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+              {!accounts.some(a=>a.isActive)&&<p role="alert" className="text-sm text-amber-900">Add an account in Budget before recording money.</p>}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Category</label>
@@ -606,6 +669,48 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
             </>
           )}
 
+          {/* LOCATION FORM: verified coordinates are required for routing */}
+          {activeType==='location'&&<>
+            <label className="block text-sm font-semibold text-slate-900">Place name
+              <input type="text" required maxLength={80} value={placeName} onChange={e=>setPlaceName(e.target.value)}
+                placeholder="e.g. Weekly class" className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+            </label>
+            <label className="block text-sm font-semibold text-slate-900">Street address and city
+              <input type="text" required value={placeAddress} onChange={e=>{setPlaceAddress(e.target.value);setVerifiedLocation(null);setLocationCandidates([]);}}
+                placeholder="Street address, city, state" className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+            </label>
+            <button type="button" disabled={locationBusy||placeAddress.trim().length<6}
+              onClick={()=>void verifyAddress()}
+              className="min-h-[44px] w-full rounded-xl border border-teal-300 bg-teal-50 p-3 text-sm font-semibold text-teal-950 disabled:opacity-50">
+              {locationBusy?'Verifying address…':'Verify address'}
+            </button>
+            {!!locationCandidates.length&&<fieldset className="space-y-2">
+              <legend className="text-xs font-semibold text-slate-800">Choose the correct match</legend>
+              {locationCandidates.map((candidate,i)=><button key={i} type="button" onClick={()=>{setVerifiedLocation(candidate);setPlaceAddress(candidate.label);setFormError('');}}
+                className={'block min-h-[44px] w-full rounded-xl border p-3 text-left text-sm '+
+                (verifiedLocation?.label===candidate.label?'border-teal-700 bg-teal-50 text-teal-950':'border-slate-300 bg-white text-slate-800')}>
+                {candidate.label}
+              </button>)}
+            </fieldset>}
+            {verifiedLocation&&<p className="text-xs text-teal-900">Verified address selected. It will be available in your private saved places.</p>}
+            <button type="button" onClick={()=>setAdvanced(prev=>!prev)} aria-expanded={advanced}
+              className="flex w-full min-h-[44px] items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-teal-900">
+              {advanced?'Hide optional settings':'More options (optional)'} <span aria-hidden="true">{advanced?'−':'+'}</span>
+            </button>
+            {advanced&&<label className="block text-sm font-medium text-slate-800">Place type
+              <select value={placeKind} onChange={e=>setPlaceKind(e.target.value as SavedPlaceCategory)}
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                <option value="other">Other</option>
+                <option value="home">Home</option>
+                <option value="work">Work</option>
+                <option value="therapy">Therapy</option>
+                <option value="class">Class or meeting</option>
+                <option value="court">Court</option>
+                <option value="drug_testing">Drug testing</option>
+              </select>
+            </label>}
+          </>}
+
           {/* CONTACT FORM */}
           {activeType === 'contact' && (
             <>
@@ -665,11 +770,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
             </>
           )}
 
+          {formError&&<p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950">{formError}</p>}
           {/* Form Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 min-h-[44px] transition"
             >
               Cancel
@@ -678,10 +784,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
               type="submit"
               className="px-5 py-2.5 rounded-xl text-xs font-bold bg-teal-500 hover:bg-teal-400 active:scale-95 text-slate-950 min-h-[44px] shadow-lg shadow-teal-100/70 transition"
             >
-              Save Record
+              Save {activeType==='class'?'Class':activeType==='self_help'?'Meeting':activeType==='event'?'Appointment':activeType==='location'?'Location':activeType==='transaction'?'Transaction':'Record'}
             </button>
           </div>
-        </form>
+        </form>}
       </div>
     </div>
   );

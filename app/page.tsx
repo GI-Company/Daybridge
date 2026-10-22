@@ -11,6 +11,7 @@ import { QuickAddModal } from '../components/common/QuickAddModal';
 import { TodayView } from '../components/today/TodayView';
 import { ScheduleView } from '../components/schedule/ScheduleView';
 import { LocationsView } from '../components/travel/LocationsView';
+import { AutomaticTravelReminders } from '../components/travel/AutomaticTravelReminders';
 import { MoneyView } from '../components/money/MoneyView';
 import { HealthView } from '../components/health/HealthView';
 import { CourtView } from '../components/court/CourtView';
@@ -26,11 +27,12 @@ export default function HomePage() {
 function PrivateWorkspace({userId}:{userId:string}) {
   const [currentTab, setCurrentTab] = useState<string>('today');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [quickAddType,setQuickAddType]=useState<'event'|'medication'>('event');
-  const openQuickAdd=(type:'event'|'medication'='event')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
+  const [quickAddType,setQuickAddType]=useState<'event'|'medication'|undefined>(undefined);
+  const openQuickAdd=(type?:'event'|'medication')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
 
   return (
     <DayBridgeProvider userId={userId}>
+      <AutomaticTravelReminders/>
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950">
         {/* Sticky Header */}
         <Header
@@ -56,7 +58,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
           )}
 
           {currentTab === 'schedule' && (
-            <ScheduleView onOpenQuickAdd={() => openQuickAdd()} />
+            <ScheduleView onOpenQuickAdd={() => openQuickAdd('event')} />
           )}
 
           {currentTab === 'locations' && <LocationsView />}
