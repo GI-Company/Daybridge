@@ -46,11 +46,18 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
     markBillPaid,
     reserves,
     updateReserve,
+    addReserve,
+    deleteReserve,
     profile,
   } = useDayBridge();
 
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [showAccountForm,setShowAccountForm]=useState(false);
+  const [showReserveForm,setShowReserveForm]=useState(false);
+  const [reserveName,setReserveName]=useState('');
+  const [reserveAmount,setReserveAmount]=useState('');
+  const [reserveTarget,setReserveTarget]=useState('');
+  const [reserveEssential,setReserveEssential]=useState(true);
   const [payingBillId,setPayingBillId]=useState<string|null>(null);
   const [billAccountId,setBillAccountId]=useState('');
   const activeAccounts=accounts.filter(a=>a.isActive);
@@ -102,6 +109,22 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
     setBudgetMessage(name+' marked paid and deducted from '+account.name+'.');
   };
 
+  const createReserve=(event:React.FormEvent)=>{
+    event.preventDefault();
+    const amount=parseDollarsToCents(reserveAmount),target=parseDollarsToCents(reserveTarget||reserveAmount);
+    if(!reserveName.trim()||!/^\d+(?:\.\d{1,2})?$/.test(reserveAmount.trim())||
+       !(amount>=0)||!Number.isSafeInteger(amount)||!Number.isSafeInteger(target)||target<0){
+      setBudgetMessage('Enter a reserve name and a valid amount.');return;
+    }
+    if(reserves.some(r=>r.name.toLowerCase()===reserveName.trim().toLowerCase())){
+      setBudgetMessage('This reserve already exists. Use its adjustment buttons.');return;
+    }
+    addReserve({name:reserveName.trim(),category:'other',allocatedCents:amount,
+      targetCents:Math.max(amount,target),isEssential:reserveEssential});
+    setReserveName('');setReserveAmount('');setReserveTarget('');
+    setShowReserveForm(false);
+    setBudgetMessage('Reserve added. Essential reserves are excluded from safe-to-spend.');
+  };
   const handleRecordAdvance = (e: React.FormEvent) => {
     e.preventDefault();
     const amountCents = parseDollarsToCents(advanceAmountInput);
@@ -503,7 +526,32 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
             Money set aside for essentials so you don&apos;t accidentally spend it
           </p>
         </div>
-
+        <button type="button" onClick={()=>setShowReserveForm(v=>!v)}
+          className="mb-3 min-h-[44px] rounded-xl border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-900">
+          {showReserveForm?'Cancel':'+ Add reserve'}
+        </button>
+        {showReserveForm&&<form data-daybridge-draft="true" onSubmit={createReserve} className="mb-4 space-y-3 rounded-xl border border-teal-200 bg-teal-50 p-4">
+          <label className="block text-sm font-medium text-slate-800">What are you saving for?
+            <input required value={reserveName} onChange={e=>setReserveName(e.target.value)}
+              placeholder="e.g. Gas, Groceries, Car maintenance" className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3"/>
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm font-medium text-slate-800">Set aside now ($)
+              <input required inputMode="decimal" value={reserveAmount} onChange={e=>setReserveAmount(e.target.value)}
+                placeholder="0.00" className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3"/>
+            </label>
+            <label className="block text-sm font-medium text-slate-800">Goal ($), optional
+              <input inputMode="decimal" value={reserveTarget} onChange={e=>setReserveTarget(e.target.value)}
+                placeholder="Same as reserve" className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3"/>
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-800">
+            <input type="checkbox" checked={reserveEssential} onChange={e=>setReserveEssential(e.target.checked)}
+              className="h-4 w-4 accent-teal-800"/>Exclude this amount from safe-to-spend
+          </label>
+          <button type="submit" className="min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-bold text-white">Save reserve</button>
+        </form>}
+        {!reserves.length&&<p className="mb-3 text-sm text-slate-600">No reserves yet. Add one to protect money for essentials.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {reserves.map((res) => (
             <div key={res.id} className="p-3.5 bg-slate-50/90 border border-slate-200 rounded-2xl">
@@ -527,8 +575,11 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
                   +$5
                 </button>
                 <span className="text-[11px] text-slate-600 ml-auto">
-                  Target: {formatCents(res.targetCents)}
+                  Goal: {formatCents(res.targetCents)}
                 </span>
+                <button type="button" aria-label={'Delete reserve '+res.name}
+                 onClick={()=>{if(window.confirm('Remove '+res.name+' from your reserves? This changes safe-to-spend but does not move money.'))deleteReserve(res.id);}}
+                 className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-2 text-xs text-rose-800">Remove</button>
               </div>
             </div>
           ))}
