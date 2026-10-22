@@ -8,9 +8,10 @@ import {useDayBridge} from '../../lib/storage/store';
 
 type Place=Point&{label:string};
 export function TravelPlanner({eventId,title,startTime,location}:{eventId:string;title:string;startTime:Date|string;location?:string}){
- const {updateEvent}=useDayBridge(),client=createClient();
+ const {updateEvent,savedPlaces}=useDayBridge(),client=createClient();
  const [prefs,setPrefs]=useState<TravelPrefs>(defaults),[address,setAddress]=useState(location||'');
- const [place,setPlace]=useState<Place|null>(null),[options,setOptions]=useState<Place[]>([]);
+ const initialSaved=savedPlaces.find(p=>p.address===location);
+ const [place,setPlace]=useState<Place|null>(initialSaved?{label:initialSaved.address,lat:initialSaved.lat,lon:initialSaved.lon}:null),[options,setOptions]=useState<Place[]>([]);
  const [origin,setOrigin]=useState<Point|null>(null),[estimate,setEstimate]=useState<RouteResult|null>(null);
  const [choice,setChoice]=useState(0),[busy,setBusy]=useState(false),[status,setStatus]=useState('');
  const [monitor,setMonitor]=useState(false),[active,setActive]=useState(false);
@@ -89,6 +90,7 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   <h4 className="flex items-center gap-2 font-bold text-teal-950"><MapPinned className="h-5 w-5"/>Appointment travel</h4>
   <p className="text-xs text-slate-700">Appointment: {title}. Optional navigation and alerts will not start without your action.</p>
   <label className="block text-sm font-semibold text-slate-800">Destination street address</label>
+  {!!savedPlaces.length&&<select aria-label="Choose saved destination" value={savedPlaces.find(p=>p.address===place?.label)?.id||''} onChange={e=>{const p=savedPlaces.find(p=>p.id===e.target.value);if(p){setPlace({label:p.address,lat:p.lat,lon:p.lon});setAddress(p.address);setOptions([]);setEstimate(null)}}} className="w-full rounded-xl border border-teal-300 bg-white p-3 text-sm"><option value="">Choose a saved location</option>{savedPlaces.map(p=><option key={p.id} value={p.id}>{p.label} · {p.category.replace('_',' ')}</option>)}</select>}
   <div className="flex gap-2"><input value={address} onChange={e=>{setAddress(e.target.value);setPlace(null);setEstimate(null)}} placeholder="Street address, city, state" className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white p-2 text-sm"/><button type="button" onClick={()=>void geocode()} disabled={busy||address.length<6} className="rounded-xl bg-teal-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Verify</button></div>
   {options.map((p,i)=><button type="button" key={i} onClick={()=>{setPlace(p);setAddress(p.label);setOptions([]);setStatus('Destination selected.')}} className="block w-full rounded-lg border border-slate-200 bg-white p-2 text-left text-xs text-slate-800">{p.label}</button>)}
   <p className="text-xs text-slate-600">{prefs.origin_kind==='current'?'Route preview will request current location while this screen is open.':'Using your approved saved location for preview.'}</p>

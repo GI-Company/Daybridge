@@ -10,6 +10,7 @@ import { Navigation } from '../components/common/Navigation';
 import { QuickAddModal } from '../components/common/QuickAddModal';
 import { TodayView } from '../components/today/TodayView';
 import { ScheduleView } from '../components/schedule/ScheduleView';
+import { LocationsView } from '../components/travel/LocationsView';
 import { MoneyView } from '../components/money/MoneyView';
 import { HealthView } from '../components/health/HealthView';
 import { CourtView } from '../components/court/CourtView';
@@ -25,13 +26,15 @@ export default function HomePage() {
 function PrivateWorkspace({userId}:{userId:string}) {
   const [currentTab, setCurrentTab] = useState<string>('today');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickAddType,setQuickAddType]=useState<'event'|'medication'>('event');
+  const openQuickAdd=(type:'event'|'medication'='event')=>{setQuickAddType(type);setIsQuickAddOpen(true)};
 
   return (
     <DayBridgeProvider userId={userId}>
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950">
         {/* Sticky Header */}
         <Header
-          onOpenQuickAdd={() => setIsQuickAddOpen(true)}
+          onOpenQuickAdd={() => openQuickAdd()}
           onNavigate={(tab) => setCurrentTab(tab)}
           currentTab={currentTab}
         />
@@ -48,37 +51,39 @@ function PrivateWorkspace({userId}:{userId:string}) {
           {currentTab === 'today' && (
             <TodayView
               onNavigate={(tab) => setCurrentTab(tab)}
-              onOpenQuickAdd={() => setIsQuickAddOpen(true)}
+              onOpenQuickAdd={() => openQuickAdd()}
             />
           )}
 
           {currentTab === 'schedule' && (
-            <ScheduleView onOpenQuickAdd={() => setIsQuickAddOpen(true)} />
+            <ScheduleView onOpenQuickAdd={() => openQuickAdd()} />
           )}
 
+          {currentTab === 'locations' && <LocationsView />}
+
           {currentTab === 'money' && (
-            <MoneyView onOpenQuickAdd={() => setIsQuickAddOpen(true)} />
+            <MoneyView onOpenQuickAdd={() => openQuickAdd()} />
           )}
 
           {currentTab === 'health' && (
-            <HealthView onOpenQuickAdd={() => setIsQuickAddOpen(true)} />
+            <HealthView onOpenQuickAdd={() => openQuickAdd('medication')} />
           )}
 
           {currentTab === 'court' && (
             <CourtView
-              onOpenQuickAdd={() => setIsQuickAddOpen(true)}
+              onOpenQuickAdd={() => openQuickAdd()}
               onNavigate={(tab) => setCurrentTab(tab)}
             />
           )}
 
           {currentTab === 'tasks' && (
-            <TasksView onOpenQuickAdd={() => setIsQuickAddOpen(true)} />
+            <TasksView onOpenQuickAdd={() => openQuickAdd()} />
           )}
 
           {currentTab === 'review' && <ReviewView />}
 
           {currentTab === 'resources' && (
-            <ResourcesView onOpenQuickAdd={() => setIsQuickAddOpen(true)} />
+            <ResourcesView onOpenQuickAdd={() => openQuickAdd()} />
           )}
 
           {currentTab === 'settings' && <SettingsView />}
@@ -87,6 +92,8 @@ function PrivateWorkspace({userId}:{userId:string}) {
 
         {/* Unified Quick Add Modal */}
         <QuickAddModal
+          key={quickAddType+'-'+(isQuickAddOpen?'open':'closed')}
+          initialType={quickAddType}
           isOpen={isQuickAddOpen}
           onClose={() => setIsQuickAddOpen(false)}
         />

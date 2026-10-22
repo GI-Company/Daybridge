@@ -181,7 +181,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                         <span>Self-reported Attended</span>
                       </span>
                     ) : isNotAttended ? (
-                      <span className="inline-flex items-center gap-1 text-rose-400 font-semibold">
+                      <span className="inline-flex items-center gap-1 text-rose-700 font-semibold">
                         <XCircle className="w-3.5 h-3.5" />
                         <span>Self-reported Not Attended</span>
                       </span>
@@ -320,7 +320,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                     }}
                     className={`p-3 rounded-xl font-bold min-h-[44px] transition flex items-center justify-center gap-2 border ${
                       selectedOccurrence.attendanceStatus === 'not_attended_self_reported'
-                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        ? 'bg-rose-500/20 text-rose-800 border-rose-500/40'
                         : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
@@ -342,7 +342,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                       setSelectedOccurrence(null);
                     }
                   }}
-                  className="flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 p-2 rounded-lg hover:bg-rose-950/40 transition"
+                  className="flex items-center gap-1.5 text-xs text-rose-700 hover:text-rose-800 p-2 rounded-lg hover:bg-rose-950/40 transition"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete Event</span>

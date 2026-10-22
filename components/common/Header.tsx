@@ -31,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-semibold text-slate-900 text-base leading-tight">DayBridge</h1>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200">
+              <span className="hidden sm:inline text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200">
                 Personal
               </span>
             </div>

@@ -21,6 +21,7 @@ import {
   MEDICAL_DISCLAIMER,
 } from '../../lib/medication';
 import { formatDate } from '../../lib/date-time';
+import {MedicationScheduleManager} from './MedicationScheduleManager';
 
 interface HealthViewProps {
   onOpenQuickAdd: () => void;
@@ -99,7 +100,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
                     isTaken
                       ? 'bg-teal-50 border-teal-800/40 shadow-sm'
                       : isSkipped
-                      ? 'bg-slate-950/40 border-slate-200 opacity-60'
+                      ? 'bg-slate-50 border-slate-200 opacity-60'
                       : 'bg-slate-50/90 border-slate-200'
                   }`}
                 >
@@ -201,7 +202,9 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
         )}
       </section>
 
+      <MedicationScheduleManager/>
       {/* 2. REFILL OUTLOOK & INVENTORY */}
+      <details className="rounded-3xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer p-3 text-sm font-semibold text-slate-900">Refills & inventory <span className="text-xs font-normal text-slate-600">· Expand</span></summary>
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
         <div className="mb-3">
           <h3 className="font-bold text-slate-900 text-base">Refill Outlook & Inventory</h3>
@@ -248,6 +251,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
         </div>
       </section>
 
+      </details>
       {/* 3. AS-NEEDED (PRN) MEDICATIONS */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
         <div className="mb-3">
@@ -285,6 +289,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
       </section>
 
       {/* 4. DOSE LOG HISTORY AUDIT */}
+      <details className="rounded-3xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer p-3 text-sm font-semibold text-slate-900">Recent dose history <span className="text-xs font-normal text-slate-600">· Expand</span></summary>
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
         <div className="mb-3">
           <h3 className="font-bold text-slate-900 text-base">Recent Dose Log History</h3>
@@ -300,7 +305,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
               return (
                 <div
                   key={log.id}
-                  className="p-3 bg-slate-950/60 border border-slate-200 rounded-xl flex items-center justify-between text-xs"
+                  className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs"
                 >
                   <div>
                     <span className="font-semibold text-slate-800">
@@ -331,6 +336,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
           <p className="text-xs text-slate-600 py-2">No medication logs recorded yet.</p>
         )}
       </section>
+      </details>
     </div>
   );
 };

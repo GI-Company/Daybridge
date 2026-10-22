@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { CalendarDays, Wallet, Pill, House, Menu, Scale, CheckSquare, FileText, ContactRound, Settings, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { CalendarDays, Wallet, Pill, House, MapPinned, Menu, Scale, CheckSquare, FileText, ContactRound, Settings, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
-type TabId = 'today' | 'schedule' | 'money' | 'health' | 'court' | 'tasks' | 'review' | 'resources' | 'settings';
+type TabId = 'today' | 'schedule' | 'money' | 'health' | 'locations' | 'court' | 'tasks' | 'review' | 'resources' | 'settings';
 interface NavigationProps { currentTab: string; onTabChange: (tab: string) => void }
 const mainTabs = [
  { id:'today', label:'Today', icon:House },
  { id:'schedule', label:'Schedule', icon:CalendarDays },
+ { id:'health', label:'Medications', icon:Pill },
+ { id:'locations', label:'Locations & maps', icon:MapPinned },
  { id:'money', label:'Budget', icon:Wallet },
- { id:'health', label:'Prescriptions', icon:Pill },
 ] as const;
 const groups = [
  { name:'Accountability & Planning', entries:[
@@ -26,7 +27,7 @@ const groups = [
 export function Navigation({ currentTab, onTabChange }:NavigationProps) {
  const [open,setOpen]=useState(false);
  const [collapsed,setCollapsed]=useState(false);
- const [expanded,setExpanded]=useState<Record<string,boolean>>({'Accountability & Planning':true,'Personal tools':true});
+ const [expanded,setExpanded]=useState<Record<string,boolean>>({'Accountability & Planning':false,'Personal tools':false});
  useEffect(()=>{ if(!open) return; const handler=(e:KeyboardEvent)=>{if(e.key==='Escape')setOpen(false)};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[open]);
  const choose=(id:TabId)=>{onTabChange(id);setOpen(false)};
  const menu=(prefix:string)=>(

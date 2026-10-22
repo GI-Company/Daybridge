@@ -23,14 +23,15 @@ import { EventCategory, VenueType, PriorityLevel } from '../../lib/types';
 interface QuickAddModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialType?: QuickAddType;
 }
 
 type QuickAddType = 'event' | 'medication' | 'task' | 'transaction' | 'bill' | 'contact';
 
-export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose }) => {
-  const { addEvent, addMedication, addTask, addTransaction, addBill, addContact, accounts } = useDayBridge();
+export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType='event' }) => {
+  const { addEvent, addMedication, addTask, addTransaction, addBill, addContact, accounts, savedPlaces } = useDayBridge();
 
-  const [activeType, setActiveType] = useState<QuickAddType>('event');
+  const [activeType, setActiveType] = useState<QuickAddType>(initialType);
 
   // Event form state
   const [eventTitle, setEventTitle] = useState('');
@@ -88,6 +89,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
       const endIso = `${eventDate}T${eventEndTime}:00`;
       const rrule = eventRepeatWeekly ? 'FREQ=WEEKLY' : undefined;
 
+      const matchedPlace=savedPlaces.find(place=>place.address===eventLocation.trim());
       addEvent({
         title: eventTitle.trim(),
         category: eventCategory,
@@ -97,6 +99,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
         timezone: 'America/New_York',
         venueType: eventVenue,
         location: eventLocation.trim(),
+        destinationLat:matchedPlace?.lat,
+        destinationLon:matchedPlace?.lon,
         contactInfo: eventContact.trim(),
         rrule,
         travelBufferMinutes: parseInt(eventTravelBuffer, 10) || 0,
@@ -171,10 +175,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white border border-slate-200 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-950/40">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50">
           <h2 className="font-semibold text-slate-900 text-base flex items-center gap-2">
             <span>Quick Add</span>
           </h2>
@@ -188,7 +192,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Type Selector Pills (44px min tap targets) */}
-        <div className="p-3 bg-slate-950/60 border-b border-slate-200 overflow-x-auto flex gap-1.5 scrollbar-none">
+        <div className="p-3 bg-slate-50 border-b border-slate-200 overflow-x-auto flex gap-1.5 scrollbar-none">
           {[
             { id: 'event', label: 'Appointment / Class', icon: Calendar },
             { id: 'medication', label: 'Medication', icon: Pill },
@@ -302,7 +306,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {eventVenue==='in_person'&&<div className="rounded-xl border border-teal-200 bg-teal-50 p-3 space-y-2">
+                <label htmlFor="event-saved-location" className="block text-sm font-semibold text-teal-950">Choose a saved location</label>
+                <select id="event-saved-location" value={savedPlaces.find(p=>p.address===eventLocation)?.id??''} onChange={e=>{const picked=savedPlaces.find(p=>p.id===e.target.value);if(picked)setEventLocation(picked.address);}} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900">
+                 <option value="">Enter an address manually</option>
+                 {savedPlaces.map(p=><option key={p.id} value={p.id}>{p.label} · {p.category.replace('_',' ')}</option>)}
+                </select>
+                <p className="text-xs text-teal-900">Selecting one fills the appointment address automatically. Add more in Locations & maps.</p>
+              </div>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Location or Meeting Link</label>
                   <input

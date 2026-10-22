@@ -135,7 +135,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
 
         {/* Potential Conflict Warning Alert (Only if conflicts exist) */}
         {conflicts.length > 0 && (
-          <div className="mb-4 p-3.5 bg-amber-50 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-200">
+          <div className="mb-4 p-3.5 bg-amber-50 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-amber-950">
             <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
             <div className="text-xs">
               <span className="font-semibold block text-amber-800">Schedule Notice:</span>
@@ -247,7 +247,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             </div>
           </div>
         ) : (
-          <div className="bg-slate-950/60 border border-slate-200 rounded-2xl p-4 text-center text-slate-600 text-xs">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center text-slate-600 text-xs">
             Nothing else scheduled right now.
           </div>
         )}
@@ -287,7 +287,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                     isTaken
                       ? 'bg-teal-50 border-teal-800/40'
                       : isSkipped
-                      ? 'bg-slate-950/40 border-slate-200 opacity-60'
+                      ? 'bg-slate-50 border-slate-200 opacity-60'
                       : 'bg-slate-50/90 border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -470,7 +470,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
               <div
                 key={task.id}
                 onClick={() => toggleTask(task.id)}
-                className="flex items-center gap-3 p-3 rounded-2xl bg-slate-950/60 border border-slate-200 hover:border-slate-750 transition cursor-pointer min-h-[48px]"
+                className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-750 transition cursor-pointer min-h-[48px]"
               >
                 <div
                   className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 ${
@@ -491,7 +491,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                       {task.title}
                     </span>
                     {task.priority === 'urgent' && (
-                      <span className="text-[10px] uppercase font-bold text-rose-300 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800/40">
+                      <span className="text-[10px] uppercase font-bold text-rose-800 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800/40">
                         Urgent
                       </span>
                     )}
@@ -529,7 +529,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             {tomorrowEvents.map((evt) => (
               <div
                 key={evt.id}
-                className="p-3 rounded-xl bg-slate-950/40 border border-slate-200 flex items-center justify-between"
+                className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between"
               >
                 <div>
                   <div className="font-medium text-xs text-slate-800">{evt.title}</div>
