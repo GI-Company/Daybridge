@@ -12,6 +12,7 @@ import { TodayView } from '../components/today/TodayView';
 import { ScheduleView } from '../components/schedule/ScheduleView';
 import { LocationsView } from '../components/travel/LocationsView';
 import { AutomaticTravelReminders } from '../components/travel/AutomaticTravelReminders';
+import {BackgroundReadiness} from '../components/common/BackgroundReadiness';
 import { MoneyView } from '../components/money/MoneyView';
 import { HealthView } from '../components/health/HealthView';
 import { CourtView } from '../components/court/CourtView';
@@ -60,6 +61,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
   return (
     <DayBridgeProvider userId={userId}>
       <AutomaticTravelReminders/>
+      <BackgroundReadiness userId={userId}/>
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950">
         {/* Sticky Header */}
         <Header
