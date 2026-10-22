@@ -81,7 +81,7 @@ export async function readDeviceSnapshot(userId:string):Promise<DeviceSnapshot|n
  if(envelope.version!==1||!envelope.iv||!envelope.ciphertext)throw new Error('Unsupported local record format');
  const key=await keyFor(userId);
  const decoded=await crypto.subtle.decrypt({
-  name:'AES-GCM',iv:envelope.iv,additionalData:additionalData(userId)
+  name:'AES-GCM',iv:new Uint8Array(envelope.iv).buffer,additionalData:additionalData(userId).buffer as ArrayBuffer
  },key,envelope.ciphertext);
  const value=JSON.parse(new TextDecoder().decode(decoded)) as DeviceSnapshot;
  if(!value||typeof value!=='object'||!value.payload||Array.isArray(value.payload)
@@ -94,8 +94,8 @@ export async function writeDeviceSnapshot(userId:string,snapshot:DeviceSnapshot)
  const iv=crypto.getRandomValues(new Uint8Array(12));
  const encoded=new TextEncoder().encode(JSON.stringify(snapshot));
  const ciphertext=await crypto.subtle.encrypt({
-  name:'AES-GCM',iv,additionalData:additionalData(userId)
- },key,encoded);
+  name:'AES-GCM',iv:iv.buffer,additionalData:additionalData(userId).buffer as ArrayBuffer
+ },key,encoded.buffer as ArrayBuffer);
  await writeEntry(SNAPSHOTS,userId,{version:1,iv,ciphertext} satisfies Envelope);
 }
 export async function requestDurableStorage():Promise<boolean>{

@@ -135,6 +135,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const conflictRef=useRef(false);
   const localFailedRef=useRef(false);
   const deviceWritingRef=useRef(false);
+  const volatileEditRef=useRef(false);
   const deviceWriteChain=useRef<Promise<void>>(Promise.resolve());
   const saveTimerRef=useRef<number|null>(null);
   const aliveRef=useRef(true);
@@ -147,6 +148,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     deviceWriteChain.current=next;
     void next.then(()=>{
       localFailedRef.current=false;
+      if(pendingRef.current?.fingerprint===JSON.stringify(data.payload))volatileEditRef.current=false;
       if(aliveRef.current&&pendingRef.current&&pendingRef.current.fingerprint===JSON.stringify(data.payload)){
         setSyncStatus(navigator.onLine?'syncing':'device_saved');
       }
@@ -243,7 +245,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     const onRetry=()=>retrySync();
     const onVisibility=()=>{if(document.visibilityState==='visible')retrySync();};
     const onBeforeUnload=(event:BeforeUnloadEvent)=>{
-      if(deviceWritingRef.current||localFailedRef.current||conflictRef.current){
+      if(volatileEditRef.current||deviceWritingRef.current||localFailedRef.current||conflictRef.current){
         event.preventDefault();event.returnValue='';
       }
     };
@@ -386,6 +388,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     }
     if(fingerprint===savedFingerprintRef.current&&!pendingRef.current)return;
     pendingRef.current={payload,fingerprint};
+    volatileEditRef.current=true;
     setSyncStatus('syncing');
     // Encrypt and durably stage before attempting any network update.
     void saveOnDevice({payload,revision:revisionRef.current,dirty:true,updatedAt:Date.now()})
