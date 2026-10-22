@@ -15,15 +15,19 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
  const [origin,setOrigin]=useState<Point|null>(null),[estimate,setEstimate]=useState<RouteResult|null>(null);
  const [choice,setChoice]=useState(0),[busy,setBusy]=useState(false),[status,setStatus]=useState('');
  const [monitor,setMonitor]=useState(false),[active,setActive]=useState(false);
+ const [monitorPlanId,setMonitorPlanId]=useState<string|null>(null);
+ const [departedAt,setDepartedAt]=useState<string|null>(null);
+ const [ackBusy,setAckBusy]=useState(false);
  const [guiding,setGuiding]=useState(false),[guidance,setGuidance]=useState('');
  const at=new Date(startTime).toISOString();
  useEffect(()=>{
   let valid=true;
   client?.from('travel_preferences').select('*').maybeSingle().then(({data}: {data:Partial<TravelPrefs>|null})=>{if(valid&&data)setPrefs({...defaults,...data})});
-  client?.from('travel_appointments').select('destination_address,destination_lat,destination_lon,enabled,cancelled,origin_lat,origin_lon').eq('source_event_id',eventId).eq('occurrence_start',at).maybeSingle().then(({data}: {data:{destination_address:string;destination_lat:number;destination_lon:number;enabled:boolean;cancelled:boolean;origin_lat:number|null;origin_lon:number|null}|null})=>{
+  client?.from('travel_appointments').select('id,destination_address,destination_lat,destination_lon,enabled,cancelled,origin_lat,origin_lon,departed_at').eq('source_event_id',eventId).eq('occurrence_start',at).maybeSingle().then(({data}: {data:{id:string;destination_address:string;destination_lat:number;destination_lon:number;enabled:boolean;cancelled:boolean;origin_lat:number|null;origin_lon:number|null;departed_at:string|null}|null})=>{
    if(!valid||!data)return;
    setAddress(data.destination_address);setPlace({label:data.destination_address,lat:data.destination_lat,lon:data.destination_lon});setActive(Boolean(data.enabled&&!data.cancelled));
    setMonitor(data.origin_lat!==null&&data.origin_lon!==null);
+   setMonitorPlanId(data.id);setDepartedAt(data.departed_at);
   });
   return()=>{valid=false};
  },[eventId,at]);
@@ -149,7 +153,7 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   const approved=monitor&&prefs.saved_origin_lat!==null&&prefs.saved_origin_lon!==null;
   if(monitor&&!approved){setStatus('To enable closed-app alerts, approve a saved location in Settings first.');setBusy(false);return}
   const revision=[at,place.lat,place.lon,prefs.travel_mode,prefs.arrival_buffer_minutes].join(':');
-  const {error}=await client.from('travel_appointments').upsert({
+  const {data:savedPlan,error}=await client.from('travel_appointments').upsert({
    user_id:user.data.user.id,source_event_id:eventId,occurrence_start:at,
    destination_address:place.label,destination_lat:place.lat,destination_lon:place.lon,
    origin_lat:approved?prefs.saved_origin_lat:null,origin_lon:approved?prefs.saved_origin_lon:null,
@@ -157,10 +161,10 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
    travel_mode:prefs.travel_mode,arrival_buffer_minutes:prefs.arrival_buffer_minutes,
    timezone:'America/New_York',source_revision:revision,
    cancelled:false,enabled:true,updated_at:new Date().toISOString()
-  },{onConflict:'user_id,source_event_id,occurrence_start'});
+  },{onConflict:'user_id,source_event_id,occurrence_start'}).select('id,departed_at').single();
   if(!error){
    updateEvent(eventId,{location:place.label,destinationLat:place.lat,destinationLon:place.lon,travelMode:prefs.travel_mode,travelBufferMinutes:prefs.arrival_buffer_minutes});
-   setActive(true);setStatus(approved?'Saved with background departure alerts.':'Travel destination saved. Background monitoring off; current GPS only works while app is open.');
+   setActive(true);setMonitorPlanId(savedPlan?.id||null);setDepartedAt(savedPlan?.departed_at||null);setStatus(approved?'Saved with background departure alerts.':'Travel destination saved. Background monitoring off; current GPS only works while app is open.');
   }else setStatus('Save failed. Please retry.');
   setBusy(false);
  }
@@ -168,6 +172,22 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   if(!client)return;
   const {error}=await client.from('travel_appointments').update({enabled:false,cancelled:true,updated_at:new Date().toISOString()}).eq('source_event_id',eventId).eq('occurrence_start',at);
   if(error)setStatus('Could not disable. Try again.');else{setActive(false);setStatus('Travel monitoring disabled for this appointment.')}
+ }
+ async function acknowledgeDeparture(){
+  if(!monitorPlanId){setStatus('Activate a monitored travel plan before acknowledging departure.');return;}
+  setAckBusy(true);
+  try{
+   const response=await fetch('/api/travel/acknowledge',{
+    method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({appointmentId:monitorPlanId,source:'app'})
+   });
+   const result=await response.json().catch(()=>({})) as {departedAt?:string;error?:string};
+   if(!response.ok||!result.departedAt)throw Error(result.error||'Departure was not confirmed.');
+   setDepartedAt(result.departedAt);
+   setStatus('On my way confirmed. Traffic change alerts continue on the planned route.');
+  }catch(error){
+   setStatus(error instanceof Error?error.message:'Could not confirm departure. Try again.');
+  }finally{setAckBusy(false)}
  }
  const selected=estimate?.routes[choice];
  const destination=place?{lat:place.lat,lon:place.lon}:null;
@@ -197,6 +217,17 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
     <button type="button" onClick={()=>setGuiding(!guiding)} className="flex gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-800"><Navigation className="h-4 w-4"/>{guiding?'Stop foreground guidance':'Start foreground guidance'}</button>
    </div>}
    {guiding&&<div className="rounded-xl bg-white p-3 text-xs text-slate-800"><p role="status">{guidance||'Foreground location tracking started. Use an external navigation app for spoken turns.'}</p>{selected.instructions?.length ? <ol className="mt-3 max-h-48 overflow-y-auto list-decimal space-y-2 pl-5" aria-label="Route maneuver instructions">{selected.instructions.map((step,i)=><li key={i}>{step}</li>)}</ol> : <p>Spoken turn guidance is not available; review the map or open your preferred navigation app.</p>}</div>}
+  </div>}
+  {active&&monitorPlanId&&<div className="rounded-xl border border-teal-200 bg-white p-3">
+   {departedAt?
+    <p role="status" className="text-sm font-semibold text-teal-900">✓ On my way acknowledged. Traffic updates will continue.</p>
+    :<div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="min-w-0 flex-1 text-xs text-slate-700">Ready to leave? Confirm departure without claiming GPS-verified movement.</p>
+      <button type="button" disabled={ackBusy} onClick={()=>void acknowledgeDeparture()}
+       className="min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+       {ackBusy?'Confirming…':'On my way'}
+      </button>
+     </div>}
   </div>}
   <label className="flex gap-2 items-start text-xs text-slate-800"><input type="checkbox" className="mt-1 h-4 w-4 accent-teal-800" checked={monitor} onChange={e=>setMonitor(e.target.checked)}/>Use my explicitly approved saved location for alerts while DayBridge is closed.</label>
   <div className="flex gap-2">
