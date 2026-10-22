@@ -83,24 +83,13 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
         </button>
       </div>
 
-      {/* Category Filter Pills (44px min tap targets) */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {categories.map((cat) => {
-          const isSelected = selectedCategory === cat.id;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap min-h-[44px] transition border ${
-                isSelected
-                  ? 'bg-teal-500 text-slate-950 font-bold border-teal-400 shadow-md shadow-teal-950/40'
-                  : 'bg-white text-slate-600 hover:text-slate-800 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              {cat.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <label className="block min-w-40 flex-1 text-sm font-semibold text-slate-800">Show appointments
+         <select value={selectedCategory} onChange={e=>setSelectedCategory(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-2.5 text-sm text-slate-900">
+          {categories.map(c=><option value={c.id} key={c.id}>{c.label}</option>)}
+         </select>
+        </label>
+        <p className="text-xs text-slate-700">{filteredOccurrences.length} upcoming item{filteredOccurrences.length===1?'':'s'} · Next 14 days</p>
       </div>
 
       {/* Conflict Warnings */}
@@ -111,7 +100,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
             <span>Scheduling & Buffer Notices ({conflicts.length})</span>
           </div>
           {conflicts.map((c, idx) => (
-            <p key={idx} className="text-xs text-amber-200/90 pl-6">
+            <p key={idx} className="text-xs text-amber-950 pl-6">
               • {c.explanation}
             </p>
           ))}
@@ -146,7 +135,7 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({ onOpenQuickAdd }) =>
                       {isCourt && (
                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-800/60">
                           <Scale className="w-3 h-3" />
-                          <span>Court Requirement</span>
+                          <span>{occ.category==='court'?'Court appearance':occ.category==='drug_testing'?'Drug test':'Class / group'}</span>
                         </span>
                       )}
                     </div>

@@ -231,35 +231,17 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                   Category
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {[
-                    { id: 'court', label: 'Court', icon: Scale },
-                    { id: 'class', label: 'Class / Group', icon: Calendar },
-                    { id: 'drug_testing', label: 'Drug Testing', icon: CheckSquare },
-                    { id: 'therapy', label: 'Therapy', icon: HeartHandshake },
-                    { id: 'work', label: 'Work Shift', icon: Briefcase },
-                    { id: 'case_management', label: 'Case Mgmt', icon: CheckSquare },
-                    { id: 'personal', label: 'Personal', icon: Calendar },
-                    { id: 'other', label: 'Other', icon: Clock },
-                  ].map((cat) => {
-                    const isCatSelected = eventCategory === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setEventCategory(cat.id as EventCategory)}
-                        className={`flex items-center gap-1.5 p-2 rounded-lg text-xs font-medium min-h-[44px] justify-center transition border ${
-                          isCatSelected
-                            ? 'bg-teal-500/20 text-teal-800 border-teal-500/50 font-semibold'
-                            : 'bg-slate-100/90 text-slate-600 border-slate-700/40 hover:bg-slate-100'
-                        }`}
-                      >
-                        <cat.icon className="w-3.5 h-3.5" />
-                        <span>{cat.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <select value={eventCategory} onChange={e=>setEventCategory(e.target.value as EventCategory)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-medium text-slate-900">
+                  <option value="court">Court appearance</option>
+                  <option value="class">Class / group session</option>
+                  <option value="drug_testing">Drug testing</option>
+                  <option value="therapy">Therapy</option>
+                  <option value="work">Work shift</option>
+                  <option value="case_management">Case management</option>
+                  <option value="personal">Personal appointment</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
 
               <div>
