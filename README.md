@@ -20,11 +20,11 @@ The mobile navigation groups the four primary sections as **Today, Schedule, Tas
 
 ## Travel, maps and notifications
 
-**Maps page.** Open **More → Locations & Maps**. DayBridge displays an interactive **TomTom Orbis v2 raster** street map before any route is selected. It can show approved saved places, search results and optional Traffic Flow / Road Incidents overlays. Selecting a destination adds a route and ETA to the *same* map.
+**Maps page.** Open **More → Locations & Maps**. DayBridge displays an interactive **TomTom Orbis v2 raster** street map before any route is selected. It can show approved saved places, search results and optional Traffic Flow / Road Incidents overlays. The next in-person calendar appointment supplies the destination and timing automatically. Its route, alternatives, ETA, leave-by time and navigation appear directly below the *same* map; no separate trip form is needed. Upcoming appointments can be selected from the calendar list, and selecting a saved place or search result temporarily shows that destination instead.
 
 **Location.** With existing browser location permission, DayBridge may center the open map on the device; otherwise choose **Use my location** to request permission. Without GPS, the initial view is labeled as an approved origin, saved location or country overview. A saved location is **not** represented as a live GPS fix.
 
-**Routes.** TomTom Routing provides distance, ETA, travel time, traffic delays and alternatives from the chosen origin while the app is open. External Google Maps / Apple Maps links are offered for navigation.
+**Routes.** TomTom Routing loads automatically from a permitted current location or explicitly approved starting location. It uses verified appointment coordinates or an unambiguous matching saved place, plus the appointment time, travel mode and arrival buffer. Missing or ambiguous destinations prompt correction in Schedule. Schedule edits and cancellations update the trip automatically, and traffic refreshes while the map is open. Routes provide distance, ETA, travel time, traffic delays and alternatives. External Google Maps / Apple Maps links are offered for navigation.
 
 **Background departure checks.** A Supabase scheduled job runs the travel worker every five minutes for eligible monitored appointments. Closed-app forecasts currently use the user's **explicitly approved saved origin**, not live GPS. Delivery additionally depends on the event having a verified destination, compatible push subscription, user permission, configured server credentials, network availability and OS/browser policy. Five-minute scheduling does **not** guarantee exact-minute or device-visible delivery.
 

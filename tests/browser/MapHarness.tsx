@@ -4,6 +4,7 @@ import {ExploreMap, type MapPlace} from '../../components/travel/ExploreMap';
 import {RouteMap} from '../../components/travel/RouteMap';
 import type {Route} from '../../lib/travel/types';
 import {useTravelRequest} from '../../lib/travel/use-travel-request';
+import {CalendarMapHarness} from './CalendarMapHarness';
 
 const places: MapPlace[] = [
   {id: 'clinic', label: 'Test clinic', lat: 34.598, lon: -83.763},
@@ -21,15 +22,18 @@ export default function MapHarness() {
   const [selected, setSelected] = useState<string | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
   const [appointment, setAppointment] = useState(false);
+  const [calendar, setCalendar] = useState(false);
   const [position, setPosition] = useState('No position');
   const [requestResult, setRequestResult] = useState('No result');
   const beginRequest = useTravelRequest(selected ?? '');
+  if (calendar) return <main className="mx-auto max-w-4xl p-3"><CalendarMapHarness/></main>;
   return <main className="mx-auto max-w-4xl space-y-3 p-3">
     <button onClick={() => setSelected('clinic')}>Select clinic</button>{' '}
     <button onClick={() => {setSelected('clinic'); setRoute(routes[0]);}}>Show route</button>{' '}
     <button onClick={() => setRoute(routes[1])}>Alternative route</button>{' '}
     <button onClick={() => {setSelected('class'); setRoute(null);}}>Change destination</button>{' '}
     <button onClick={() => setAppointment(value => !value)}>Toggle appointment map</button>
+    <button onClick={() => setCalendar(true)}>Show calendar map</button>
     <button onClick={() => {
       const request = beginRequest();
       setRequestResult('Pending');

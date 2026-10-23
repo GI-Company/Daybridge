@@ -90,7 +90,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
             <ScheduleView focusDate={scheduleFocusDate} onOpenQuickAdd={date => openQuickAdd('event',date)} />
           )}
 
-          {currentTab === 'locations' && <LocationsView />}
+          {currentTab === 'locations' && <LocationsView onOpenSchedule={date=>{setScheduleFocusDate(date);setCurrentTab('schedule')}} />}
 
           {currentTab === 'money' && (
             <MoneyView onOpenQuickAdd={type => openQuickAdd(type)} />
