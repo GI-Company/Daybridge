@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {authenticated,jsonError} from '../../../../../../../lib/travel/auth';
 import {adminClient} from '../../../../../../../lib/travel/monitor';
 import {tomTomKey} from '../../../../../../../lib/travel/tomtom';
-import {orbisRasterTileUrl} from '../../../../../../../lib/travel/map-layers';
+import {classicTomTomRasterTileUrl,orbisRasterTileUrl} from '../../../../../../../lib/travel/map-layers';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -39,21 +39,45 @@ export async function GET(
   if(limitError)return jsonError('Map rate limiter temporarily unavailable',503);
   if(!allowed)return jsonError('Street map request limit reached',429);
 
-  const url=orbisRasterTileUrl('streets',z,x,y);
-  const upstream=await fetch(url.toString(),{
-   headers:{'TomTom-Api-Key':process.env.MAPS_DISPLAY?.trim()||tomTomKey(),'TomTom-Api-Version':'2',
-    'Accept':'image/png'},
-   cache:'no-store',
-   signal:AbortSignal.timeout(8000)
+  // The classic TomTom static map can work when the dedicated Orbis tile key
+  // is not entitled to Orbis v2. Prefer Orbis, but try the classic raster tiles
+  // with the existing server-only routing/Map Display key before failing.
+  const legacyKey=tomTomKey();
+  const primaryUrl=orbisRasterTileUrl('streets',z,x,y);
+  const requestPng=async (url:URL,headers:Record<string,string>={}):Promise<Response|null>=>{
+   try{
+    return await fetch(url.toString(),{
+     headers:{Accept:'image/png',...headers},
+     cache:'no-store',signal:AbortSignal.timeout(7000)
+    });
+   }catch{return null;}
+  };
+  const primary=await requestPng(primaryUrl,{
+   'TomTom-Api-Key':process.env.MAPS_DISPLAY?.trim()||legacyKey,
+   'TomTom-Api-Version':'2'
   });
-  if(!upstream.ok){
-   console.warn('TomTom Orbis map tile rejected',{status:upstream.status});
-   if(upstream.status===429)return jsonError('Map imagery temporarily rate-limited',429);
-   return jsonError('Map imagery unavailable (HTTP '+upstream.status+')',502);
+  const isPng=(response:Response|null)=>Boolean(response?.ok&&
+   response.headers.get('content-type')?.startsWith('image/png'));
+  let upstream:Response|null=isPng(primary)?primary:null;
+  let source:'orbis'|'classic'='orbis';
+  // Never work around a TomTom 429 response by rotating API keys.
+  if(primary?.status===429)return jsonError('Map imagery rate-limited',429);
+  if(!upstream){
+   const classicUrl=classicTomTomRasterTileUrl(z,x,y);
+   // Classic API authentication requires a URL key, but this URL is only
+   // generated and requested on the server and is never returned or logged.
+   classicUrl.searchParams.set('key',legacyKey);
+   const classic=await requestPng(classicUrl);
+   if(classic?.status===429)return jsonError('Map imagery rate-limited',429);
+   if(isPng(classic)){upstream=classic;source='classic';}
+   else{
+    console.warn('TomTom raster tile sources unavailable',{
+     orbisStatus:primary?.status??null,classicStatus:classic?.status??null
+    });
+    return jsonError('Street-map raster tiles unavailable',502);
+   }
   }
-  const mime=upstream.headers.get('content-type')||'';
-  if(!mime.startsWith('image/png'))return jsonError('Unexpected map tile format',502);
-  const bytes=await upstream.arrayBuffer();
+  const bytes=await upstream!.arrayBuffer();
   if(!bytes.byteLength||bytes.byteLength>1024*1024)
    return jsonError('Invalid map tile response',502);
   return new NextResponse(bytes,{
@@ -61,7 +85,8 @@ export async function GET(
     'Content-Type':'image/png',
     'Cache-Control':'private, max-age=300',
     'X-Content-Type-Options':'nosniff',
-    'Vary':'Cookie'
+    'Vary':'Cookie',
+    'X-DayBridge-Map-Source':source
    }
   });
  }catch{
