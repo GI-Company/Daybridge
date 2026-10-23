@@ -75,33 +75,60 @@ self.addEventListener('message',event=>{
  })());
 });
 
+function notificationDestination(raw){
+ try{
+  const target=new URL(typeof raw==='string'?raw:'/',self.location.origin);
+  if(target.origin!==self.location.origin||target.pathname!=='/')return '/';
+  const tabs=['today','schedule','locations','tasks','health','money','court','review','resources','settings'];
+  const tab=target.searchParams.get('tab');if(!tabs.includes(tab))return '/';
+  const params=new URLSearchParams({tab});
+  for(const key of ['event','task','medication','bill','account']){
+   const value=target.searchParams.get(key);if(value&&/^[\w-]{1,160}$/.test(value))params.set(key,value);
+  }
+  const date=target.searchParams.get('date');if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date))params.set('date',date);
+  const slot=target.searchParams.get('slot');if(slot&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(slot))params.set('slot',slot);
+  return '/?'+params.toString();
+ }catch{return '/';}
+}
 self.addEventListener('push',event=>{
  let message={};
  try{message=event.data?.json()||{}}catch{}
  const kind=String(message.kind||'general').replace(/[^a-z_]/g,'').slice(0,24);
  const title=typeof message.title==='string'?message.title.slice(0,100):'DayBridge reminder';
  const body=typeof message.body==='string'?message.body.slice(0,240):'Open DayBridge to review an upcoming item.';
- const pushTag=typeof message.tag==='string'&&/^daybridge-[a-z_-]+-[a-f0-9-]{36}$/.test(message.tag)?message.tag:'daybridge-'+kind;
- let url='/';
- try{
-  const target=new URL(typeof message.url==='string'?message.url:'/',self.location.origin);
-  // Push payloads can only navigate inside the private DayBridge home shell.
-  if(target.origin===self.location.origin&&target.pathname==='/')url=target.pathname+target.search;
- }catch{}
- const options={body,icon:'/icon.svg',badge:'/icon.svg',tag:pushTag,
-  data:{url},renotify:false};
- event.waitUntil(self.registration.showNotification(title,options));
+ const tag=typeof message.tag==='string'&&/^daybridge-[a-z0-9_-]{1,140}$/.test(message.tag)?message.tag:'daybridge-'+kind;
+ event.waitUntil(self.registration.showNotification(title,{body,icon:'/icon.svg',badge:'/icon.svg',tag,
+  data:{url:notificationDestination(message.url)},renotify:false,silent:message.silent===true}));
 });
+function askClient(client,message,timeout){
+ return new Promise(resolve=>{
+  const channel=new MessageChannel();
+  const finish=value=>{clearTimeout(timer);channel.port1.close();resolve(value);};
+  const timer=setTimeout(()=>finish(null),timeout);
+  channel.port1.onmessage=event=>finish(event.data);
+  try{client.postMessage(message,[channel.port2]);}catch{finish(null);}
+ });
+}
 self.addEventListener('notificationclick',event=>{
  event.notification.close();
- const destination=event.notification.data?.url||'/';
- event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(async clients=>{
-  const existing=clients.find(c=>new URL(c.url).origin===self.location.origin);
+ const destination=notificationDestination(event.notification.data?.url);
+ event.waitUntil((async()=>{
+  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  const eligible=windows.filter(client=>{
+   try{const url=new URL(client.url);return url.origin===self.location.origin&&url.pathname==='/';}catch{return false;}
+  });
+  const states=await Promise.all(eligible.map(async client=>({client,status:await askClient(client,{type:'DAYBRIDGE_CLIENT_STATUS'},350)})));
+  const installed=states.filter(item=>item.status?.installed===true).map(item=>item.client);
+  const candidates=installed.length?installed:states.filter(item=>item.status?.installed!==false).map(item=>item.client);
+  const existing=candidates.find(client=>client.focused)||candidates.find(client=>client.visibilityState==='visible')||candidates[0];
   if(existing){
-   const focused=await existing.focus();
-   focused.postMessage({type:'DAYBRIDGE_TRAVEL_NOTIFICATION',url:destination});
-   return;
+   // Acknowledge delivery to the mounted workspace. During startup/sign-in the
+   // listener may not exist yet: navigation preserves the target through reload.
+   const reply=await askClient(existing,{type:'DAYBRIDGE_NOTIFICATION',url:destination},1200);
+   const handled=reply?.handled===true;
+   if(handled){await existing.focus().catch(()=>undefined);return;}
+   try{const navigated=await existing.navigate(destination);if(navigated){await navigated.focus().catch(()=>undefined);return;}}catch{}
   }
   await self.clients.openWindow(destination);
- }));
+ })());
 });

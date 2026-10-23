@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Settings,
-  Bell,
   Moon,
   Shield,
   Download,
@@ -30,32 +29,6 @@ export const SettingsView: React.FC = () => {
     updateProfile,
     isLiveSupabase,
   } = useDayBridge();
-
-  const [testNotificationSent, setTestNotificationSent] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState<string>(
-    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
-  );
-
-  const handleTestNotification = async () => {
-    if (typeof Notification === 'undefined') {
-      alert('Notifications are not supported on this device/browser.');
-      return;
-    }
-
-    let perm = Notification.permission;
-    if (perm !== 'granted') {
-      perm = await Notification.requestPermission();
-      setNotificationPermission(perm);
-    }
-
-    if (perm === 'granted') {
-      // Send safe, generic payload as required by threat model
-      const registration=await navigator.serviceWorker.ready;
-      await registration.showNotification('DayBridge Reminder', {body:'Open DayBridge to view a scheduled item.',icon:'/icon.svg'});
-      setTestNotificationSent(true);
-      setTimeout(() => setTestNotificationSent(false), 3000);
-    }
-  };
 
   const handleExportJSON=()=>{
     if(!window.confirm('This export is an unencrypted JSON file containing sensitive personal data. Save it only to a private device. Continue?'))return;
@@ -153,22 +126,19 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Test Notification Trigger */}
-        <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-800 block">Test Web Push Reminder</span>
-            <span className="text-[11px] text-slate-600">
-              Permission status: <strong className="capitalize">{notificationPermission}</strong>
-            </span>
-          </div>
-
-          <button
-            onClick={handleTestNotification}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-300 min-h-[44px]"
-          >
-            <Bell className="w-4 h-4 text-teal-700" />
-            <span>{testNotificationSent ? 'Sent!' : 'Send Test'}</span>
-          </button>
+        <div className="space-y-3 border-t border-slate-200 pt-4">
+          <p className="text-xs text-slate-600">Choose which synced records create reminders. Tapping a reminder opens its item. Task reminders use the due time; bills and refill dates use 9 AM in your profile timezone. Medication snoozes remind you again after 15 minutes.</p>
+          {([['event','Appointments'],['task','Tasks'],['medication','Scheduled medications'],['bill','Bills'],['refill','Refill dates']] as const).map(([key,label])=>
+           <label key={key} className="flex min-h-11 items-center justify-between gap-3 text-sm text-slate-800">
+            {label}<input type="checkbox" className="h-5 w-5 accent-teal-800" checked={profile.notificationPreferences?.[key]!==false}
+             onChange={event=>updateProfile({notificationPreferences:{...profile.notificationPreferences,[key]:event.target.checked}})}/>
+           </label>)}
+          <label className="block text-sm text-slate-800">Appointment reminder lead time
+           <select className="ml-3 min-h-11 rounded-xl border border-slate-300 bg-white px-3" value={profile.reminderLeadMinutes}
+            onChange={event=>updateProfile({reminderLeadMinutes:Number(event.target.value)})}>
+            {[0,5,10,15,30,60,120].map(minutes=><option key={minutes} value={minutes}>{minutes===0?'At start':minutes+' minutes before'}</option>)}
+           </select>
+          </label>
         </div>
       </section>
 

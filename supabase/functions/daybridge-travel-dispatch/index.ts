@@ -16,9 +16,10 @@ Deno.serve(async (request: Request) => {
  try{
   const response=await fetch(worker,{
    method:"POST",headers:{"x-daybridge-cron-secret":supplied,"content-type":"application/json"},
-   body:"{}",signal:AbortSignal.timeout(25000)
+   body:"{}",signal:AbortSignal.timeout(55000)
   });
-  return new Response(JSON.stringify({delivered:response.ok,status:response.status}),{
+  const result=await response.json().catch(()=>null);
+  return new Response(JSON.stringify({delivered:response.ok,status:response.status,result}),{
    status:response.ok?200:502,headers:{"content-type":"application/json","cache-control":"no-store"}
   });
  }catch{

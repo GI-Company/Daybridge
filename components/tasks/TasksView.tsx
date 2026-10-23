@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CheckSquare,
   Plus,
@@ -12,19 +12,24 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import {useRecordFocus} from '../../lib/notifications/use-record-focus';
 import { useDayBridge } from '../../lib/storage/store';
 import { formatDate } from '../../lib/date-time';
 import { PriorityLevel } from '../../lib/types';
 
 interface TasksViewProps {
   onOpenQuickAdd: () => void;
+  focusTaskId?:string;
+  focusRevision?:number;
 }
 
-export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd }) => {
+export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId,focusRevision }) => {
   const { tasks, toggleTask, deleteTask, addTask } = useDayBridge();
   const [filter, setFilter] = useState<'pending' | 'completed' | 'all'>('pending');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
+  useEffect(()=>{if(focusTaskId){setFilter('all');setExpandedTaskId(focusTaskId);}},[focusTaskId,focusRevision]);
+  useRecordFocus(focusTaskId,focusRevision,tasks.length+filter);
   const filteredTasks = tasks.filter((t) => {
     if (filter === 'pending') return !t.completed;
     if (filter === 'completed') return t.completed;
@@ -83,7 +88,9 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd }) => {
           filteredTasks.map((task) => (
             <div
               key={task.id}
-              className={`p-3.5 sm:p-4 rounded-2xl border transition ${
+              data-notification-target={focusTaskId===task.id?task.id:undefined}
+              tabIndex={focusTaskId===task.id?-1:undefined}
+              className={`${focusTaskId===task.id?'ring-2 ring-teal-700 ring-offset-2 ':''}p-3.5 sm:p-4 rounded-2xl border transition ${
                 task.completed
                   ? 'bg-slate-50 border-slate-200 opacity-60'
                   : 'bg-white border-slate-200 hover:border-slate-300'

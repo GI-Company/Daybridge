@@ -15,6 +15,7 @@ export interface UserProfile {
   gasTargetCents: number;
   foodTargetCents: number;
   reminderLeadMinutes: number;
+  notificationPreferences?: Partial<Record<'event'|'medication'|'bill'|'task'|'refill', boolean>>;
   createdAt: string;
   updatedAt: string;
 }

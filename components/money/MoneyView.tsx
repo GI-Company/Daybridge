@@ -16,6 +16,7 @@ import {
   Edit2,
   Trash2,
 } from 'lucide-react';
+import {useRecordFocus} from '../../lib/notifications/use-record-focus';
 import { useDayBridge } from '../../lib/storage/store';
 import {
   calculateSafeToSpend,
@@ -29,9 +30,11 @@ import {PaycheckSetup} from './PaycheckSetup';
 
 interface MoneyViewProps {
   onOpenQuickAdd: (type?: 'transaction'|'bill') => void;
+  focusBillId?:string;
+  focusRevision?:number;
 }
 
-export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
+export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd,focusBillId,focusRevision }) => {
   const {
     accounts,
     updateAccountBalance,
@@ -51,6 +54,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
     profile,
   } = useDayBridge();
 
+  useRecordFocus(focusBillId,focusRevision,bills.length);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [showAccountForm,setShowAccountForm]=useState(false);
   const [showReserveForm,setShowReserveForm]=useState(false);
@@ -462,7 +466,9 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd }) => {
           {bills.map((bill) => (
             <div
               key={bill.id}
-              className={`p-3.5 rounded-2xl border flex items-center justify-between transition ${
+              data-notification-target={focusBillId===bill.id?bill.id:undefined}
+              tabIndex={focusBillId===bill.id?-1:undefined}
+              className={`${focusBillId===bill.id?'ring-2 ring-teal-700 ring-offset-2 ':''}p-3.5 rounded-2xl border flex items-center justify-between transition ${
                 bill.isPaid
                   ? 'bg-slate-50 border-slate-200 opacity-60'
                   : 'bg-slate-50/90 border-slate-200'

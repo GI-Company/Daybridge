@@ -14,6 +14,7 @@ import {
   Calendar,
   Trash2,
 } from 'lucide-react';
+import {useRecordFocus} from '../../lib/notifications/use-record-focus';
 import { useDayBridge } from '../../lib/storage/store';
 import {
   getMedicationSlotsForDay,
@@ -26,10 +27,12 @@ import {MedicationListManager} from './MedicationListManager';
 
 interface HealthViewProps {
   onOpenQuickAdd: () => void;
+  focusMedicationId?:string;focusSlot?:string;focusDate?:string;focusRevision?:number;
 }
 
-export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
+export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd,focusMedicationId,focusSlot,focusDate,focusRevision }) => {
   const {
+    profile,
     medications,
     medicationSchedules,
     medicationLogs,
@@ -44,9 +47,12 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
     medications,
     medicationSchedules,
     medicationLogs,
-    new Date()
+    focusDate?new Date(focusDate+'T12:00:00'):new Date(),
+    profile.timezone
   );
 
+  const focusTarget=focusMedicationId?(focusSlot?focusMedicationId+'-'+focusSlot:focusMedicationId):undefined;
+  useRecordFocus(focusTarget,focusRevision,medications.length+':'+todaySlots.length);
   const scheduledMeds = medications.filter((m) => !m.isPrn && m.isActive);
   const prnMeds = medications.filter((m) => m.isPrn && m.isActive);
 
@@ -79,7 +85,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">Today&apos;s Scheduled Slots</h3>
+            <h3 className="font-bold text-slate-900 text-base">{focusDate?'Scheduled Slots · '+formatDate(focusDate+'T12:00:00'):"Today's Scheduled Slots"}</h3>
             <p className="text-xs text-slate-600">Tap to log when taken or snoozed</p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-teal-800 border border-slate-300">
@@ -97,7 +103,9 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
               return (
                 <div
                   key={slot.slotId}
-                  className={`p-4 rounded-2xl border transition ${
+                  data-notification-target={focusTarget===slot.slotId?slot.slotId:undefined}
+                  tabIndex={focusTarget===slot.slotId?-1:undefined}
+                  className={`${focusTarget===slot.slotId?'ring-2 ring-teal-700 ring-offset-2 ':''}p-4 rounded-2xl border transition ${
                     isTaken
                       ? 'bg-teal-50 border-teal-800/40 shadow-sm'
                       : isSkipped
@@ -221,6 +229,8 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd }) => {
             return (
               <div
                 key={med.id}
+                data-notification-target={!focusSlot&&focusMedicationId===med.id?med.id:undefined}
+                tabIndex={!focusSlot&&focusMedicationId===med.id?-1:undefined}
                 className="p-4 bg-slate-50/90 border border-slate-200 rounded-2xl flex flex-col justify-between"
               >
                 <div>

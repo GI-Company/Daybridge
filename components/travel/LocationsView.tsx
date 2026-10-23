@@ -24,8 +24,9 @@ const categories:{id:SavedPlaceCategory;label:string}[]=[
 ];
 const niceCategory=(key:SavedPlaceCategory)=>categories.find(c=>c.id===key)?.label||'Other';
 function placeValid(p:AddressResult){return validMapPoint(p);}
+type Focus={focusEventId?:string;focusDate?:string;focusRevision?:number};
 type Records=Pick<ReturnType<typeof useDayBridge>,'savedPlaces'|'addSavedPlace'|'updateSavedPlace'|'deleteSavedPlace'|'events'|'eventOccurrences'|'syncStatus'>;
-export function LocationsView({onOpenSchedule}:{onOpenSchedule?:(date?:string)=>void}){
+export function LocationsView({onOpenSchedule,...focus}:Focus&{onOpenSchedule?:(date?:string)=>void}){
  const records=useDayBridge();
  const [preferences,setPreferences]=useState<TravelPrefs>(defaults);
  useEffect(()=>{
@@ -40,10 +41,10 @@ export function LocationsView({onOpenSchedule}:{onOpenSchedule?:(date?:string)=>
   load();window.addEventListener('daybridge:travel-prefs-updated',load);
   return()=>{active=false;window.removeEventListener('daybridge:travel-prefs-updated',load)};
  },[]);
- return <LocationsContent {...records} preferences={preferences} onOpenSchedule={onOpenSchedule}/>;
+ return <LocationsContent {...records} {...focus} preferences={preferences} onOpenSchedule={onOpenSchedule}/>;
 }
 
-export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,deleteSavedPlace,events,eventOccurrences,syncStatus,preferences,onOpenSchedule}:Records&{preferences:TravelPrefs;onOpenSchedule?:(date?:string)=>void}){
+export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,deleteSavedPlace,events,eventOccurrences,syncStatus,preferences,onOpenSchedule,focusEventId,focusDate,focusRevision}:Records&Focus&{preferences:TravelPrefs;onOpenSchedule?:(date?:string)=>void}){
  const [editId,setEditId]=useState<string|null>(null);
  const [adding,setAdding]=useState(false),[label,setLabel]=useState(''),[category,setCategory]=useState<SavedPlaceCategory>('therapy');
  const [address,setAddress]=useState(''),[results,setResults]=useState<AddressResult[]>([]),[verified,setVerified]=useState<AddressResult|null>(null);
@@ -60,6 +61,15 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
  const [now,setNow]=useState(()=>new Date());
  useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(timer)},[]);
  const trips=useMemo(()=>scheduledTrips(events,eventOccurrences,savedPlaces,now),[events,eventOccurrences,savedPlaces,now]);
+ const handledFocus=React.useRef('');
+ const [notificationNotice,setNotificationNotice]=useState('');
+ useEffect(()=>{
+  if(!focusEventId)return;
+  const key=[focusEventId,focusDate,focusRevision].join(':');if(handledFocus.current===key)return;
+  const match=trips.find(item=>item.eventId===focusEventId&&(!focusDate||calendarDayKey(item.startTime)===focusDate));
+  if(match){setTripId(match.id);setDestinationId('');setNotificationNotice('');handledFocus.current=key;}
+  else if(syncStatus==='synced'){setNotificationNotice('This appointment has changed or ended. Your current calendar trips are shown below.');}
+ },[focusEventId,focusDate,focusRevision,trips,syncStatus]);
  const trip=trips.find(item=>item.id===tripId)||trips[0]||null;
  const manual=savedPlaces.find(place=>place.id===destinationId)||
   (destinationId==='__searched'&&searchedDestination?{...searchedDestination,id:'__searched'}:null);
@@ -172,6 +182,8 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
  function openSchedule(){onOpenSchedule?.(activeTrip?calendarDayKey(activeTrip.startTime):undefined)}
  function directMapLink(place:{lat:number;lon:number}){const url=new URL('https://www.google.com/maps/dir/');url.searchParams.set('api','1');url.searchParams.set('destination',place.lat+','+place.lon);return url.toString();}
  return <div className="space-y-5 pb-24">
+   {notificationNotice&&<p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{notificationNotice}</p>}
+
   <div className="flex flex-wrap items-start justify-between gap-3">
    <div><h2 className="flex items-center gap-2 text-2xl font-bold text-slate-950"><MapPinned className="h-6 w-6 text-teal-800"/>Locations & maps</h2>
     <p className="mt-1 text-sm text-slate-700">Your calendar supplies the trip. Routes and traffic load automatically.</p></div>

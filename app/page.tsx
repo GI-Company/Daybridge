@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import {useNotificationNavigation} from '../lib/notifications/use-navigation';
 import { DayBridgeProvider } from '../lib/storage/store';
 import { InstallGate } from '../components/common/InstallGate';
 import { SecureAppGate } from '../components/common/SecureAppGate';
@@ -12,6 +13,9 @@ import { TodayView } from '../components/today/TodayView';
 import { ScheduleView } from '../components/schedule/ScheduleView';
 import { LocationsView } from '../components/travel/LocationsView';
 import { AutomaticTravelReminders } from '../components/travel/AutomaticTravelReminders';
+import {NotificationAppBridge} from '../components/common/NotificationAppBridge';
+import {NotificationConnection} from '../components/common/NotificationConnection';
+import {NotificationRecordStatus} from '../components/common/NotificationRecordStatus';
 import {BackgroundReadiness} from '../components/common/BackgroundReadiness';
 import { MoneyView } from '../components/money/MoneyView';
 import { HealthView } from '../components/health/HealthView';
@@ -22,37 +26,12 @@ import { ResourcesView } from '../components/resources/ResourcesView';
 import { SettingsView } from '../components/settings/SettingsView';
 
 export default function HomePage() {
-  return <><UpdateMonitor/><InstallGate><SecureAppGate>{userId => <PrivateWorkspace key={userId} userId={userId}/>}</SecureAppGate></InstallGate></>;
+  return <><NotificationAppBridge/><UpdateMonitor/><InstallGate><SecureAppGate>{userId => <PrivateWorkspace key={userId} userId={userId}/>}</SecureAppGate></InstallGate></>;
 }
 
 function PrivateWorkspace({userId}:{userId:string}) {
-  const [currentTab, setCurrentTab] = useState<string>('today');
-  const [scheduleFocusDate,setScheduleFocusDate]=useState<string|undefined>(undefined);
-  useEffect(()=>{
-    const openDeepLink=(raw:string)=>{
-      try{
-        const link=new URL(raw,window.location.origin);
-        if(link.origin!==window.location.origin||link.pathname!=='/')return;
-        const tab=link.searchParams.get('tab');
-        if(tab!=='schedule')return;
-        const day=link.searchParams.get('date');
-        if(day&&/^\d{4}-\d{2}-\d{2}$/.test(day))setScheduleFocusDate(day);
-        setCurrentTab('schedule');
-      }catch{/* Ignore malformed push links. */}
-    };
-    openDeepLink(window.location.href);
-    const onMessage=(event:MessageEvent)=>{
-      if(event.data?.type==='DAYBRIDGE_TRAVEL_NOTIFICATION'&&
-        typeof event.data?.url==='string')openDeepLink(event.data.url);
-    };
-    const onPop=()=>openDeepLink(window.location.href);
-    navigator.serviceWorker?.addEventListener('message',onMessage);
-    window.addEventListener('popstate',onPop);
-    return()=>{
-      navigator.serviceWorker?.removeEventListener('message',onMessage);
-      window.removeEventListener('popstate',onPop);
-    };
-  },[]);
+  const {currentTab,navigate,target,notice}=useNotificationNavigation(userId);
+  const [scheduleFocusDate,setScheduleFocusDate]=useState<string|undefined>();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddDate,setQuickAddDate]=useState<string|undefined>(undefined);
   const [quickAddType,setQuickAddType]=useState<'event'|'medication'|'transaction'|'bill'|'task'|'contact'|undefined>(undefined);
@@ -61,12 +40,13 @@ function PrivateWorkspace({userId}:{userId:string}) {
   return (
     <DayBridgeProvider userId={userId}>
       <AutomaticTravelReminders/>
-      <BackgroundReadiness userId={userId}/>
+      <NotificationConnection/>
+      <BackgroundReadiness userId={userId} suppressed={!!(target?.account||target?.event||target?.task||target?.medication||target?.bill)}/>
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950">
         {/* Sticky Header */}
         <Header
           onOpenQuickAdd={() => openQuickAdd()}
-          onNavigate={(tab) => setCurrentTab(tab)}
+          onNavigate={(tab) => navigate(tab)}
           currentTab={currentTab}
         />
 
@@ -74,41 +54,43 @@ function PrivateWorkspace({userId}:{userId:string}) {
         {/* Collapsible navigation */}
         <Navigation
           currentTab={currentTab}
-          onTabChange={(tab) => setCurrentTab(tab)}
+          onTabChange={(tab) => navigate(tab)}
         />
 
         {/* Main Content View Container */}
         <main id="daybridge-active-panel" role="tabpanel" aria-label={currentTab.charAt(0).toUpperCase()+currentTab.slice(1)} tabIndex={0} className="flex-1 min-w-0 max-w-5xl w-full mx-auto px-4 pb-24 pt-5 sm:px-6 sm:py-8">
+          <NotificationRecordStatus target={target}/>
+          {notice&&<p role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{notice}</p>}
           {currentTab === 'today' && (
             <TodayView
-              onNavigate={(tab) => setCurrentTab(tab)}
+              onNavigate={(tab) => navigate(tab)}
               onOpenQuickAdd={() => openQuickAdd()}
             />
           )}
 
           {currentTab === 'schedule' && (
-            <ScheduleView focusDate={scheduleFocusDate} onOpenQuickAdd={date => openQuickAdd('event',date)} />
+            <ScheduleView focusEventId={target?.event} focusRevision={target?.revision} focusDate={target?.date||scheduleFocusDate} onOpenQuickAdd={date => openQuickAdd('event',date)} />
           )}
 
-          {currentTab === 'locations' && <LocationsView onOpenSchedule={date=>{setScheduleFocusDate(date);setCurrentTab('schedule')}} />}
+          {currentTab === 'locations' && <LocationsView focusEventId={target?.event} focusDate={target?.date} focusRevision={target?.revision} onOpenSchedule={date=>{setScheduleFocusDate(date);navigate('schedule')}} />}
 
           {currentTab === 'money' && (
-            <MoneyView onOpenQuickAdd={type => openQuickAdd(type)} />
+            <MoneyView focusBillId={target?.bill} focusRevision={target?.revision} onOpenQuickAdd={type => openQuickAdd(type)} />
           )}
 
           {currentTab === 'health' && (
-            <HealthView onOpenQuickAdd={() => openQuickAdd('medication')} />
+            <HealthView focusMedicationId={target?.medication} focusSlot={target?.slot} focusDate={target?.date} focusRevision={target?.revision} onOpenQuickAdd={() => openQuickAdd('medication')} />
           )}
 
           {currentTab === 'court' && (
             <CourtView
               onOpenQuickAdd={() => openQuickAdd()}
-              onNavigate={(tab) => setCurrentTab(tab)}
+              onNavigate={(tab) => navigate(tab)}
             />
           )}
 
           {currentTab === 'tasks' && (
-            <TasksView onOpenQuickAdd={() => openQuickAdd('task')} />
+            <TasksView focusTaskId={target?.task} focusRevision={target?.revision} onOpenQuickAdd={() => openQuickAdd('task')} />
           )}
 
           {currentTab === 'review' && <ReviewView />}

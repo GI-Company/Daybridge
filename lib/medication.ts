@@ -1,3 +1,4 @@
+import {safeTimezone,wallTime,zonedParts} from './notifications/time.ts';
 import type { Medication, MedicationSchedule, MedicationLog } from './types';
 
 export interface DueMedicationSlot {
@@ -21,9 +22,12 @@ export function getMedicationSlotsForDay(
   medications: Medication[],
   schedules: MedicationSchedule[],
   logs: MedicationLog[],
-  targetDate: Date = new Date()
+  targetDate: Date = new Date(),
+  timezone?:string
 ): DueMedicationSlot[] {
-  const dayOfWeek = targetDate.getDay();
+  const zone=timezone?safeTimezone(timezone):undefined;
+  const targetDay=zone?zonedParts(targetDate,zone).slice(0,10):null;
+  const dayOfWeek = targetDay?new Date(targetDay+'T12:00:00Z').getUTCDay():targetDate.getDay();
   const year = targetDate.getFullYear();
   const month = targetDate.getMonth();
   const date = targetDate.getDate();
@@ -41,7 +45,8 @@ export function getMedicationSlotsForDay(
       if (!sch.daysOfWeek.includes(dayOfWeek)) return;
 
       const [hours, minutes] = sch.timeOfDay.split(':').map((v) => parseInt(v, 10));
-      const slotDate = new Date(year, month, date, hours || 0, minutes || 0, 0, 0);
+      const slotDate = zone&&targetDay?new Date(wallTime(targetDay+'T'+sch.timeOfDay.slice(0,5)+':00',zone)):new Date(year, month, date, hours || 0, minutes || 0, 0, 0);
+      if(!Number.isFinite(slotDate.getTime()))return;
       const slotIso = slotDate.toISOString();
 
       // Check if logged

@@ -13,6 +13,8 @@ import {TravelPlanner} from '../travel/TravelPlanner';
 interface ScheduleViewProps {
  onOpenQuickAdd:(date?:string)=>void;
  focusDate?:string;
+ focusEventId?:string;
+ focusRevision?:number;
 }
 type Occurrence=ReturnType<typeof expandEventOccurrences>[number];
 type CalendarMode='month'|'week';
@@ -28,7 +30,7 @@ const categoryDot:Record<EventCategory,string>={
 };
 const weekLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate})=>{
+export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate,focusEventId,focusRevision})=>{
  const {events,eventOccurrences,recordAttendance,deleteEvent}=useDayBridge();
  const [view,setView]=useState<CalendarMode>('month');
  const [selectedDate,setSelectedDate]=useState(()=>new Date());
@@ -39,6 +41,17 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
  },[focusDate]);
  const [selectedCategory,setSelectedCategory]=useState<EventCategory|'all'>('all');
  const [selectedOccurrence,setSelectedOccurrence]=useState<Occurrence|null>(null);
+ const [notificationNotice,setNotificationNotice]=useState('');
+ const handledFocus=React.useRef('');
+ useEffect(()=>{
+  if(!focusEventId||!focusDate)return;
+  const key=[focusEventId,focusDate,focusRevision].join(':');if(handledFocus.current===key)return;
+  const source=events.find(event=>event.id===focusEventId);if(!source)return;
+  const start=new Date(focusDate+'T00:00:00'),end=new Date(focusDate+'T23:59:59.999');
+  const occurrence=expandEventOccurrences(source,start,end,eventOccurrences)[0];
+  if(!occurrence){setNotificationNotice('This appointment has moved or is no longer scheduled for the notification date.');return;}
+  handledFocus.current=key;setSelectedCategory('all');setSelectedOccurrence(occurrence);setNotificationNotice('');
+ },[focusEventId,focusDate,focusRevision,events,eventOccurrences]);
  const currentDay=new Date();
  const {start:rangeStart,end:rangeEnd,days}=calendarRange(selectedDate,view);
  const allOccurrences=events.flatMap(event=>expandEventOccurrences(event,rangeStart,rangeEnd,eventOccurrences))
@@ -59,6 +72,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
 
  return (
  <div className="space-y-4 pb-24">
+  {notificationNotice&&<p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{notificationNotice}</p>}
   <header className="flex flex-wrap items-center justify-between gap-3">
    <div>
     <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">Schedule</h2>

@@ -55,7 +55,7 @@ const hourLater=(value:string)=>{
 };
 
 export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType, initialDate }) => {
-  const { addEvent, addMedication, addTask, addTransaction, addBill, addContact, addSavedPlace, accounts, savedPlaces } = useDayBridge();
+  const { profile, addEvent, addMedication, addTask, addTransaction, addBill, addContact, addSavedPlace, accounts, savedPlaces } = useDayBridge();
 
   const [activeType, setActiveType] = useState<QuickAddType|null>(initialType??null);
   const [advanced,setAdvanced]=useState(false);
@@ -188,7 +188,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         description: activeType==='self_help'?'Private self-help meeting':'',
         startTime: startIso,
         endTime: endIso,
-        timezone: 'America/New_York',
+        timezone: profile.timezone,
         venueType: eventVenue,
         location: eventLocation.trim(),
         destinationLat:matchedPlace?.lat,

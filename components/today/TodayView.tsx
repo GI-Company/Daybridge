@@ -95,7 +95,8 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
     medications,
     medicationSchedules,
     medicationLogs,
-    now
+    now,
+    profile.timezone
   );
 
   // 4. Top 3 incomplete tasks

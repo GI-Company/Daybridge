@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {timingSafeEqual} from 'node:crypto';
+import {monitorReminders} from '../../../../lib/notifications/monitor';
 import {monitorTravel} from '../../../../lib/travel/monitor';
 export const runtime='nodejs';
 export const maxDuration=60;
@@ -8,8 +9,11 @@ export async function POST(req:Request){
  const actual=req.headers.get('x-daybridge-cron-secret')||'';
  if(!expected||actual.length!==expected.length||!timingSafeEqual(Buffer.from(actual),Buffer.from(expected)))return NextResponse.json({error:'Unauthorized'},{status:401});
  try{
-  const output=await monitorTravel();
-  return NextResponse.json(output,{headers:{'Cache-Control':'no-store'}});
+  // Independent pipelines: a routing outage must not block ordinary reminders.
+  const results=await Promise.allSettled([monitorReminders(),monitorTravel()]);
+  const output={reminders:results[0].status==='fulfilled'?results[0].value:{error:'Reminder monitoring failed'},travel:results[1].status==='fulfilled'?results[1].value:{error:'Travel monitoring failed'}};
+  const failed=results.some(result=>result.status==='rejected'||result.value.failures>0);
+  return NextResponse.json(output,{status:failed?503:200,headers:{'Cache-Control':'no-store'}});
  }catch{
   return NextResponse.json({error:'Travel monitoring failed; subsequent scheduled checks may retry.'},{status:503});
  }

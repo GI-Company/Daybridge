@@ -110,7 +110,7 @@ interface DayBridgeContextType {
   clearAllUserData: () => void;
 }
 
-const DayBridgeContext = createContext<DayBridgeContextType | null>(null);
+export const DayBridgeContext = createContext<DayBridgeContextType | null>(null);
 
 export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: string }> = ({ children, userId }) => {
   const [profile, setProfile] = useState<UserProfile>({...DEFAULT_PROFILE,id:userId});

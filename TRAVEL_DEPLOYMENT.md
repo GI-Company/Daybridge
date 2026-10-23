@@ -1,3 +1,15 @@
+# Notification reliability update — October 22, 2026
+
+The reliable-notification-delivery migration changes the existing Supabase schedule to once per minute and sets a 60-second HTTP timeout. Deploy the updated `daybridge-travel-dispatch` function with its existing Vault-secret authentication; it allows up to 55 seconds and returns the worker's per-pipeline counts/failures. No Vercel Cron or preview deployment is needed.
+
+The server reconciles the next 36 hours of verified calendar travel plans from the current private snapshot. It respects cancellations, occurrence edits, saved-origin changes, per-event mode/buffer and explicitly disabled plans. Traffic polling is once a minute near departure, every five minutes within four hours, and every thirty minutes for later appointments. Other reminder categories run each minute independently of routing failures.
+
+Notification taps open the exact appointment details, calendar route, task, medication slot, bill or refill record. Startup/sign-in retains the destination. Device acceptance receipts allow partial retries, and a browser endpoint belongs to one active account. Settings contains category controls and one remote delivery test scoped to the current device. Provider acceptance does not prove an OS-visible notification; verify arrival and tap behavior in the installed app.
+
+The earlier rollout notes below describe the initial travel implementation. Timing and notification behavior above supersede them.
+
+---
+
 # DayBridge Travel Rollout — Infrastructure and Security
 
 ## Current status

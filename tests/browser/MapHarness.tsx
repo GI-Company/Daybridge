@@ -4,6 +4,7 @@ import {ExploreMap, type MapPlace} from '../../components/travel/ExploreMap';
 import {RouteMap} from '../../components/travel/RouteMap';
 import type {Route} from '../../lib/travel/types';
 import {useTravelRequest} from '../../lib/travel/use-travel-request';
+import {NotificationsHarness} from './NotificationsHarness';
 import {CalendarMapHarness} from './CalendarMapHarness';
 
 const places: MapPlace[] = [
@@ -26,6 +27,7 @@ export default function MapHarness() {
   const [position, setPosition] = useState('No position');
   const [requestResult, setRequestResult] = useState('No result');
   const beginRequest = useTravelRequest(selected ?? '');
+  if (typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('notifications')==='test')return <NotificationsHarness/>;
   if (calendar) return <main className="mx-auto max-w-4xl p-3"><CalendarMapHarness/></main>;
   return <main className="mx-auto max-w-4xl space-y-3 p-3">
     <button onClick={() => setSelected('clinic')}>Select clinic</button>{' '}

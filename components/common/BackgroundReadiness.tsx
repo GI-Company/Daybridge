@@ -4,7 +4,7 @@ import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {BellRing,CheckCircle2,HardDrive,MapPin,ShieldCheck,X} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
 import {isDurableStorage,requestDurableStorage} from '../../lib/storage/device-cache';
-import {enableDevicePush,getPushReadiness,type PushReadiness} from '../../lib/notifications/device-push';
+import {enableDevicePush,sendDevicePushTest,getPushReadiness,type PushReadiness} from '../../lib/notifications/device-push';
 import {defaults,type TravelPrefs} from '../../lib/travel/types';
 
 type OriginStatus='ready'|'missing'|'disabled'|'unknown';
@@ -13,16 +13,16 @@ type SetupState={push:PushReadiness|'checking';origin:OriginStatus;storage:boole
 const initial:SetupState={push:'checking',origin:'unknown',storage:null};
 const userNotice=(push:SetupState['push'])=>{
  switch(push){
- case 'denied':return 'Notifications are blocked. Use Android Settings → Apps → DayBridge or your browser site settings to allow notifications, then tap Recheck.';
+ case 'denied':return 'Notifications are blocked. Use your device’s notification settings or your browser’s DayBridge site settings to allow notifications, then tap Recheck.';
  case 'unsupported':return 'This browser cannot register background Web Push. Try an installed, supported browser app.';
  case 'server_unavailable':return 'The notification service cannot be verified. Check your connection and retry.';
  case 'not_subscribed':return 'Notifications are allowed, but this device has not registered for remote alerts.';
- default:return 'Enable phone notifications to receive server-generated appointment and traffic reminders while DayBridge is closed.';
+ default:return 'Enable device notifications to receive server-generated appointment and traffic reminders while DayBridge is closed.';
  }
 };
 
 /** First-run and post-update setup; never asks for GPS or push without a user tap. */
-export function BackgroundReadiness({userId}:{userId:string}){
+export function BackgroundReadiness({userId,suppressed=false}:{userId:string;suppressed?:boolean}){
  const key=useMemo(()=>{
   const version=typeof document!=='undefined'?document.documentElement.dataset.daybridgeVersion||'v1':'v1';
   return 'daybridge-background-ready-'+userId+'-'+version;
@@ -57,12 +57,14 @@ export function BackgroundReadiness({userId}:{userId:string}){
   document.addEventListener('visibilitychange',onReturn);
   window.addEventListener('focus',onChanged);
   window.addEventListener('daybridge:travel-prefs-updated',onChanged);
+  window.addEventListener('daybridge:push-updated',onChanged);
   const reopen=()=>{setDismissed(false);void refresh();};
   window.addEventListener('daybridge:open-background-setup',reopen);
   return()=>{
    document.removeEventListener('visibilitychange',onReturn);
    window.removeEventListener('focus',onChanged);
    window.removeEventListener('daybridge:travel-prefs-updated',onChanged);
+   window.removeEventListener('daybridge:push-updated',onChanged);
    window.removeEventListener('daybridge:open-background-setup',reopen);
   };
  },[key,refresh]);
@@ -74,15 +76,8 @@ export function BackgroundReadiness({userId}:{userId:string}){
   setBusy(true);setMessage('');
   try{
    await enableDevicePush();
-   // This validates server acceptance, not guaranteed phone delivery.
-   const response=await fetch('/api/travel/push-test',{method:'POST',cache:'no-store'}).catch(()=>null);
-   if(response?.ok){
-    const result=await response.json() as {sent?:number};
-    setMessage('Background push registered. A test notification was sent to '+
-      Number(result.sent||0)+' registered device(s); check that it arrives.');
-   }else{
-    setMessage('Background push registered. A delivery test was unavailable; reminders remain best-effort.');
-   }
+   await sendDevicePushTest();
+   setMessage('This device is connected. The push service accepted a test; check that it arrives and tap it to open notification settings.');
   }catch(error){setMessage(error instanceof Error?error.message:'Could not register background notifications.')}
   finally{await refresh();setBusy(false);}
  }
@@ -145,7 +140,7 @@ export function BackgroundReadiness({userId}:{userId:string}){
  }
  const needsPush=state.push!=='ready';
  const needsOrigin=state.origin!=='ready';
- if(!loaded||dismissed||(!needsPush&&!needsOrigin))return null;
+ if(suppressed||!loaded||dismissed||(!needsPush&&!needsOrigin))return null;
  return <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3" role="presentation">
   <section role="dialog" aria-modal="true" aria-label="DayBridge background alert setup"
    className="my-auto max-h-[94dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-3xl border border-teal-200 bg-white p-5 shadow-2xl sm:p-6">
