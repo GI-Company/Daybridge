@@ -26,3 +26,17 @@ export function orbisRasterTileUrl(
  }
  return uri;
 }
+
+/** Legacy TomTom Maps raster tiles for fallback when Orbis v2 is unavailable.
+ * The caller adds its server-side authentication key; do not return this
+ * authenticated upstream URL to the browser or write it into error logs.
+ */
+export function classicTomTomRasterTileUrl(z:number,x:number,y:number):URL{
+ if(!Number.isSafeInteger(z)||z<0||z>18||!Number.isSafeInteger(x)||
+    !Number.isSafeInteger(y)||x<0||y<0||x>=2**z||y>=2**z)
+  throw new Error('Invalid map tile coordinates');
+ const uri=new URL('https://api.tomtom.com/map/1/tile/basic/main/'+z+'/'+x+'/'+y+'.png');
+ uri.searchParams.set('tileSize','256');
+ uri.searchParams.set('view','Unified');
+ return uri;
+}
