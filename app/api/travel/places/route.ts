@@ -16,7 +16,7 @@ export async function POST(request:Request){
     {query?:unknown;lat?:unknown;lon?:unknown}|null;
   const q=typeof data?.query==='string'?data.query.trim():'';
   if(q.length<2||q.length>90)return jsonError('Enter a valid place or address',400);
-  if(!await checkRateLimit(auth.db,auth.userId,12))
+  if(!await checkRateLimit(auth.userId,'places'))
    return jsonError('Too many place searches. Try again shortly.',429);
   const url=new URL('https://api.tomtom.com/search/2/search/'+encodeURIComponent(q)+'.json');
   // Legacy Search API requires query-string authentication; this URL remains

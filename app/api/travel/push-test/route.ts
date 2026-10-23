@@ -6,7 +6,7 @@ export const runtime='nodejs';
 export async function POST(){
  try{
   const viewer=await authenticated();if(!viewer)return jsonError('Unauthorized',401);
-  if(!await checkRateLimit(viewer.db,viewer.userId,5))return jsonError('Too many test requests',429);
+  if(!await checkRateLimit(viewer.userId,'push-test'))return jsonError('Too many test requests',429);
   vapidReady();
   const admin=adminClient();
   const {data,error}=await admin.from('push_subscriptions').select('id,endpoint,keys_auth,keys_p256dh').eq('user_id',viewer.userId).is('disabled_at',null);

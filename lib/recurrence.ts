@@ -1,4 +1,4 @@
-import { CalendarEvent, EventOccurrence } from './types';
+import type { CalendarEvent, EventOccurrence } from './types';
 
 export interface EventConflict {
   eventId1: string;

@@ -2,7 +2,7 @@
 
 **DayBridge** is a private, installable daily organizer that brings appointments, tasks, medication records, budgeting, saved locations, and travel reminders into one interface. It is currently a **Next.js progressive web app (PWA)**, not a native Android application.
 
-> **Release status — October 22, 2026:** The always-visible **Locations & Maps** page is deployed, and the classic TomTom static map works in at least one installed desktop PWA. The interactive MapLibre/Orbis renderer is **not yet confirmed reliable**: a screenshot from macOS shows the street map with an **“Interactive map unavailable”** fallback banner. Treat interactive pan/zoom, map markers, and optional traffic layers as pending device verification. A successful Vercel build is not a successful map-rendering test.
+> **Map implementation:** Locations and appointment travel use one fully interactive MapLibre 6 renderer with TomTom Orbis street tiles, selectable markers, traffic layers and road geometry. Static-map replacement has been removed. Desktop/mobile browser tests use controlled tile fixtures; production credentials, authenticated imagery and installed-device behavior require separate live verification.
 
 ## What DayBridge does
 
@@ -20,9 +20,9 @@ The mobile navigation groups the four primary sections as **Today, Schedule, Tas
 
 ## Travel, maps and notifications
 
-**Maps page.** Open **More → Locations & Maps**. DayBridge attempts an interactive **TomTom Orbis v2 raster** street map before any route is selected. It can show approved saved places, search results and optional Traffic Flow / Road Incidents overlays. Selecting a destination adds a route and ETA to the *same* map.
+**Maps page.** Open **More → Locations & Maps**. DayBridge displays an interactive **TomTom Orbis v2 raster** street map before any route is selected. It can show approved saved places, search results and optional Traffic Flow / Road Incidents overlays. Selecting a destination adds a route and ETA to the *same* map.
 
-**Location.** With existing browser location permission, DayBridge may center the open map on the device; otherwise choose **Use my location** to request permission. Without GPS, it falls back to a clearly labeled approved origin, saved location or broad map view. A saved location is **not** represented as a live GPS fix.
+**Location.** With existing browser location permission, DayBridge may center the open map on the device; otherwise choose **Use my location** to request permission. Without GPS, the initial view is labeled as an approved origin, saved location or country overview. A saved location is **not** represented as a live GPS fix.
 
 **Routes.** TomTom Routing provides distance, ETA, travel time, traffic delays and alternatives from the chosen origin while the app is open. External Google Maps / Apple Maps links are offered for navigation.
 
@@ -34,15 +34,15 @@ A native Android location service is a future architecture stage; the current in
 
 ### Map status and troubleshooting
 
-The map deliberately provides a classic TomTom static image if the interactive viewer fails. Seeing Cleveland roads plus an **“Interactive map unavailable”** message means **the fallback image works but the interactive renderer does not**.
+The map supports drag, touch gestures, keyboard navigation, zoom controls, fullscreen, a scale, live foreground location and route fitting. Both map screens share the same renderer and update their markers and routes without recreating it. Search results can be saved as verified places for future appointments. Searches use the map's visible center to prioritize nearby results.
 
-1. Ensure you are running the latest installed DayBridge version; reopen the PWA and use **Update Now** when it offers an update and your records are synced.
-2. Try **Retry map**. A static image is not a pan/zoom-capable interactive map, and optional traffic overlays may not appear while fallback mode is active.
-3. Confirm the device/browser supports WebGL and has an active connection. Do not assume a rendering failure is necessarily a bad TomTom key.
-4. Developers: inspect the browser console and the authenticated map-tile response status, **without copying key values, URLs containing secrets, location history or personal appointment information** into issues.
-5. The server-only Map Display keys, Orbis v2 tile entitlement, raster response type and tile rate limits must all be verified. Failed tile responses or an unsupported browser renderer should give a visible diagnostic instead of a blank map.
+MapLibre 6 requires a separate module worker and WebGL 2. `scripts/prepare-maps.mjs` publishes the installed worker to a versioned same-origin URL during install, dev startup and build. `lib/travel/map-runtime.ts` configures that URL before constructing a map. The container uses explicit positioning so MapLibre's unlayered stylesheet cannot override Tailwind's layout and clip the map.
 
-The relevant server endpoints are `/api/travel/map-tile/[z]/[x]/[y]`, `/api/travel/map-overlay/[layer]/[z]/[x]/[y]` and `/api/travel/static-map`. See [TomTom map architecture](docs/TOMTOM_MAP_ARCHITECTURE.md) and [travel deployment notes](TRAVEL_DEPLOYMENT.md).
+If imagery fails, the interactive renderer stays on screen with a diagnostic and **Retry interactive map**. It never switches to a fixed image or fabricated route. Check browser graphics support, authentication, TomTom entitlement and network connectivity. Traffic errors have their own retry control. Online reconnection reloads tiles and visible traffic refreshes every minute while the tab is active.
+
+Street tiles, flow, incidents, address verification, place search, route calculation and push tests have independent, atomic server-side request budgets. Apply the scoped rate-limit migration before deploying this code.
+
+The map endpoints are `/api/travel/map-tile/[z]/[x]/[y]` and `/api/travel/map-overlay/[layer]/[z]/[x]/[y]`. All TomTom keys remain server-side. See [TomTom map architecture](docs/TOMTOM_MAP_ARCHITECTURE.md) and [travel deployment notes](TRAVEL_DEPLOYMENT.md).
 
 ## Data protection and offline use
 
@@ -62,7 +62,7 @@ Read [Offline & sync behavior](OFFLINE_SYNC.md), [Security](SECURITY.md), [Priva
 
 - **UI:** Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4 and Lucide icons.
 - **Backend:** Vercel server routes; Supabase Auth, PostgreSQL, row-level security, Edge Functions, Vault and scheduled travel checks.
-- **Maps:** TomTom Map Display (Orbis raster and classic static image), TomTom Routing, Geocoding, Search, and optional Orbis Traffic tiles; MapLibre GL for interactive rendering.
+- **Maps:** TomTom Map Display (Orbis raster), TomTom Routing, Geocoding, Search, and optional Orbis Traffic tiles; MapLibre GL for interactive rendering.
 - **PWA:** Installable on supported desktop/mobile browsers, service worker for app shell and Web Push, version-based update checking.
 - **Privacy:** Browser-facing Supabase publishable credentials only. All sensitive TomTom, Supabase service-role, cron and VAPID private keys remain server-side.
 
@@ -73,7 +73,7 @@ Requires Node.js **24.x** (see `package.json`).
 ```bash
 git clone https://github.com/GI-Company/Daybridge.git
 cd Daybridge
-npm install
+npm ci
 cp .env.example .env.local
 # Fill in the Supabase public URL and publishable key
 npm run typecheck
@@ -82,7 +82,7 @@ npm run build
 npm run dev
 ```
 
-Set at least `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local`. In production, configure `tom_tom` (or `TOMTOM_API_KEY`) for routing and classic map imagery, and optionally the dedicated server-only `MAPS_DISPLAY` key for Orbis imagery. Map tiles, background travel work and push notifications require their corresponding **server-side** credentials and migrations. Do not commit `.env.local` or publish private API keys as `NEXT_PUBLIC_*`.
+Set at least `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local`. In production, configure `tom_tom` (or `TOMTOM_API_KEY`) for routing, search, traffic and map imagery, and optionally the dedicated server-only `MAPS_DISPLAY` key for Orbis imagery. Map tiles, background travel work and push notifications require their corresponding **server-side** credentials and migrations. Do not commit `.env.local` or publish private API keys as `NEXT_PUBLIC_*`.
 
 Apply the SQL migrations in `supabase/migrations` to **your own** Supabase project. For the connected project, many migrations and scheduled travel infrastructure are already installed; do not blindly reapply operations or disclose Vault secrets. Owner-only sign-up policy and auth configuration must be enforced by Supabase, not just hidden in the UI.
 
@@ -91,7 +91,7 @@ Apply the SQL migrations in `supabase/migrations` to **your own** Supabase proje
 1. Install, sign in and verify the cloud **Saved** status before using the app offline.
 2. Check that a new test appointment survives an app restart, device reconnection and production update.
 3. Register push permissions and subscription, approve a saved origin, and run a controlled appointment/traffic alert test with the app closed.
-4. Verify the **interactive** TomTom map, route previews and optional traffic tiles on every target browser. If only the static fallback appears, interactive mapping is not yet passing.
+4. Verify the **interactive** TomTom map, route previews and optional traffic tiles on every target browser. A successful build alone does not establish that production map imagery is working.
 5. Keep independent reminders for time-critical medical and court obligations until background delivery is verified on the actual device.
 
 DayBridge is a personal organization aid, **not** official court attendance verification, a medical device, or a guaranteed emergency notification service.

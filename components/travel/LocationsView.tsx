@@ -8,6 +8,7 @@ import type {SavedPlace,SavedPlaceCategory} from '../../lib/types';
 import {defaults,mapsUrl,type Mode,type Point,type RouteResult} from '../../lib/travel/types';
 import {ExploreMap,type MapPlace} from './ExploreMap';
 import {TravelPreferencesCard} from './TravelPreferences';
+import {useTravelRequest} from '../../lib/travel/use-travel-request';
 
 type AddressResult=Point&{label:string};
 const categories:{id:SavedPlaceCategory;label:string}[]=[
@@ -36,26 +37,42 @@ export function LocationsView(){
  const [routeBusy,setRouteBusy]=useState(false),[routeMessage,setRouteMessage]=useState('');
  const [alt,setAlt]=useState(0),[showAdvanced,setShowAdvanced]=useState(false);
  const [approvedOrigin,setApprovedOrigin]=useState<Point|null>(null);
+ const [currentFix,setCurrentFix]=useState<{point:Point;at:number}|null>(null);
+ const [searchCenter,setSearchCenter]=useState<Point|null>(null);
  const db=createClient();
  useEffect(()=>{
   let valid=true;
-  db?.from('travel_preferences')
+  let revision=0;
+  const loadPreferences=()=>{
+  const current=++revision;
+  void db?.from('travel_preferences')
    .select('travel_mode,saved_origin_lat,saved_origin_lon').maybeSingle()
    .then(({data}:{data:{travel_mode?:Mode;saved_origin_lat?:number|null;saved_origin_lon?:number|null}|null})=>{
-    if(!valid)return;
+    if(!valid||current!==revision)return;
     if(data?.travel_mode)setMode(data.travel_mode);
     if(typeof data?.saved_origin_lat==='number'&&typeof data?.saved_origin_lon==='number'){
      const point={lat:data.saved_origin_lat,lon:data.saved_origin_lon};
-     if(placeValid({...point,label:'Approved origin'}))setApprovedOrigin(point);
-    }
+     setApprovedOrigin(placeValid({...point,label:'Approved origin'})?point:null);
+    }else setApprovedOrigin(null);
    });
-  return()=>{valid=false};
- // The existing Supabase preference load runs once when entering Locations & Maps.
+  };
+  loadPreferences();
+  window.addEventListener('daybridge:travel-prefs-updated',loadPreferences);
+  return()=>{valid=false;window.removeEventListener('daybridge:travel-prefs-updated',loadPreferences)};
  },[]);
  const selected=savedPlaces.find(p=>p.id===destinationId)||
   (destinationId==='__searched'&&searchedDestination
    ?{...searchedDestination,id:'__searched',category:'other' as const,userId:'',createdAt:'',updatedAt:''}
    :null);
+ const selectedOrigin=savedPlaces.find(p=>p.id===originChoice);
+ const routeContext=JSON.stringify([destinationId,selected?.lat,selected?.lon,selected?.address,
+  originChoice,selectedOrigin?.lat,selectedOrigin?.lon,mode]);
+ const beginRoute=useTravelRequest(routeContext);
+ const beginSearch=useTravelRequest(placeQuery);
+ const beginAddress=useTravelRequest(address);
+ useEffect(()=>{setRoute(null);setRouteFrom(null);setAlt(0);setRouteBusy(false);setRouteMessage('');},[routeContext]);
+ useEffect(()=>{setPlaceBusy(false);setPlaceResults([]);setPlaceMessage('');},[placeQuery]);
+ useEffect(()=>{setSearching(false);setResults([]);},[address]);
  function openAdd(forCategory:SavedPlaceCategory='therapy'){
   setAdding(true);setEditId(null);setLabel(niceCategory(forCategory));setAddress('');setCategory(forCategory);setVerified(null);setResults([]);setNotice('');
  }
@@ -67,14 +84,16 @@ export function LocationsView(){
  async function search(){
   if(address.trim().length<6)return setNotice('Enter a full street address and city.');
   setSearching(true);setResults([]);setVerified(null);setNotice('Checking the address with TomTom…');
+  const request=beginAddress();
   try{
-   const response=await fetch('/api/travel/geocode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address})});
+   const response=await fetch('/api/travel/geocode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address}),signal:request.signal});
    if(!response.ok)throw Error('Lookup error');
    const body=await response.json() as {results?:AddressResult[]};
+   if(!request.current())return;
    const found=(body.results||[]).filter(placeValid);
    setResults(found);setNotice(found.length?'Select the correct verified address.':'No locations found. Try adding the city and state.');
-  }catch{setNotice('Address lookup unavailable. Your saved locations have not changed.')}
-  finally{setSearching(false)}
+  }catch{if(request.current())setNotice('Address lookup unavailable. Check your connection and try again.')}
+  finally{if(request.current())setSearching(false)}
  }
  function save(){
   if(!label.trim()||!verified){setNotice('Enter a place name and verify its address first.');return;}
@@ -92,39 +111,45 @@ export function LocationsView(){
   event.preventDefault();
   if(placeQuery.trim().length<2){setPlaceMessage('Enter a destination or place to search.');return;}
   setPlaceBusy(true);setPlaceMessage('Searching TomTom places…');setPlaceResults([]);
+  const request=beginSearch();
   try{
    const response=await fetch('/api/travel/places',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({query:placeQuery.trim()})
+    body:JSON.stringify({query:placeQuery.trim(),lat:searchCenter?.lat,lon:searchCenter?.lon}),signal:request.signal
    });
    if(!response.ok)throw new Error();
    const data=await response.json() as {results?:Array<AddressResult&{address:string}>};
+   if(!request.current())return;
    const found=(data.results||[]).filter(placeValid);
    setPlaceResults(found);
    setPlaceMessage(found.length?'Select a result to plan a route.':'No matching places. Include a city or street address.');
-  }catch{setPlaceMessage('Place search temporarily unavailable. Saved places still work.');}
-  finally{setPlaceBusy(false);}
+  }catch{if(request.current())setPlaceMessage('Place search unavailable. Check your connection and try again.');}
+  finally{if(request.current())setPlaceBusy(false);}
  }
  async function calculate(){
   if(!selected)return setRouteMessage('Choose a destination.');
   setRouteBusy(true);setRoute(null);setRouteMessage('Getting traffic-aware routes…');
+  const request=beginRoute();
   let from:Point|null=null;
   if(originChoice==='current'){
    if(!navigator.geolocation){setRouteMessage('GPS is unavailable. Choose a saved origin instead.');setRouteBusy(false);return}
-   from=await new Promise<Point|null>(resolve=>navigator.geolocation.getCurrentPosition(p=>resolve({lat:p.coords.latitude,lon:p.coords.longitude}),()=>resolve(null),{timeout:15000,maximumAge:60000,enableHighAccuracy:false}));
+   from=currentFix&&Date.now()-currentFix.at<60000?currentFix.point:
+    await new Promise<Point|null>(resolve=>navigator.geolocation.getCurrentPosition(p=>resolve({lat:p.coords.latitude,lon:p.coords.longitude}),()=>resolve(null),{timeout:15000,maximumAge:30000,enableHighAccuracy:true}));
   }else{
    const origin=savedPlaces.find(p=>p.id===originChoice);
    if(origin)from={lat:origin.lat,lon:origin.lon};
   }
+  if(!request.current())return;
   if(!from){setRouteMessage('Location unavailable or permission declined. Choose a saved origin or allow GPS.');setRouteBusy(false);return}
   try{
-   const response=await fetch('/api/travel/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origin:from,destination:{lat:selected.lat,lon:selected.lon},travelMode:mode})});
+   const response=await fetch('/api/travel/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origin:from,destination:{lat:selected.lat,lon:selected.lon},travelMode:mode}),signal:request.signal});
    if(!response.ok)throw Error('Route request failed');
    const data=await response.json() as RouteResult;
+   if(!request.current())return;
    if(!data.routes.length)throw Error('No route');
    setRoute(data);setRouteFrom(from);setAlt(0);setRouteMessage('Route calculated. Times can change with traffic.');
-  }catch{setRouteMessage('TomTom routing is currently unavailable. You can still open navigation below.')}
-  finally{setRouteBusy(false)}
+  }catch{if(request.current())setRouteMessage('Route could not be calculated. Check your connection and try again.')}
+  finally{if(request.current())setRouteBusy(false)}
  }
  const destination=selected?{lat:selected.lat,lon:selected.lon}:null;
  const mapPlaces=useMemo<MapPlace[]>(()=>[
@@ -172,16 +197,21 @@ export function LocationsView(){
    initialCenter={initialMapCenter} initialZoom={initialMapZoom} areaLabel={mapAreaLabel}
    places={mapPlaces} selectedId={selected?.id||null}
    origin={routeFrom} route={best||null} onSelectPlace={selectMapPlace}
+   onLocate={point=>setCurrentFix({point,at:Date.now()})} onViewChange={setSearchCenter}
   />
   {selected&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-3">
    <div className="min-w-0">
     <p className="text-xs font-semibold text-teal-950">Selected destination</p>
     <p className="truncate text-sm text-slate-900">{selected.label}</p>
    </div>
-   <button type="button" disabled={routeBusy} onClick={()=>void calculate()}
+   <button type="button" disabled={routeBusy||originChoice===destinationId} onClick={()=>void calculate()}
     className="min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
     {routeBusy?'Checking traffic…':'Get route & ETA'}
    </button>
+   {destinationId==='__searched'&&searchedDestination&&<button type="button" onClick={()=>{
+    setAdding(true);setEditId(null);setLabel(searchedDestination.label);setCategory('other');
+    setAddress(searchedDestination.address);setVerified({...searchedDestination,label:searchedDestination.address});setResults([]);setNotice('Verified search result ready to save.');
+   }} className="min-h-[44px] rounded-xl border border-teal-300 px-4 py-2 text-sm font-semibold text-teal-900">Save this place</button>}
   </div>}
   <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4" aria-label="Find a destination">
    <h3 className="text-base font-bold text-slate-950">Find a destination</h3>

@@ -11,7 +11,7 @@ permission and is never claimed current if stale.
 
 | Service / entitled API | DayBridge behavior | Status |
 |---|---|---|
-| Map Display API | TomTom Orbis v2 street raster tiles, interactive pan and zoom | Existing implementation, production build not verified |
+| Map Display API | TomTom Orbis v2 street raster tiles, interactive pan and zoom | Shared interactive renderer; live credentials require verification |
 | Maps Assets API / Assets API | Custom map assets and icons, possible alternative vector styling | Planned |
 | Routing API | Fastest ETA, turn instructions, alternatives, route geometry | Already integrated |
 | Extended Routing API | Advanced restrictions, avoidances, vehicle-specific routing | Planned, only when user has configured vehicle |
@@ -37,7 +37,7 @@ permission and is never claimed current if stale.
 ## Credential boundaries
 
 - Production `MAPS_DISPLAY` is a server-only Map Display credential used for
-  Orbis street imagery, with the existing `tom_tom` key as a fallback.
+  Orbis street imagery, or use the existing `tom_tom` credential with Map Display entitlement.
 - Production `tom_tom` or `TOMTOM_API_KEY` remains server-only for routing,
   searches, and traffic overlays.
 - Never put these keys in `NEXT_PUBLIC_*`, browser URLs, client bundles, or logs.
@@ -66,3 +66,12 @@ deployment failed and Vercel logs could not be retrieved due to team-scope
 authorization. Do not claim the map/overlays live until Next.js compilation,
 production deployment, authenticated PNG tile response and installed Android map
 render are each verified. Use separate staging/feature changes until then.
+
+## Renderer and request lifecycle
+
+- `map-runtime.ts` configures the installed MapLibre 6 module worker explicitly. Versioned worker assets are generated on install, dev and build.
+- `ExploreMap` owns one map instance; the appointment `RouteMap` is a wrapper. GeoJSON sources update in place and container resizing is observed. Explicit container positioning avoids MapLibre CSS overriding Tailwind utility layers.
+- Both screens retain the interactive renderer on errors. No static image or synthetic straight-line route is substituted. Missing geometry is treated as an unusable route.
+- `useTravelRequest` aborts superseded fetches and rejects stale GPS/fetch callbacks when destination, origin, mode or appointment changes.
+- Each API family has its own atomic, service-role-only rate-limit scope. Loading a map cannot consume place-search, route or push-test capacity.
+- Controlled browser tests verify rendering and interaction; real service entitlement, session authentication and device behavior remain separate acceptance gates.

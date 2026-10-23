@@ -19,7 +19,7 @@ export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMete
 export type RouteResult={basis:'live'|'historical';routes:RouteOption[];checkedAt:string};
 const cache=new Map<string,{expires:number,value:RouteResult}>();
 export function tomTomKey():string {
- const key=process.env.tom_tom || process.env.TOMTOM_API_KEY;
+ const key=process.env.tom_tom?.trim() || process.env.TOMTOM_API_KEY?.trim();
  if(!key) throw new Error('TomTom server key not configured');
  return key;
 }
@@ -60,9 +60,9 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
   delaySeconds:Math.max(0,Math.round(r.summary?.trafficDelayInSeconds??0)),
   distanceMeters:Math.max(0,Math.round(r.summary?.lengthInMeters??0)),
   historicSeconds: r.summary?.historicTrafficTravelTimeInSeconds??null,
-  points:normalizeTomTomRoutePoints((r.legs??[]).flatMap(l=>l.points??[])).slice(0,2000),
+  points:normalizeTomTomRoutePoints((r.legs??[]).flatMap(l=>l.points??[])),
   instructions:(r.guidance?.instructions??[]).map(i=>i.message??'').filter(Boolean).slice(0,100)
- })).filter(r=>r.durationSeconds>0);
+ })).filter(r=>r.durationSeconds>0&&r.points.length>=2).sort((a,b)=>a.durationSeconds-b.durationSeconds);
  if(!routes.length)throw new Error('No usable route found');
  const value:RouteResult={basis:future?'historical':'live',routes,checkedAt:new Date().toISOString()};
  if(cache.size>200)cache.clear();

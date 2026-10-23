@@ -5,7 +5,7 @@
 - TomTom's production \`tom_tom\` is consumed server-side only.
 - Supabase Edge Function \`daybridge-travel-dispatch\` is deployed in a **fail-closed** state.
 - **Background worker active as of October 22, 2026:** a five-minute Supabase `pg_cron` job invokes `daybridge-travel-dispatch` using a secret referenced from Vault. An authenticated manual dispatch returned HTTP 200 from the Vercel worker. Push delivery remains best effort and requires an eligible appointment, approved saved origin, verified appointment destination, and active push subscription.
-- A key with access to Map Display must be **separately restricted to the production origin** before setting \`NEXT_PUBLIC_TOMTOM_MAP_KEY\`. Never copy the server routing key to a public variable.
+- Map Display and traffic keys stay server-side; no public TomTom key is needed.
 - App currently defaults to current origin, navigation true, notifications true, 15-minute buffer, private lock screen. **User must explicitly approve a saved origin and enable traffic notifications**. Eligible appointments with a verified destination enroll automatically; each appointment can still have monitoring disabled.
 
 
@@ -18,22 +18,11 @@
 - The background HTTP trigger was tested, but an end-to-end real push to an eligible appointment/device has not yet been verified.
 
 ## Map Display credentials and mobile route preview
-The authenticated `app/api/travel/static-map/route.ts` now uses the existing server-only
-`tom_tom` key (or `TOMTOM_API_KEY` fallback) for TomTom Map Display Static Image
-requests. The account's `tom_tom` key has Map Display permission. The separate
-`MAPS_DISPLAY` variable is not used by the static map endpoint, avoiding an
-accidental preference for a different key. Do not expose either key with a
-`NEXT_PUBLIC_` prefix.
+Both map screens use `ExploreMap`, with `RouteMap` supplying appointment route data. TomTom Orbis v2 street and traffic PNG tiles are fetched through authenticated same-origin proxies. Use server-only `MAPS_DISPLAY` for a dedicated street-imagery key, or the existing `tom_tom` / `TOMTOM_API_KEY` credential with Map Display entitlement. Routing, search and traffic use the latter credential. There is no static-map endpoint or static rendering mode.
 
-TomTom's documented classic Map Display API supports `/map/1/staticimage`.
-The client fetches that authenticated same-origin image, shows its HTTP failure
-reason without revealing credentials, and can retry after a failure. Route geometry
-and start/end markers stay visible when the base map is unavailable.
+`npm ci`, `npm run dev` and `npm run build` prepare the exact installed MapLibre worker under `public/maps/maplibre/<version>/`. The versioned URL is configured before either map mounts and can be cached safely by the PWA. Preserve this directory when packaging a standalone server; copy `public/` and `.next/static/` alongside the standalone output as with other Next.js public assets.
 
-`NEXT_PUBLIC_TOMTOM_MAP_KEY` remains an optional, independently
-browser-restricted key for an interactive SDK renderer; it is not needed for the
-static route preview. The static map remains a fixed image rather than
-interactive zoom/pan. Do not reuse the `tom_tom` server key as a browser key.
+Apply `20261023012558_scoped_travel_rate_limits.sql` **before** deploying this code. It adds service-role-only request budgets and `take_scoped_travel_api_slot`, with separate counters for street tiles, traffic flow, incidents, places, geocoding, routes and push tests. The old limiter remains intact for older deployed app versions. The new code fails closed if the migration is missing.
 
 ## Production Vercel variables
 Already present per project inspection: \`tom_tom\`, Supabase public URL/publishable keys, and service-role credentials. Existing values must remain unchanged.
@@ -43,7 +32,6 @@ Create these NEW variables in the \`daybridge\` production project after Vercel 
 - \`VAPID_PRIVATE_KEY\` — corresponding private VAPID key (sensitive, server-only)
 - \`VAPID_SUBJECT\` — \`mailto:<your-controlled-email>\` or \`https://daybridge-swart.vercel.app\`
 - \`DAYBRIDGE_CRON_SECRET\` — long randomly generated string, kept as **sensitive**
-- \`NEXT_PUBLIC_TOMTOM_MAP_KEY\` — optional, *separately restricted* browser key; never the \`tom_tom\` server secret.
 
 Generate VAPID keys locally with \`npx web-push generate-vapid-keys\`, and a cron secret using a cryptographically secure local generator. **Never commit these values or paste them in public chats.** The same cron secret is used only in Vercel \`DAYBRIDGE_CRON_SECRET\` and the private Supabase Vault secret \`daybridge_worker_secret\`.
 
@@ -98,13 +86,10 @@ Do not activate until you have set Vercel secrets, inserted Vault secret, confir
 
 
 
-## Map fix: Orbis street tiles and correct route geometry (October 22, 2026)
+## Interactive map validation
 
-The blank map with `Invalid static map coordinates` had an internal format mismatch: TomTom Routing v1 returns leg points as `{latitude,longitude}`, but DayBridge treated them as `{lat,lon}`. This yielded invalid projected map centers (NaN), causing DayBridge's own static-map endpoint to reject requests before reaching TomTom. Route-point normalization now filters and maps coordinates correctly; a regression test covers this exact payload.
+`npm test` runs the domain and geometry regressions. `npm run test:browser` starts an isolated Next.js harness, tests the real MapLibre worker in desktop and mobile Chromium, and removes the harness afterward. HTTP tile fixtures are controlled test data, not a production map provider or fallback.
 
-DayBridge now renders TomTom Orbis Map Display API **v2 raster tiles** in MapLibre, with zoom/pan and the route line plus starting and ending markers. It requests tiles through `/api/travel/map-tile/{z}/{x}/{y}`, which authenticates the user, validates tile bounds, rate-limits requests, and calls the official Orbis v2 endpoint using the existing **server-only** `tom_tom` key in the `TomTom-Api-Key` header. No client-side TomTom credential is necessary. The MapLibre stylesheet is loaded by the app's layout.
+Run `npx playwright install chromium` once before browser tests. Check successful worker delivery, clickable markers, pan/zoom, route changes without recreation, traffic retry and interactive recovery after a tile outage. The test harness is generated only by the test runner and is excluded from source control; finish browser tests before building a release.
 
-When MapLibre or Orbis raster imagery fails, the viewer retries the classic Static Image API with the corrected projected coordinates and keeps the route overlay visible as a final fallback. TomTom API permission/billing errors cannot be solved by client rendering changes. Do not expose `tom_tom` as `NEXT_PUBLIC_TOMTOM_MAP_KEY`.
-
-Validation: `npm run test:map` checks TomTom point normalization, map projection and malformed point filtering. Confirm real street imagery on an installed Android device after deployment; a successful build alone cannot prove Orbis entitlement or PNG delivery.
-
+Production acceptance additionally requires a signed-in PNG response from each tile layer, a real route from the selected origin/destination, and verification in the installed PWA. Vercel team-scope authorization is needed to inspect production credentials and deployment logs. Do not report local fixture tests as live TomTom validation.

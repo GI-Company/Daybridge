@@ -3,10 +3,12 @@ import {
   calculateRemainingPaycheck,
   parseDollarsToCents,
   formatCents,
-} from '../lib/budget';
-import { expandEventOccurrences, detectEventConflicts } from '../lib/recurrence';
-import { getMedicationSlotsForDay, calculateRefillForecast } from '../lib/medication';
-import { BudgetAccount, Bill, BudgetReserve, PaycheckPlan, WageAdvance, CalendarEvent, Medication, MedicationSchedule } from '../lib/types';
+} from '../lib/budget.ts';
+import { expandEventOccurrences, detectEventConflicts } from '../lib/recurrence.ts';
+import { getMedicationSlotsForDay, calculateRefillForecast } from '../lib/medication.ts';
+import type { BudgetAccount, Bill, BudgetReserve, PaycheckPlan, WageAdvance, CalendarEvent, Medication, MedicationSchedule } from '../lib/types';
+import nodeTest from 'node:test';
+import assert from 'node:assert/strict';
 
 export function runTests(): { name: string; passed: boolean; error?: string }[] {
   const results: { name: string; passed: boolean; error?: string }[] = [];
@@ -161,3 +163,7 @@ export function runTests(): { name: string; passed: boolean; error?: string }[] 
 
   return results;
 }
+
+nodeTest('domain calculations pass their acceptance checks', () => {
+  for (const result of runTests()) assert.equal(result.passed, true, result.name + ': ' + (result.error ?? ''));
+});

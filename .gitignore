@@ -5,3 +5,10 @@ coverage/
 *.log
 .env*
 !.env.example
+public/maps/maplibre/
+playwright-report/
+test-results/
+*.tsbuildinfo
+app/map-test-internal/
+.next-map-tests/
+supabase/.temp/

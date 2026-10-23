@@ -45,7 +45,7 @@ self.addEventListener('fetch',event=>{
   })());
   return;
  }
- if(url.pathname.startsWith('/_next/static/')){
+ if(url.pathname.startsWith('/_next/static/')||/^\/maps\/maplibre\/\d+\.\d+\.\d+\/maplibre-gl-(worker|shared)\.mjs$/.test(url.pathname)){
   event.respondWith((async()=>{
    const cache=await caches.open(SHELL_CACHE);
    const hit=await cache.match(request);

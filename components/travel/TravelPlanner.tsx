@@ -5,27 +5,43 @@ import {createClient} from '../../lib/supabase/client';
 import {defaults,leaveBy,mapsUrl,type Point,type TravelPrefs,type RouteResult,type Mode} from '../../lib/travel/types';
 import {RouteMap} from './RouteMap';
 import {useDayBridge} from '../../lib/storage/store';
+import {useTravelRequest} from '../../lib/travel/use-travel-request';
+import {validMapPoint} from '../../lib/travel/geometry';
 
 type Place=Point&{label:string};
 export function TravelPlanner({eventId,title,startTime,location}:{eventId:string;title:string;startTime:Date|string;location?:string}){
- const {updateEvent,savedPlaces}=useDayBridge(),client=createClient();
+ const {updateEvent,savedPlaces,events,profile}=useDayBridge(),client=createClient();
  const [prefs,setPrefs]=useState<TravelPrefs>(defaults),[address,setAddress]=useState(location||'');
  const initialSaved=savedPlaces.find(p=>p.address===location);
- const [place,setPlace]=useState<Place|null>(initialSaved?{label:initialSaved.address,lat:initialSaved.lat,lon:initialSaved.lon}:null),[options,setOptions]=useState<Place[]>([]);
+ const savedEvent=events.find(event=>event.id===eventId&&event.location===location);
+ const eventPoint={lat:savedEvent?.destinationLat,lon:savedEvent?.destinationLon};
+ const [place,setPlace]=useState<Place|null>(initialSaved?{label:initialSaved.address,lat:initialSaved.lat,lon:initialSaved.lon}:
+  validMapPoint(eventPoint)&&location?{...eventPoint,label:location}:null),[options,setOptions]=useState<Place[]>([]);
  const [origin,setOrigin]=useState<Point|null>(null),[estimate,setEstimate]=useState<RouteResult|null>(null);
  const [choice,setChoice]=useState(0),[busy,setBusy]=useState(false),[status,setStatus]=useState('');
  const [monitor,setMonitor]=useState(false),[active,setActive]=useState(false);
  const [guiding,setGuiding]=useState(false),[guidance,setGuidance]=useState('');
  const at=new Date(startTime).toISOString();
+ const routeContext=JSON.stringify([eventId,at,place?.lat,place?.lon,prefs.travel_mode,
+  prefs.origin_kind,prefs.saved_origin_lat,prefs.saved_origin_lon,guiding]);
+ const beginRoute=useTravelRequest(routeContext);
+ const beginAddress=useTravelRequest(address);
+ useEffect(()=>{setEstimate(null);setOrigin(null);setBusy(false);},[routeContext]);
  useEffect(()=>{
   let valid=true;
-  client?.from('travel_preferences').select('*').maybeSingle().then(({data}: {data:Partial<TravelPrefs>|null})=>{if(valid&&data)setPrefs({...defaults,...data})});
+  let revision=0;
+  const loadPreferences=()=>{
+   const current=++revision;
+   void client?.from('travel_preferences').select('*').maybeSingle().then(({data}: {data:Partial<TravelPrefs>|null})=>{if(valid&&current===revision&&data)setPrefs({...defaults,...data})});
+  };
+  loadPreferences();
+  window.addEventListener('daybridge:travel-prefs-updated',loadPreferences);
   client?.from('travel_appointments').select('destination_address,destination_lat,destination_lon,enabled,cancelled,origin_lat,origin_lon').eq('source_event_id',eventId).eq('occurrence_start',at).maybeSingle().then(({data}: {data:{destination_address:string;destination_lat:number;destination_lon:number;enabled:boolean;cancelled:boolean;origin_lat:number|null;origin_lon:number|null}|null})=>{
    if(!valid||!data)return;
    setAddress(data.destination_address);setPlace({label:data.destination_address,lat:data.destination_lat,lon:data.destination_lon});setActive(Boolean(data.enabled&&!data.cancelled));
    setMonitor(data.origin_lat!==null&&data.origin_lon!==null);
   });
-  return()=>{valid=false};
+  return()=>{valid=false;window.removeEventListener('daybridge:travel-prefs-updated',loadPreferences)};
  },[eventId,at]);
  useEffect(()=>{
   if(!guiding)return;
@@ -55,19 +71,20 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
    if(activeRequest||(lastPoint&&now-lastCheck<120000)||
       (lastPoint&&moved<50&&now-lastCheck<300000))return;
    lastPoint=point;lastCheck=now;activeRequest=true;
-   setOrigin(point);
    setGuidance('Checking live traffic and faster routes from your current location…');
+   const request=beginRoute();
    void (async()=>{
     try{
      const response=await fetch('/api/travel/route',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({origin:point,destination:{lat:place.lat,lon:place.lon},
-       travelMode:prefs.travel_mode,arriveAt:at}),signal:controller.signal
+       travelMode:prefs.travel_mode,arriveAt:at}),signal:AbortSignal.any([controller.signal,request.signal])
      });
      if(!response.ok)throw Error('Route refresh temporarily unavailable');
      const data=await response.json() as RouteResult;
-     if(stopped||!data.routes?.length)return;
+     if(stopped||!request.current()||!data.routes?.length)return;
      const ranked={...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)};
+     setOrigin(point);
      setEstimate(ranked);
      setChoice(0);
      const best=ranked.routes[0];
@@ -79,13 +96,13 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
       (ranked.routes.length>1?'Alternatives are available below. ':'')+
       'Follow road signs and use a full navigation app for turn-by-turn guidance.');
     }catch{
-     if(!stopped)setGuidance('Live route update unavailable. Use an external navigation app and follow road signs.');
+     if(!stopped&&request.current())setGuidance('Live route update unavailable. Check your connection and retry.');
     }finally{activeRequest=false;}
    })();
   },()=>{if(!stopped)setGuidance('GPS signal unavailable or location permission denied.');},
   {enableHighAccuracy:true,maximumAge:10000,timeout:15000});
   return()=>{stopped=true;controller.abort();navigator.geolocation.clearWatch(watchId);};
- },[guiding,place?.lat,place?.lon,prefs.travel_mode,at]);
+ },[guiding,place?.lat,place?.lon,prefs.travel_mode,at,beginRoute]);
  useEffect(()=>{
   if(guiding||!place||prefs.saved_origin_lat===null||prefs.saved_origin_lon===null||
      !prefs.traffic_notifications)return;
@@ -93,53 +110,57 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   // Populate the appointment's route details automatically on open.
   const from={lat:prefs.saved_origin_lat,lon:prefs.saved_origin_lon};
   const controller=new AbortController();
+  const request=beginRoute();
   let cancelled=false;
   void (async()=>{
    try{
     const response=await fetch('/api/travel/route',{
      method:'POST',headers:{'Content-Type':'application/json'},
      body:JSON.stringify({origin:from,destination:{lat:place.lat,lon:place.lon},
-      travelMode:prefs.travel_mode,arriveAt:at}),signal:controller.signal
+      travelMode:prefs.travel_mode,arriveAt:at}),signal:AbortSignal.any([controller.signal,request.signal])
     });
     if(!response.ok)throw Error();
     const data=await response.json() as RouteResult;
-    if(cancelled||!data.routes.length)return;
+    if(cancelled||!request.current()||!data.routes.length)return;
     setOrigin(from);
     setEstimate({...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)});
     setChoice(0);
     setStatus('Latest travel estimate loaded from your approved starting location.');
    }catch{
-    if(!cancelled)setStatus('Automatic route preview unavailable. Tap Preview to retry.');
+    if(!cancelled&&request.current())setStatus('Automatic route preview unavailable. Tap Preview to retry.');
    }
   })();
   return()=>{cancelled=true;controller.abort();};
  },[guiding,place?.lat,place?.lon,prefs.saved_origin_lat,prefs.saved_origin_lon,
-    prefs.travel_mode,prefs.traffic_notifications,at]);
+    prefs.travel_mode,prefs.traffic_notifications,at,beginRoute]);
 
  async function geocode(){
   setBusy(true);setOptions([]);setPlace(null);setEstimate(null);setStatus('');
-  try{const r=await fetch('/api/travel/geocode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address})});if(!r.ok)throw Error();const j=await r.json();setOptions(j.results||[]);setStatus(j.results?.length?'Select the matching destination.':'No matches found.');}
-  catch{setStatus('Address lookup unavailable. Try another address.')}finally{setBusy(false)}
+  const request=beginAddress();
+  try{const r=await fetch('/api/travel/geocode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address}),signal:request.signal});if(!r.ok)throw Error();const j=await r.json();if(!request.current())return;setOptions(j.results||[]);setStatus(j.results?.length?'Select the matching destination.':'No matches found.');}
+  catch{if(request.current())setStatus('Address lookup unavailable. Try another address.')}finally{if(request.current())setBusy(false)}
  }
  async function getOrigin(){
   if(prefs.origin_kind==='saved'&&prefs.saved_origin_lat!==null&&prefs.saved_origin_lon!==null){
-    const point={lat:prefs.saved_origin_lat,lon:prefs.saved_origin_lon};setOrigin(point);return point;
+    return {lat:prefs.saved_origin_lat,lon:prefs.saved_origin_lon};
   }
   if(!navigator.geolocation){setStatus('This device does not support GPS. Approve a saved origin in Settings.');return null;}
   return new Promise<Point|null>(resolve=>navigator.geolocation.getCurrentPosition(p=>{
-    const point={lat:p.coords.latitude,lon:p.coords.longitude};setOrigin(point);resolve(point);
+    const point={lat:p.coords.latitude,lon:p.coords.longitude};resolve(point);
   },()=>{setStatus('Current GPS unavailable or permission denied. Approve a saved origin in Settings.');resolve(null)},{enableHighAccuracy:true,maximumAge:30000,timeout:12000}));
  }
  async function preview(){
   if(!place){setStatus('Select a validated destination first.');return}
   setBusy(true);setStatus('Calculating TomTom routes…');
+  const request=beginRoute();
   const from=await getOrigin();
+  if(!request.current())return;
   if(!from){setBusy(false);return;}
   try{
-   const result=await fetch('/api/travel/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origin:from,destination:{lat:place.lat,lon:place.lon},travelMode:prefs.travel_mode,arriveAt:at})});
+   const result=await fetch('/api/travel/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origin:from,destination:{lat:place.lat,lon:place.lon},travelMode:prefs.travel_mode,arriveAt:at}),signal:request.signal});
    if(!result.ok)throw Error();
-   const data=await result.json() as RouteResult;setEstimate({...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)});setChoice(0);setStatus('Route updated. Times are estimates, not guarantees.');
-  }catch{setStatus('Routing unavailable. The appointment remains scheduled.');setEstimate(null)}finally{setBusy(false)}
+   const data=await result.json() as RouteResult;if(!request.current())return;setOrigin(from);setEstimate({...data,routes:[...data.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)});setChoice(0);setStatus('Route updated. Times are estimates, not guarantees.');
+  }catch{if(request.current()){setStatus('Routing unavailable. Check your connection and retry.');setEstimate(null)}}finally{if(request.current())setBusy(false)}
  }
  async function saveMonitor(){
   if(!place){setStatus('Select the destination first.');return}
@@ -155,12 +176,12 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
    origin_lat:approved?prefs.saved_origin_lat:null,origin_lon:approved?prefs.saved_origin_lon:null,
    origin_label:approved?prefs.saved_origin_label:null,
    travel_mode:prefs.travel_mode,arrival_buffer_minutes:prefs.arrival_buffer_minutes,
-   timezone:'America/New_York',source_revision:revision,
-   cancelled:false,enabled:true,updated_at:new Date().toISOString()
+   timezone:savedEvent?.timezone||profile.timezone,source_revision:revision,
+   cancelled:!approved,enabled:approved,updated_at:new Date().toISOString()
   },{onConflict:'user_id,source_event_id,occurrence_start'});
   if(!error){
    updateEvent(eventId,{location:place.label,destinationLat:place.lat,destinationLon:place.lon,travelMode:prefs.travel_mode,travelBufferMinutes:prefs.arrival_buffer_minutes});
-   setActive(true);setStatus(approved?'Saved with background departure alerts.':'Travel destination saved. Background monitoring off; current GPS only works while app is open.');
+   setActive(approved);setStatus(approved?'Saved with background departure alerts.':'Travel destination saved. Background monitoring off; current GPS only works while app is open.');
   }else setStatus('Save failed. Please retry.');
   setBusy(false);
  }

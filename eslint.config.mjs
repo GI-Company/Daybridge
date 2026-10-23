@@ -7,6 +7,7 @@ export default [
   { ignores: [
     ".next/**", "node_modules/**", "out/**", "build/**",
     "next-env.d.ts", "supabase/functions/**",
+    ".next-map-tests/**", "playwright-report/**", "test-results/**", "public/maps/maplibre/**",
   ] },
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
