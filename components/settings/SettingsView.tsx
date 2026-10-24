@@ -33,7 +33,7 @@ export const SettingsView: React.FC = () => {
 
   const handleExportJSON=()=>{
     if(!window.confirm('This export is an unencrypted JSON file containing sensitive personal data. Save it only to a private device. Continue?'))return;
-    const snapshot=Object.fromEntries(['profile','savedPlaces','events','eventOccurrences','tasks','medications','medicationSchedules','medicationLogs','accounts','transactions','paycheckPlan','advances','bills','reserves','contacts'].map(key=>[key,(data as unknown as Record<string,unknown>)[key]]));
+    const snapshot=Object.fromEntries(['profile','savedPlaces','events','eventOccurrences','tasks','medications','medicationSchedules','medicationLogs','accounts','transactions','paycheckPlan','advances','bills','reserves','contacts','noteBooklets'].map(key=>[key,(data as unknown as Record<string,unknown>)[key]]));
     const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='daybridge-private-export.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };

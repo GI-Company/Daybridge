@@ -71,6 +71,10 @@ export interface EventOccurrence {
   overrideEndTime?: string;
 }
 
+export type NoteColor='yellow'|'pink'|'mint'|'blue'|'lavender';
+export interface NotePage {id:string;content:string;createdAt:string;updatedAt:string}
+export interface NoteBooklet {id:string;userId:string;title:string;category:string;color:NoteColor;pages:NotePage[];createdAt:string;updatedAt:string}
+
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface Subtask {
