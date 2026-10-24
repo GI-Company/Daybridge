@@ -98,7 +98,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId
             >
               <div className="flex items-center justify-between gap-3">
                 <div
-                  onClick={() => {if(task.completed||window.confirm('Mark this task as done?'))toggleTask(task.id);}}
+                  onClick={() => {if(window.confirm(task.completed?'Undo completion of this task?':'Mark this task as done?'))toggleTask(task.id);}}
                   className="flex items-center gap-3 flex-1 cursor-pointer min-h-[44px]"
                 >
                   <div
