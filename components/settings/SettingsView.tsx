@@ -29,11 +29,12 @@ export const SettingsView: React.FC = () => {
     profile,
     updateProfile,
     isLiveSupabase,
+    canUndo,canRedo,undoChange,redoChange,
   } = useDayBridge();
 
   const handleExportJSON=()=>{
     if(!window.confirm('This export is an unencrypted JSON file containing sensitive personal data. Save it only to a private device. Continue?'))return;
-    const snapshot=Object.fromEntries(['profile','savedPlaces','events','eventOccurrences','tasks','medications','medicationSchedules','medicationLogs','accounts','transactions','paycheckPlan','advances','bills','reserves','contacts'].map(key=>[key,(data as unknown as Record<string,unknown>)[key]]));
+    const snapshot=Object.fromEntries(['profile','savedPlaces','events','eventOccurrences','tasks','medications','medicationSchedules','medicationLogs','accounts','transactions','paycheckPlan','advances','bills','reserves','contacts','noteBooklets'].map(key=>[key,(data as unknown as Record<string,unknown>)[key]]));
     const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='daybridge-private-export.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
@@ -50,9 +51,17 @@ export const SettingsView: React.FC = () => {
         </p>
       </div>
 
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+        <h3 className="font-semibold text-slate-950">Undo and redo changes</h3>
+        <p className="text-xs text-slate-600">Every reversal requires confirmation and automatically saves and syncs. Recent change history remains available until you close the workspace.</p>
+        <div className="flex gap-3">
+          <button type="button" disabled={!canUndo} onClick={undoChange} className="min-h-11 rounded-xl border border-slate-300 px-5 font-semibold text-slate-800 disabled:opacity-40">Undo</button>
+          <button type="button" disabled={!canRedo} onClick={redoChange} className="min-h-11 rounded-xl border border-slate-300 px-5 font-semibold text-slate-800 disabled:opacity-40">Redo</button>
+        </div>
+      </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
         <h3 className="font-bold text-slate-900">Private workspace lock</h3>
-        <p className="text-sm text-slate-700">Locking hides private records while preserving open work and the encrypted save queue. Unlock requires your account password and an internet connection. Automatic locking is optional so existing offline use is preserved.</p>
+        <p className="text-sm text-slate-700">Locking hides private records while preserving open work and the encrypted save queue. Unlock with your account password, or with your registered device passkey when available. This is a privacy gate, not sign-out; automatic locking is optional.</p>
         <AutoLockPreference userId={profile.id}/>
         <button type="button" onClick={()=>window.dispatchEvent(new Event('daybridge:lock'))} className="min-h-11 rounded-xl bg-teal-800 px-4 py-2 font-semibold text-white">Lock DayBridge now</button>
       </section>
@@ -141,13 +150,7 @@ export const SettingsView: React.FC = () => {
             {label}<input type="checkbox" className="h-5 w-5 accent-teal-800" checked={profile.notificationPreferences?.[key]!==false}
              onChange={event=>updateProfile({notificationPreferences:{...profile.notificationPreferences,[key]:event.target.checked}})}/>
            </label>)}
-          <label className="block text-sm text-slate-800">Appointment reminder lead time
-           <select aria-label="Appointment reminder lead time" className="ml-3 min-h-11 rounded-xl border border-slate-300 bg-white px-3" value={profile.reminderLeadMinutes}
-            onChange={event=>updateProfile({reminderLeadMinutes:Number(event.target.value)})}>
-            {Array.from({length:61},(_,index)=>index*5).map(minutes=><option key={minutes} value={minutes}>{minutes===0?'At start':minutes+' minutes before'}</option>)}
-           </select>
-          </label>
-          <p className="text-xs text-slate-600">Travel alerts use the same lead time before calculated departure while GPS is fresh. Adjust the slider in Travel & departure for up to five hours. Closed-app appointment reminders use the interval before appointment start.</p>
+          <p className="text-xs text-slate-600">Set reminder timing for each appointment in Schedule and for each task when adding it.</p>
         </div>
       </section>
 

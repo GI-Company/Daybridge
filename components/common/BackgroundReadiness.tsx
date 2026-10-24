@@ -26,6 +26,7 @@ export function BackgroundReadiness({userId,suppressed=false}:{userId:string;sup
  const [state,setState]=useState<SetupState>(initial);
  const [loaded,setLoaded]=useState(false);
  const [dismissed,setDismissed]=useState(true);
+ const [manualOpen,setManualOpen]=useState(false);
  const [busy,setBusy]=useState(false);
  const [message,setMessage]=useState('');
  const refresh=useCallback(async()=>{
@@ -42,7 +43,7 @@ export function BackgroundReadiness({userId,suppressed=false}:{userId:string;sup
   window.addEventListener('focus',onChanged);
   window.addEventListener('daybridge:travel-prefs-updated',onChanged);
   window.addEventListener('daybridge:push-updated',onChanged);
-  const reopen=()=>{setDismissed(false);void refresh();};
+  const reopen=()=>{setManualOpen(true);setDismissed(false);void refresh();};
   window.addEventListener('daybridge:open-background-setup',reopen);
   return()=>{
    document.removeEventListener('visibilitychange',onReturn);
@@ -53,6 +54,7 @@ export function BackgroundReadiness({userId,suppressed=false}:{userId:string;sup
   };
  },[key,refresh]);
  function dismiss(){
+  setManualOpen(false);
   try{localStorage.setItem(key,'dismissed')}catch{}
   setDismissed(true);
  }
@@ -74,7 +76,7 @@ export function BackgroundReadiness({userId,suppressed=false}:{userId:string;sup
   finally{await refresh();setBusy(false)}
  }
  const needsPush=state.push!=='ready';
- if(suppressed||!loaded||dismissed||!needsPush)return null;
+ if(!loaded||(!manualOpen&&(suppressed||dismissed||!needsPush)))return null;
  return <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3" role="presentation">
   <section role="dialog" aria-modal="true" aria-label="DayBridge background alert setup"
    className="my-auto max-h-[94dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-3xl border border-teal-200 bg-white p-5 shadow-2xl sm:p-6">
@@ -93,6 +95,7 @@ export function BackgroundReadiness({userId,suppressed=false}:{userId:string;sup
      {needsPush?<BellRing className="h-5 w-5 text-amber-800"/>:<CheckCircle2 className="h-5 w-5 text-emerald-800"/>}
      1. Background notifications {needsPush?'— needs attention':'— ready'}
     </div>
+    {!needsPush&&<p role="status" className="text-xs text-teal-800">Background push is registered. This panel remains available so you can review device storage, location limits and notification setup.</p>}
     {needsPush&&<>
      <p className="text-xs leading-5 text-slate-700">{userNotice(state.push)}</p>
      {state.push!=='denied'&&state.push!=='unsupported'&&<button disabled={busy} type="button"

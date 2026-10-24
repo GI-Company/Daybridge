@@ -11,3 +11,14 @@ input,select,textarea { color:#0f172a; }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 @media print {.no-print {display:none!important}}
 .safe-area-bottom {padding-bottom:env(safe-area-inset-bottom,0px)}
+
+@media (prefers-reduced-motion: no-preference) {
+  button:not(:disabled):active { animation:daybridge-button-press 220ms cubic-bezier(.2,1.8,.4,1); }
+  @keyframes daybridge-button-press {
+    0% {scale:1}
+    40% {scale:.94}
+    75% {scale:1.025}
+    100% {scale:1}
+  }
+}
+button { touch-action:manipulation; }

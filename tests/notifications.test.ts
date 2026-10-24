@@ -84,3 +84,19 @@ test('a five-hour appointment lead continues to schedule an early reminder while
  assert.equal(dueReminders(snapshot,user,at('2026-10-23T05:00:00')).length,1);
  assert.equal(dueReminders(snapshot,user,at('2026-10-23T04:59:00')).length,0);
 });
+
+test('each appointment controls its own reminder lead rather than changing every appointment',()=>{
+ const early={...event,id:'event-early',reminderLeadMinutes:120};
+ const late={...event,id:'event-late',reminderLeadMinutes:15};
+ const snapshot={profile,events:[early,late]};
+ assert.deepEqual(dueReminders(snapshot,user,at('2026-10-23T08:01:00')).map(x=>x.sourceId),['event-early']);
+ assert.deepEqual(dueReminders(snapshot,user,at('2026-10-23T09:46:00')).map(x=>x.sourceId),['event-late']);
+});
+test('each task fires at its individually configured lead time and stops on completion',()=>{
+ const early={id:'task-early',dueDate:'2026-10-23T12:00:00',completed:false,reminderLeadMinutes:180} as TaskItem;
+ const late={id:'task-late',dueDate:'2026-10-23T12:00:00',completed:false,reminderLeadMinutes:15} as TaskItem;
+ const snapshot={profile,tasks:[early,late]};
+ assert.deepEqual(dueReminders(snapshot,user,at('2026-10-23T09:01:00')).map(x=>x.sourceId),['task-early']);
+ assert.deepEqual(dueReminders(snapshot,user,at('2026-10-23T11:46:00')).map(x=>x.sourceId),['task-late']);
+ assert.deepEqual(dueReminders({...snapshot,tasks:[{...early,completed:true},late]},user,at('2026-10-23T09:01:00')),[]);
+});

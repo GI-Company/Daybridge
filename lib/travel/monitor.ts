@@ -111,7 +111,7 @@ export async function monitorTravel(){
   try{
    const remaining=startMs-now;
    const estimatedLeave=startMs-(plan.last_travel_seconds||0)*1000-plan.arrival_buffer_minutes*60000;
-   const interval=remaining<=3600000||now>=estimatedLeave-reminderLeadMinutes(source?.profile?.reminderLeadMinutes)*60000?60000:remaining<=4*3600000?5*60000:30*60000;
+   const interval=remaining<=3600000||now>=estimatedLeave-reminderLeadMinutes(((source?.events||[]).find(e=>e.id===plan.source_event_id)?.reminderLeadMinutes??source?.profile?.reminderLeadMinutes))*60000?60000:remaining<=4*3600000?5*60000:30*60000;
    if(plan.last_checked_at&&now-Date.parse(plan.last_checked_at)<interval)continue;
    // Compare alternative route choices automatically as the appointment approaches.
    // The background calculation always starts at the user-approved saved origin,
@@ -130,7 +130,7 @@ export async function monitorTravel(){
      routeOptions:ordered.length
    });
    const leaveMs=impact.leaveByMs;
-   const phase=travelReminderPhase(startMs,best.durationSeconds,plan.arrival_buffer_minutes,source?.profile?.reminderLeadMinutes,now);
+   const phase=travelReminderPhase(startMs,best.durationSeconds,plan.arrival_buffer_minutes,(source?.events||[]).find(e=>e.id===plan.source_event_id)?.reminderLeadMinutes??source?.profile?.reminderLeadMinutes,now);
    await admin.from('travel_estimates').insert({
      user_id:plan.user_id,appointment_id:plan.id,travel_seconds:best.durationSeconds,
      traffic_delay_seconds:best.delaySeconds,historic_seconds:best.historicSeconds,

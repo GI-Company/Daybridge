@@ -22,6 +22,7 @@ import { MoneyView } from '../components/money/MoneyView';
 import { HealthView } from '../components/health/HealthView';
 import { CourtView } from '../components/court/CourtView';
 import { TasksView } from '../components/tasks/TasksView';
+import {NotesView} from '../components/notes/NotesView';
 import { ReviewView } from '../components/review/ReviewView';
 import { ResourcesView } from '../components/resources/ResourcesView';
 import { SettingsView } from '../components/settings/SettingsView';
@@ -90,6 +91,8 @@ function PrivateWorkspace({userId}:{userId:string}) {
               onNavigate={(tab) => navigate(tab)}
             />
           )}
+
+          {currentTab === 'notes' && <NotesView />}
 
           {currentTab === 'tasks' && (
             <TasksView focusTaskId={target?.task} focusRevision={target?.revision} onOpenQuickAdd={() => openQuickAdd('task')} />

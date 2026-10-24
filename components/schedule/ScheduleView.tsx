@@ -13,6 +13,7 @@ import {AppointmentCategorySettings} from './AppointmentCategorySettings';
 import type {EventCategory} from '../../lib/types';
 import {CheckInCard} from './CheckInCard';
 import {TravelPlanner} from '../travel/TravelPlanner';
+import {reminderLeadMinutes,reminderLeadLabel} from '../../lib/travel/timing';
 
 interface ScheduleViewProps {
  onOpenQuickAdd:(date?:string)=>void;
@@ -26,7 +27,7 @@ type CalendarMode='month'|'week';
 const weekLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate,focusEventId,focusRevision})=>{
- const {events,eventOccurrences,recordAttendance,deleteEvent,profile}=useDayBridge();
+ const {events,eventOccurrences,recordAttendance,deleteEvent,updateEvent,profile}=useDayBridge();
  const categories=appointmentCategories(profile),activeCategories=categories.filter(category=>!category.hidden);
  const categoryLabel=(id:EventCategory)=>appointmentCategory(profile,id).label;
  const categoryColor=(id:EventCategory)=>appointmentCategory(profile,id).color;
@@ -275,6 +276,14 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                 </div>
               )}
 
+              {(() => {const source=events.find(item=>item.id===selectedOccurrence.eventId);if(!source||source.checkInReminderMinutes)return null;
+                const lead=reminderLeadMinutes(source.reminderLeadMinutes??profile.reminderLeadMinutes);
+                return <label className="block rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-800">
+                 Remind me for this appointment: {reminderLeadLabel(lead)}
+                 <input type="range" min="0" max="300" step="5" value={lead} onChange={e=>updateEvent(source.id,{reminderLeadMinutes:Number(e.target.value)})}
+                  className="mt-2 block w-full accent-teal-800" aria-label="Minutes before this appointment's departure or start"/>
+                </label>;})()}
+
               {selectedOccurrence.venueType === 'in_person' && <TravelPlanner key={selectedOccurrence.eventId+'-'+selectedOccurrence.startTime.toISOString()} eventId={selectedOccurrence.eventId} title={selectedOccurrence.title} startTime={selectedOccurrence.startTime} location={selectedOccurrence.location}/>} 
 
               {/* A check-in is completion of a daily task, not attendance at a test. */}
@@ -286,6 +295,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => {
+                      if(!window.confirm('Record self-reported attendance for this appointment?'))return;
                       recordAttendance(
                         selectedOccurrence.id,
                         selectedOccurrence.eventId,
@@ -309,6 +319,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
 
                   <button
                     onClick={() => {
+                      if(!window.confirm('Record self-reported absence for this appointment?'))return;
                       recordAttendance(
                         selectedOccurrence.id,
                         selectedOccurrence.eventId,

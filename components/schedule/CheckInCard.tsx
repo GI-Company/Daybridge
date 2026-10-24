@@ -11,7 +11,7 @@ export function CheckInCard({occurrence,onChange}:{occurrence:Occurrence;onChang
   <h3 className="font-bold text-slate-950">{occurrence.title}</h3>
   <p className="text-sm text-slate-700">{formatDate(occurrence.startTime)} · {formatTime(occurrence.startTime)} – {formatTime(occurrence.endTime)}</p>
   <p role="status" className="text-sm text-slate-700">{done?(syncStatus==='synced'?'Done for this day. Reminders stopped.':'Done on this device. Waiting to sync so background reminders stop.'):'Check whether testing is required. Reminders every 15 minutes during this window.'}</p>
-  <button type="button" onClick={()=>{setCheckInDone(occurrence.eventId,occurrence.originalStartTimeUtc,occurrence.endTime.toISOString(),!done);onChange?.(!done);}}
+  <button type="button" onClick={()=>{if(!window.confirm(done?'Undo this completed check-in?':'Mark this check-in as done for today?'))return;setCheckInDone(occurrence.eventId,occurrence.originalStartTimeUtc,occurrence.endTime.toISOString(),!done);onChange?.(!done);}}
    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-4 py-3 text-sm font-bold text-white hover:bg-teal-900">
    <CheckCircle2 className="h-4 w-4"/>{done?'Undo done':'Mark done'}
   </button>

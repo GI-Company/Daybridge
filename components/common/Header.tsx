@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ShieldCheck, Cloud, CloudOff, Plus, Lock } from 'lucide-react';
+import { ShieldCheck, Cloud, CloudOff, Plus, Lock, Undo2, Redo2 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
 import { getTodayGreeting } from '../../lib/date-time';
 
@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, currentTab }) => {
-  const { profile, syncStatus, syncIssue, retrySync, isLiveSupabase } = useDayBridge();
+  const { profile, syncStatus, syncIssue, retrySync, isLiveSupabase,canUndo,canRedo,undoChange,redoChange } = useDayBridge();
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -62,6 +62,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
 
           {(syncStatus==='offline'||syncStatus==='device_saved') && <button type="button" onClick={retrySync}
             aria-label="Retry saving your private data" className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-2 text-xs font-semibold text-rose-900">Retry save</button>}
+          <div className="hidden items-center gap-1 sm:flex" aria-label="Change history">
+            <button type="button" disabled={!canUndo} onClick={undoChange} aria-label="Undo change" title="Undo last change"
+             className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 disabled:opacity-35"><Undo2 className="h-4 w-4"/></button>
+            <button type="button" disabled={!canRedo} onClick={redoChange} aria-label="Redo change" title="Redo last change"
+             className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 disabled:opacity-35"><Redo2 className="h-4 w-4"/></button>
+          </div>
           {/* Quick Add Button */}
           <button
             onClick={onOpenQuickAdd}

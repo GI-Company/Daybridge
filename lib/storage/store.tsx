@@ -8,6 +8,8 @@ import {
   CalendarEvent,
   EventOccurrence,
   TaskItem,
+  NoteBooklet,
+  NoteColor,
   Medication,
   MedicationSchedule,
   MedicationLog,
@@ -52,6 +54,13 @@ interface DayBridgeContextType {
   events: CalendarEvent[];
   eventOccurrences: EventOccurrence[];
   tasks: TaskItem[];
+  noteBooklets: NoteBooklet[];
+  addNoteBooklet: () => string;
+  updateNoteBooklet: (id:string, updates:Partial<Pick<NoteBooklet,'title'|'category'|'color'>>) => void;
+  deleteNoteBooklet: (id:string) => void;
+  addNotePage: (id:string) => string;
+  updateNotePage: (bookletId:string,pageId:string,content:string) => void;
+  deleteNotePage: (bookletId:string,pageId:string) => void;
   medications: Medication[];
   medicationSchedules: MedicationSchedule[];
   medicationLogs: MedicationLog[];
@@ -62,6 +71,10 @@ interface DayBridgeContextType {
   bills: Bill[];
   reserves: BudgetReserve[];
   contacts: ResourceContact[];
+  canUndo:boolean;
+  canRedo:boolean;
+  undoChange:()=>void;
+  redoChange:()=>void;
   syncStatus: 'synced' | 'device_saved' | 'local_only' | 'syncing' | 'offline';
   syncIssue: string | null;
   retrySync: () => void;
@@ -81,6 +94,7 @@ interface DayBridgeContextType {
   ) => void;
 
   addTask: (task: Omit<TaskItem, 'id' | 'userId' | 'completed' | 'createdAt' | 'updatedAt'>) => TaskItem;
+  updateTask:(id:string,updates:Partial<Pick<TaskItem,'dueDate'|'notes'|'reminderLeadMinutes'>>) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
 
@@ -123,6 +137,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [eventOccurrences, setEventOccurrences] = useState<EventOccurrence[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [noteBooklets,setNoteBooklets]=useState<NoteBooklet[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const medicationsRef=useRef<Medication[]>([]);
   useEffect(()=>{medicationsRef.current=medications;},[medications]);
@@ -137,6 +152,49 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const [bills, setBills] = useState<Bill[]>([]);
   const [reserves, setReserves] = useState<BudgetReserve[]>([]);
   const [contacts, setContacts] = useState<ResourceContact[]>([]);
+
+  // Recent undo snapshots stay in memory, never in unencrypted browser storage.
+  // The existing encrypted local queue automatically saves every reversal.
+  const historyCurrentRef=useRef('');
+  const undoStackRef=useRef<string[]>([]);
+  const redoStackRef=useRef<string[]>([]);
+  const historyRestoringRef=useRef<string|null>(null);
+  const [,refreshHistory]=useState(0);
+  const applyHistory=(serialized:string)=>{
+    const previous=JSON.parse(serialized) as Record<string,unknown>;
+    setProfile(previous.profile as UserProfile);
+    setSavedPlaces(previous.savedPlaces as SavedPlace[]);
+    setEvents(previous.events as CalendarEvent[]);
+    setEventOccurrences(previous.eventOccurrences as EventOccurrence[]);
+    setTasks(previous.tasks as TaskItem[]);
+    setNoteBooklets(previous.noteBooklets as NoteBooklet[]);
+    setMedications(previous.medications as Medication[]);
+    setMedicationSchedules(previous.medicationSchedules as MedicationSchedule[]);
+    setMedicationLogs(previous.medicationLogs as MedicationLog[]);
+    setAccounts(previous.accounts as BudgetAccount[]);
+    setTransactions(previous.transactions as MoneyTransaction[]);
+    setPaycheckPlan(previous.paycheckPlan as PaycheckPlan|null);
+    setAdvances(previous.advances as WageAdvance[]);
+    setBills(previous.bills as Bill[]);
+    setReserves(previous.reserves as BudgetReserve[]);
+    setContacts(previous.contacts as ResourceContact[]);
+  };
+  const undoChange=()=>{
+    if(!undoStackRef.current.length||!window.confirm('Undo your last change? This updates saved records.'))return;
+    const previous=undoStackRef.current.pop()!;
+    redoStackRef.current.push(historyCurrentRef.current);
+    historyRestoringRef.current=previous;
+    applyHistory(previous);
+    refreshHistory(v=>v+1);
+  };
+  const redoChange=()=>{
+    if(!redoStackRef.current.length||!window.confirm('Redo your last undone change? This updates saved records.'))return;
+    const next=redoStackRef.current.pop()!;
+    undoStackRef.current.push(historyCurrentRef.current);
+    historyRestoringRef.current=next;
+    applyHistory(next);
+    refreshHistory(v=>v+1);
+  };
 
   const [syncStatus, setSyncStatus] = useState<'synced' | 'device_saved' | 'local_only' | 'syncing' | 'offline'>('local_only');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -300,7 +358,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     let active=true;
     const keys=['profile','savedPlaces','events','eventOccurrences','tasks',
       'medications','medicationSchedules','medicationLogs','accounts',
-      'transactions','paycheckPlan','advances','bills','reserves','contacts'];
+      'transactions','paycheckPlan','advances','bills','reserves','contacts','noteBooklets'];
     const hydrate=(saved:Record<string,unknown>)=>{
       unknownFieldsRef.current=Object.fromEntries(Object.entries(saved).filter(([k])=>!keys.includes(k)));
       if(saved.profile&&typeof saved.profile==='object')setProfile({...DEFAULT_PROFILE,...(saved.profile as Partial<UserProfile>),id:userId});
@@ -308,6 +366,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       if(Array.isArray(saved.events))setEvents(saved.events as CalendarEvent[]);
       if(Array.isArray(saved.eventOccurrences))setEventOccurrences(saved.eventOccurrences as EventOccurrence[]);
       if(Array.isArray(saved.tasks))setTasks(saved.tasks as TaskItem[]);
+      if(Array.isArray(saved.noteBooklets))setNoteBooklets(saved.noteBooklets as NoteBooklet[]);
       if(Array.isArray(saved.medications))setMedications(saved.medications as Medication[]);
       if(Array.isArray(saved.medicationSchedules))setMedicationSchedules(saved.medicationSchedules as MedicationSchedule[]);
       if(Array.isArray(saved.medicationLogs))setMedicationLogs(saved.medicationLogs as MedicationLog[]);
@@ -399,7 +458,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   useEffect(()=>{
     if(!isLoaded)return;
     const payload:Record<string,unknown>={...unknownFieldsRef.current,
-      profile,savedPlaces,events,eventOccurrences,tasks,medications,
+      profile,savedPlaces,events,eventOccurrences,tasks,noteBooklets,medications,
       medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,
       advances,bills,reserves,contacts};
     const fingerprint=JSON.stringify(payload);
@@ -407,7 +466,18 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       hydratedRef.current=true;
       // Initial load is never a user edit. Only restored dirty state is synced.
       savedFingerprintRef.current=fingerprint;
+      historyCurrentRef.current=fingerprint;
       return;
+    }
+    if(historyRestoringRef.current===fingerprint){
+      historyCurrentRef.current=fingerprint;
+      historyRestoringRef.current=null;
+    }else if(historyCurrentRef.current&&historyCurrentRef.current!==fingerprint){
+      undoStackRef.current.push(historyCurrentRef.current);
+      if(undoStackRef.current.length>30)undoStackRef.current.shift();
+      redoStackRef.current=[];
+      historyCurrentRef.current=fingerprint;
+      refreshHistory(v=>v+1);
     }
     if(fingerprint===savedFingerprintRef.current&&!pendingRef.current)return;
     pendingRef.current={payload,fingerprint};
@@ -425,7 +495,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       void flushSnapshot();
     },900);
     return()=>{if(saveTimerRef.current)clearTimeout(saveTimerRef.current);};
-  },[isLoaded,profile,savedPlaces,events,eventOccurrences,tasks,medications,
+  },[isLoaded,profile,savedPlaces,events,eventOccurrences,tasks,noteBooklets,medications,
     medicationSchedules,medicationLogs,accounts,transactions,paycheckPlan,
     advances,bills,reserves,contacts,flushSnapshot,saveOnDevice]);
 
@@ -545,6 +615,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     return newTask;
   };
 
+  const updateTask=(id:string,updates:Partial<Pick<TaskItem,'dueDate'|'notes'|'reminderLeadMinutes'>>)=>{
+    setTasks(prev=>prev.map(task=>task.id===id?{...task,...updates,
+      notes:updates.notes===undefined?task.notes:updates.notes.slice(0,4000),
+      reminderLeadMinutes:updates.reminderLeadMinutes===undefined?task.reminderLeadMinutes:Math.max(0,Math.min(300,updates.reminderLeadMinutes)),
+      updatedAt:new Date().toISOString()}:task));
+  };
+
   const toggleTask = (id: string) => {
     setTasks((prev) =>
       prev.map((t) => {
@@ -562,6 +639,42 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
   const deleteTask = (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const addNoteBooklet=()=>{
+    const now=new Date().toISOString(),id=newRecordId('book');
+    const page:NoteBooklet['pages'][number]={id:newRecordId('page'),content:'',createdAt:now,updatedAt:now};
+    setNoteBooklets(prev=>[{id,userId,title:'New booklet',category:'Personal',color:'yellow',pages:[page],createdAt:now,updatedAt:now},...prev]);
+    return id;
+  };
+  const updateNoteBooklet=(id:string,updates:Partial<Pick<NoteBooklet,'title'|'category'|'color'>>)=>{
+    const permittedColors:NoteColor[]=['yellow','pink','mint','blue','lavender'];
+    setNoteBooklets(prev=>prev.map(book=>book.id===id?{
+      ...book,...(updates.title!==undefined?{title:updates.title.slice(0,100)}:{}),
+      ...(updates.category!==undefined?{category:updates.category.slice(0,60)}:{}),
+      ...(updates.color&&permittedColors.includes(updates.color)?{color:updates.color}:{}),
+      updatedAt:new Date().toISOString()
+    }:book));
+  };
+  const deleteNoteBooklet=(id:string)=>setNoteBooklets(prev=>prev.filter(book=>book.id!==id));
+  const addNotePage=(id:string)=>{
+    const now=new Date().toISOString(),pageId=newRecordId('page');
+    setNoteBooklets(prev=>prev.map(book=>book.id===id?{
+      ...book,pages:[...book.pages,{id:pageId,content:'',createdAt:now,updatedAt:now}],updatedAt:now
+    }:book));
+    return pageId;
+  };
+  const updateNotePage=(bookletId:string,pageId:string,content:string)=>{
+    const now=new Date().toISOString();
+    setNoteBooklets(prev=>prev.map(book=>book.id===bookletId?{
+      ...book,pages:book.pages.map(page=>page.id===pageId?{...page,content:content.slice(0,30000),updatedAt:now}:page),updatedAt:now
+    }:book));
+  };
+  const deleteNotePage=(bookletId:string,pageId:string)=>{
+    setNoteBooklets(prev=>prev.map(book=>{
+      if(book.id!==bookletId||book.pages.length<=1)return book;
+      return {...book,pages:book.pages.filter(page=>page.id!==pageId),updatedAt:new Date().toISOString()};
+    }));
   };
 
   const addMedication = (
@@ -815,7 +928,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     paidBillIdsRef.current.clear();
     depositedPlanIdsRef.current.clear();
     setSavedPlaces([]);
-    setProfile({...DEFAULT_PROFILE,id:userId});setEvents([]);setEventOccurrences([]);setTasks([]);
+    setProfile({...DEFAULT_PROFILE,id:userId});setEvents([]);setEventOccurrences([]);setTasks([]);setNoteBooklets([]);
     setMedications([]);setMedicationSchedules([]);setMedicationLogs([]);setAccounts([]);
     setTransactions([]);setPaycheckPlan(null);setAdvances([]);setBills([]);setReserves([]);setContacts([]);
   };
@@ -833,6 +946,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         events,
         eventOccurrences,
         tasks,
+        noteBooklets,
+        addNoteBooklet,
+        updateNoteBooklet,
+        deleteNoteBooklet,
+        addNotePage,
+        updateNotePage,
+        deleteNotePage,
         medications,
         medicationSchedules,
         medicationLogs,
@@ -843,6 +963,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         bills,
         reserves,
         contacts,
+        canUndo:undoStackRef.current.length>0,
+        canRedo:redoStackRef.current.length>0,
+        undoChange,
+        redoChange,
         syncStatus,
         syncIssue,
         retrySync,
@@ -856,6 +980,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         recordAttendance,
 
         addTask,
+        updateTask,
         toggleTask,
         deleteTask,
 

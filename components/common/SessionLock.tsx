@@ -3,9 +3,9 @@ import {WorkspaceVisibility} from '../../lib/workspace-visibility';
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {LockKeyhole} from 'lucide-react';
 
-type SessionLockProps={userId:string;verify:(password:string)=>Promise<boolean>;children:React.ReactNode;idleMilliseconds?:number};
+type SessionLockProps={userId:string;verify:(password:string)=>Promise<boolean>;verifyPasskey?:()=>Promise<boolean>;children:React.ReactNode;idleMilliseconds?:number};
 /** Hide the mounted workspace while locked; its encrypted save queue continues, so drafts are not discarded. */
-export function SessionLock({userId,verify,children,idleMilliseconds=0}:SessionLockProps){
+export function SessionLock({userId,verify,verifyPasskey,children,idleMilliseconds=0}:SessionLockProps){
  const [locked,setLocked]=useState(true),[ready,setReady]=useState(false),[password,setPassword]=useState('');
  const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const lastActivity=useRef(Date.now()),lockedRef=useRef(true),channel=useRef<BroadcastChannel|null>(null);
@@ -34,15 +34,20 @@ export function SessionLock({userId,verify,children,idleMilliseconds=0}:SessionL
   persist();
   return()=>{window.removeEventListener('storage',storage);clearInterval(timer);channel.current?.close();channel.current=null;window.removeEventListener('pointerdown',activity);window.removeEventListener('keydown',activity);window.removeEventListener('wheel',activity);window.removeEventListener('daybridge:lock',lockEverywhere);window.removeEventListener('pagehide',visibility);document.removeEventListener('visibilitychange',visibility);};
  },[idleMilliseconds,lock,storageKey]);
+ const finishUnlock=()=>{lastActivity.current=Date.now();sessionStorage.setItem(storageKey,JSON.stringify({locked:false,at:lastActivity.current}));localStorage.removeItem(storageKey);lockedRef.current=false;setLocked(false);};
+ const unlockWithPasskey=async()=>{
+  if(!verifyPasskey)return;
+  setBusy(true);setMessage('');
+  try{if(!navigator.onLine)throw Error('Connect to the internet to verify your passkey.');if(!await verifyPasskey())throw Error('Passkey verification failed or it belongs to another account.');finishUnlock();}
+  catch(error){setMessage(error instanceof Error?error.message:'Passkey unlock is unavailable. Use your password.');}
+  finally{setBusy(false);}
+ };
  const unlock=async(event:React.FormEvent)=>{
   event.preventDefault();setBusy(true);setMessage('');
   try{
    if(!navigator.onLine)throw Error('Connect to the internet to verify your password and unlock.');
    if(!await verify(password))throw Error('Password not recognized. Your records remain locked.');
-   lastActivity.current=Date.now();
-   sessionStorage.setItem(storageKey,JSON.stringify({locked:false,at:lastActivity.current}));
-   localStorage.removeItem(storageKey);
-   lockedRef.current=false;setLocked(false);
+   finishUnlock();
   }catch(error){setMessage(error instanceof Error?error.message:'Unlock is unavailable. Retry when connected.');}
   finally{setPassword('');setBusy(false);}
  };
@@ -57,6 +62,7 @@ export function SessionLock({userId,verify,children,idleMilliseconds=0}:SessionL
      <label className="block text-sm font-semibold text-slate-800">Account password<input autoFocus required type="password" autoComplete="current-password" value={password} onChange={event=>setPassword(event.target.value)} className="mt-1 block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"/></label>
      <button disabled={busy} type="submit" className="min-h-11 w-full rounded-xl bg-teal-800 px-4 py-3 font-semibold text-white disabled:opacity-50">{busy?'Verifying…':'Unlock'}</button>
     </form>
+    {verifyPasskey&&<button disabled={busy} type="button" onClick={()=>void unlockWithPasskey()} className="mt-3 min-h-11 w-full rounded-xl border border-teal-300 bg-white px-4 py-3 font-semibold text-teal-950 disabled:opacity-50">Unlock with device passkey</button>}
     {message&&<p role="alert" className="mt-3 text-sm text-rose-800">{message}</p>}
    </section>
   </main>}

@@ -41,7 +41,7 @@ export async function POST(request:Request){
   const result=await calculateRoute({origin:fix.point,destination:trip.destination,travelMode:trip.travelMode||prefs?.travel_mode||'car',arriveAt:arrivalTarget(trip.startTime,trip.bufferMinutes).toISOString()},{alternatives:2});
   // The provider request can outlast the GPS freshness window: validate again before queueing.
   const sentAt=Date.now(),route=[...result.routes].sort((a,b)=>a.durationSeconds-b.durationSeconds)[0];
-  const notice=route?currentTravelNotice(trip,route,fix,viewer.userId,device.id,trip.timezone||payload.profile?.timezone||'America/New_York',sentAt,prefs?.lockscreen_private!==false,payload.profile?.reminderLeadMinutes):null;
+  const notice=route?currentTravelNotice(trip,route,fix,viewer.userId,device.id,trip.timezone||payload.profile?.timezone||'America/New_York',sentAt,prefs?.lockscreen_private!==false,trip.reminderLeadMinutes??payload.profile?.reminderLeadMinutes):null;
   if(!notice)return NextResponse.json({checked:true},{headers:{'Cache-Control':'no-store'}});
   const quiet=inQuietHours(sentAt,safeTimezone(payload.profile?.timezone),payload.profile?.quietHoursStart,payload.profile?.quietHoursEnd);
   vapidReady();

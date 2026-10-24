@@ -13,6 +13,7 @@ const primary=[
  {id:'money',label:'Budget',icon:Wallet},
 ] as const;
 const secondary=[
+ {id:'notes',label:'Sticky notes',icon:FileText,description:'Colorful private booklets'},
  {id:'health',label:'Medications',icon:Pill,description:'Doses and refills'},
  {id:'locations',label:'Locations & maps',icon:MapPinned,description:'Saved places and travel'},
  {id:'court',label:'Court & classes',icon:Scale,description:'Obligations and attendance'},
