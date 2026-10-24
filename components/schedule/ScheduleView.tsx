@@ -152,13 +152,13 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
        (isToday?' bg-teal-800 text-white':'')}>{day.getDate()}</span>
       {dayEvents.length>0&&<div className="flex w-full flex-col items-center gap-1 sm:items-stretch">
        <span className="flex items-center justify-center gap-0.5 sm:hidden" aria-hidden="true">
-        {dayEvents.slice(0,3).map((event,i)=><span key={event.id+'-'+i} className={'h-1.5 w-1.5 rounded-full '+categoryDot[event.category]}/>)}
+        {dayEvents.slice(0,3).map((event,i)=><span key={event.id+'-'+i} title={categoryLabels[event.category]} className={'h-2 w-2 shrink-0 rounded-full '+categoryDot[event.category]}/>)}
        </span>
        <span className="text-[10px] font-bold text-slate-700 sm:hidden">{dayEvents.length}</span>
        <div className="hidden space-y-1 sm:block">
         {dayEvents.slice(0,view==='week'?4:2).map(event=><span key={event.id}
          className="block truncate rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-900">
-         <span aria-hidden="true" className={'mr-1 inline-block h-1.5 w-1.5 rounded-full '+categoryDot[event.category]}/>
+         <span aria-hidden="true" title={categoryLabels[event.category]} className={'mr-1 inline-block h-2 w-2 shrink-0 rounded-full '+categoryDot[event.category]}/>
          {formatTime(event.startTime)} {event.title}
         </span>)}
         {dayEvents.length>(view==='week'?4:2)&&<span className="block text-[10px] font-semibold text-slate-700">
@@ -169,10 +169,10 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
      </button>;
     })}
    </div>
-   <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 text-[11px] text-slate-600">
-    {(['court','class','self_help','work','personal'] as EventCategory[]).map(category=>
+   <div aria-label="Calendar color key" className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 text-[11px] text-slate-600">
+    {(Object.keys(categoryLabels) as EventCategory[]).map(category=>
      <span key={category} className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className={'h-2 w-2 rounded-full '+categoryDot[category]}/>{categoryLabels[category]}
+      <span aria-hidden="true" className={'h-2 w-2 shrink-0 rounded-full '+categoryDot[category]}/>{categoryLabels[category]}
      </span>)}
    </div>
   </section>
