@@ -1,22 +1,13 @@
 # DayBridge security model
 
-## Current controls
-- No public sign-up interface in the PWA. **Also turn off public sign-ups in Supabase dashboard**; UI alone is not enforcement.
-- Authenticated Supabase account required before mounting any private views.
-- Records stored under `private_snapshots.user_id`, protected by select/insert/update/delete owner-specific RLS; anonymous access revoked.
-- All 17 domain tables have RLS owner predicates. The existing `rls_auto_enable()` privileged helper was revoked from public API roles.
-- Public/publishable Supabase keys are safe in client code only with correct RLS. **Never** use a service role/secret key in `NEXT_PUBLIC_` variables.
-- No plaintext app-data localStorage writes in the live data store.
-- Service worker performs push display only, caches neither routes nor private data.
-- Notifications use generic text to avoid exposing medication or court information on a lock screen.
-- Password or passkey sign-in can persist session across launches. Device locking and revoking lost sessions remain the owner's responsibility.
-- Headers disable framing, sniffing, referrals, and unneeded device capabilities.
+The institutional security candidate is isolated on `feat/daybridge-pilot-security-hardening`; its migration and code require review and explicit production approval. Existing personal records and working features must survive every deployment/migration. See [audit and findings](docs/pilot/SECURITY_AUDIT.md), [test evidence](docs/pilot/evidence/TEST_RESULTS.md) and [deployment/rollback gates](docs/pilot/PILOT_DEPLOYMENT_GUIDE.md).
 
-## Unfinished / must verify before daily use
-- Owner invitation and disabling sign-ups must be done in dashboard.
-- Passkeys must be enabled for the final HTTPS relying-party domain (Supabase experimental feature).
-- Scheduled notification dispatch, dedupe, retry, and delivery monitoring not yet implemented; never depend exclusively on app alerts for critical medication.
-- Offline encrypted queue, automatic cross-device conflict resolution, session-step-up lock, key management for field encryption, and RLS impersonation/integration tests remain open.
-- JSON download is unencrypted: protect or delete it after use.
-- Do not include personal records in issue reports, screenshots, telemetry, or GitHub commits.
-- HIPAA applicability depends on how the product is used and by whom; don't advertise certification.
+Private views require a Supabase identity. Browser operations use owner RLS on snapshots/travel data; service credentials remain server-only. Public signup and anonymous Auth must also be disabled in provider configuration: hiding registration is insufficient. Password hashing and Auth abuse controls belong to Supabase; actual configured protections need verification. Existing username aliases remain compatible but lack email recovery; do not issue new pilot aliases without a reviewed recovery process.
+
+Device records use AES-256-GCM in per-account IndexedDB. The non-extractable key is stored in that origin, so an unlocked profile or same-origin compromise can still use it. Browser SDK tokens are not HttpOnly. This is not E2EE or independent hardware-backed protection. The service worker caches public shell/assets and displays push; it does not cache private API responses. Cloud snapshots and history are readable to authorized infrastructure operators.
+
+The candidate adds nonce CSP, fixed provider destinations, bounded private requests, secure subscription ownership, owner-bound queued saves, manual/optional inactivity lock and metadata audit. Those controls are not active merely because the branch is pushed. Automatic lock is optional to preserve offline operation; locked work needs internet/password verification to reopen. Local logout is not device erasure.
+
+Scheduled reminders have dedupe, retries and per-device provider acceptance; acceptance is not proof of display, acknowledgment, medication taken or attendance. Routine reminder text is generic; traffic context, destination URLs and OS presentation still require privacy review. JSON exports are unencrypted and require confirmation. Never put real records, tokens, push keys or traces in public issues/Git.
+
+The [pilot readiness report](docs/pilot/PILOT_TECHNICAL_READINESS.md) identifies unverified hosted Auth tests, recovery, device behavior, provisioning/deletion and operational gates. Do not advertise HIPAA compliance or pilot production readiness based on technical controls alone. Report suspected security issues privately to the repository owner; no dedicated staffed reporting address has been established.

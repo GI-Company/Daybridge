@@ -1,44 +1,19 @@
-# Admin-only username and password accounts for DayBridge
+# Authentication and provisioning status
 
-DayBridge's sign-in screen accepts **username + password**. There is no self-registration UI, and new authentication accounts must be created by the Supabase project administrator.
+Existing accounts are preserved. DayBridge accepts existing real email/password credentials and legacy assigned usernames. Supabase owns password hashing, refresh/session behavior and provider rate limits. No public privileged authentication API is exposed by the PWA.
 
-## Important: how Supabase Auth works
+## Existing username compatibility
 
-Supabase Auth requires an email or phone for password sign-in; it does **not** natively sign in directly with a username. DayBridge uses a **non-deliverable internal email alias** solely as the Auth identifier:
+The client maps an existing username through `lib/auth/username.ts` to a non-deliverable internal Auth alias. This is compatibility code, **not an approved new pilot provisioning mechanism**. Changing its suffix or an existing Auth email without a reviewed identity migration would break access. Do not rename/recreate existing users or change their UUIDs during deployment.
 
-```
-username: taylor_01
-auth email: taylor_01@accounts.daybridge.example.com
-```
+Legacy aliases have no mailbox or self-service email recovery. An administrator can manage them using trusted Supabase tooling, but must verify identity through an approved private process, avoid storing/logging/transmitting plaintext initial credentials insecurely, and audit sensitive administration. No live account or password was changed for this branch.
 
-Users enter only `taylor_01` and their password in DayBridge. The browser client computes the alias before calling Supabase's normal `auth.signInWithPassword`. Password hashing, rate limiting and sessions remain Supabase Auth's responsibility. No admin/secret key is shipped to browsers and no public username lookup exists.
+## Before provisioning new pilot participants
 
-The suffix is a constant in `lib/auth/username.ts`. Do not alter it or rename an existing user's Auth email without an account migration. Valid usernames are **3–32** characters, begin with a letter, and otherwise use letters, digits, underscores or hyphens. They are case-insensitive.
+1. Verify public signup and anonymous Auth are disabled at Supabase, while preserving password authentication for existing accounts. These settings were not changed in this work; UI absence is not enforcement.
+2. Require MFA for infrastructure/Auth administrators and establish recovery/break-glass custody. No court-staff record permissions are implied by account administration.
+3. Design/test an initial credential process with a verified recovery channel, short-lived one-time enrollment, first-use credential choice, allowed redirects and revocation. Existing email/password sign-in works; an app invitation/recovery callback and secure username directory/provisioning workflow are not yet implemented or verified. Do not improvise new synthetic-email shortcuts or claim temporary passwords are forced to rotate by current code.
+4. Use only isolated synthetic accounts to verify invalid credentials, real signed/expired/forged tokens, refresh, logout, lost-device revocation and administrative denial. See [RLS test boundaries](docs/pilot/SUPABASE_RLS_TEST_REPORT.md).
+5. Obtain approval before production Auth settings, credentials or existing-user access changes. Keep service keys out of browsers, Git, logs and participant exports.
 
-## Required: disable public registration
-
-In the **Daybridge** Supabase project, visit **Authentication → Sign In / Providers → Auth configuration** (label may differ by dashboard version). Disable **Allow new users to sign up**. Also disable **anonymous sign-ins**. Keep Email password authentication enabled for the internal aliases. These settings are required to enforce that accounts must be created by an administrator. Merely hiding the sign-up button would not prevent direct API registrations.
-
-**Do not disable the Email authentication provider itself**, because Supabase still uses the aliases as email/password Auth identities. If you use an app-level global auth setting on another Supabase project, leave that project untouched.
-
-## Creating a username account
-
-1. Open **Supabase → Daybridge → Authentication → Users → Add user → Create new user**. Do not choose **Send invitation**, since the alias is not a real mailbox.
-2. Choose a username, e.g. `taylor_01`. Use the exact generated email `taylor_01@accounts.daybridge.example.com` for the required Auth email field.
-3. Generate a unique, strong password (prefer at least 16 characters). Create the user with **Auto Confirm User** enabled, where supported, so login does not require an impossible email confirmation. The server-side Auth Admin API also supports `createUser({ email, password, email_confirm: true })`. If the dashboard no longer exposes auto-confirm, use a trusted admin-only server environment; do not place the service key in DayBridge's frontend.
-4. Give the user **only** their username and temporary password through a private channel. Never log or email plaintext passwords.
-5. They install DayBridge, enter the username/password, and can use **Settings → Change password** to replace the temporary password. Optional passkey enrollment remains available after a successful login.
-
-**There is currently no self-service email password reset for these accounts.** Admin resets should use the Supabase Auth management dashboard or `auth.admin.updateUserById` in a trusted admin environment. Set expectations before issuing accounts.
-
-## Verification checklist
-
-- Disable public sign-up; direct Auth `signUp` requests must be rejected.
-- Verify only an admin-created, confirmed alias account can sign in with username/password.
-- Verify nonexistent usernames and bad passwords return the same generic sign-in error.
-- Verify uppercase inputs normalize to lowercase.
-- Verify a user's existing owner-only RLS records remain isolated from other accounts.
-- Test device passkeys and current-password-required password change.
-- Keep passwords and Supabase service keys out of GitHub, logs, and chat.
-
-No database migration is necessary. Existing Supabase `auth.users` and user-scoped RLS records are used unchanged.
+Settings permits an existing authenticated participant to change a password. Passkeys remain experimental/provider dependent. The candidate adds manual and opt-in inactivity lock with online password verification; that lock preserves mounted drafts and does not independently encrypt or wipe records.

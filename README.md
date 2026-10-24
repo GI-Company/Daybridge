@@ -109,3 +109,7 @@ DayBridge is a personal organization aid, **not** official court attendance veri
 - [Travel worker and map deployment](TRAVEL_DEPLOYMENT.md)
 - [Security design](SECURITY.md)
 - [Known limitations](KNOWN_LIMITATIONS.md)
+
+## Institutional security candidate
+
+The isolated security branch includes [pilot architecture, audit, test evidence and rollout gates](docs/pilot/PILOT_TECHNICAL_READINESS.md). Its pending migration is not permission to modify production. Every migration/deployment must preserve existing records and functionality, with a verified backup and explicit release approval. No HIPAA-compliance claim is made.

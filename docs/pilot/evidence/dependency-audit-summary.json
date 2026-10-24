@@ -1,0 +1,20 @@
+{
+  "scope": "npm audit (production and development dependencies)",
+  "vulnerabilities": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "dependencies": {
+    "prod": 245,
+    "dev": 175,
+    "optional": 59,
+    "peer": 0,
+    "peerOptional": 0,
+    "total": 456
+  },
+  "limit": "Known advisory lookup for this lockfile at review time; not a certification or historical secret scan."
+}
