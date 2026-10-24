@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile,readdir} from 'node:fs/promises';
 import {isolatedDatabase,asRole} from './rls-harness.mjs';
 import {PGlite} from '@electric-sql/pglite';
 import {uuid_ossp} from '@electric-sql/pglite/contrib/uuid_ossp';
@@ -23,6 +23,15 @@ test('disposable PostgreSQL: three synthetic accounts, migration integrity, RLS,
    await db.query("insert into public.travel_appointments(user_id,source_event_id,occurrence_start,destination_address,destination_lat,destination_lon,source_revision) values($1,$2,now()+interval '1 day','Synthetic location',0,0,'fixture')",[id,'synthetic-event-'+index]);
   });
   beforeRows=await preserve(db);
+  await check('A deliberately destructive synthetic migration is rejected and all data/schema changes roll back',async()=>{
+   const folder=new URL('../supabase/migrations/',import.meta.url);
+   const name=(await readdir(folder)).find(name=>name.includes('personal_security_baseline'));
+   const source=await readFile(new URL(name,folder),'utf8');
+   const altered=source.replace(' for relation in select key,value from jsonb_each(baseline) loop'," update public.private_snapshots set payload='{}'::jsonb;\n for relation in select key,value from jsonb_each(baseline) loop");
+   await assert.rejects(db.exec(altered),error=>error.message.includes('record_preservation_guard_failed'));
+   assert.deepEqual(await preserve(db),beforeRows);
+   assert.equal((await db.query("select to_regclass('public.private_security_audit') as table_name")).rows[0].table_name,null);
+  });
  }});
  try{
   await check('Security migration preserves every existing public-table row unchanged as normalized JSON',async()=>{const after=await preserve(db);for(const [name,rows] of Object.entries(beforeRows))assert.deepEqual(after[name],rows,name);});

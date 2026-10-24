@@ -1,5 +1,7 @@
 # Supabase authorization and migration test report
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Date: 2026-10-23. Command: `npm run test:db`. Source: `tests/rls-harness.mjs`, `tests/rls-isolation.test.mjs`. Retained synthetic evidence: [RLS result](evidence/rls-report.json). No real participant records or credentials were used.
 
 ## Read-only production findings
@@ -10,7 +12,7 @@ Metadata inspection found 26 public tables with RLS enabled, no public views, no
 
 The test applies all 12 SQL migrations unchanged to actual PGlite PostgreSQL, with three distinct synthetic UUID identities. It creates equivalent `anon`, `authenticated` and `service_role` roles plus minimal Auth/Cron/Vault scaffolding. Existing synthetic snapshots, travel settings/plans and representative normalized calendar/medication/budget rows are inserted **before** the security migration. It compares every pre-existing public-table row after migration using sorted normalized JSON; no record is dropped or altered.
 
-The suite contains one Node test with 29 named assertions/groups in the retained report:
+The suite contains one Node test with 30 named assertions/groups in the retained report:
 
 - Each owner reads only its own full snapshot; A/B/C cannot read each other's schedules, medication/dose, budget, saved-location payloads, travel plans/preferences or revision history.
 - Cross-owner update returns no rows; delete, owner reassignment and unauthorized insert fail. Unused normalized table reads are denied after least-privilege revocation while records remain preserved for operators.
@@ -31,3 +33,5 @@ PGlite uses one connection. Stale-revision rejection is tested, but genuine mult
 Create three independent synthetic Auth accounts in an approved isolated Supabase project. Test actual HTTP calls with their signed JWTs, no token, expired token, forged token and forged target identifiers. Cover every exposed table/RPC, direct writes, provider registration, owner switching and simultaneous saves. Confirm invalid tokens cannot reach service operations; verify signup is disabled and unauthorized administrative requests are rejected. Run advisors and capture aggregate results, not tokens or record contents. No existing user's access may be modified to make these tests pass.
 
 Account erasure, hosted backup/Auth restore and physical device testing are unexecuted; do not count them as passing. The candidate migration remains pending explicit production approval.
+
+The final migration includes an atomic record-preservation guard. A deliberately altered synthetic migration is rejected and its data/schema changes roll back. Live application used the same guarded SQL; 26 existing table digests matched afterward. Live metadata confirms 27 RLS tables, the owner-bound RPC enabled for authenticated users only, device RPC service-only, and push keys/history sequence writes unavailable to browser roles. Hosted signed-token tests remain unexecuted.

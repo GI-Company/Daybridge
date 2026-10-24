@@ -1,5 +1,7 @@
 # Retention, deletion and participant control
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Date: 2026-10-23. This is a proposed operating policy requiring an identified privacy owner and sponsor approval. No retention purge or live deletion was executed.
 
 ## Current behavior

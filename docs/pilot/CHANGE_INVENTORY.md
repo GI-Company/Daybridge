@@ -2,9 +2,9 @@
 
 Base: production/main `97b7d4cdc9418226ff10f077602754453edafb54`. Candidate branch includes the preview-deployment guard plus the paths below. No existing production record or account was modified. Git diff against this base is the authoritative content diff.
 
-## Pending database objects
+## Database objects
 
-Migration: `supabase/migrations/20261024031314_personal_security_baseline.sql` (not applied live).
+Migration: `supabase/migrations/20261024040536_personal_security_baseline.sql` (applied live on 2026-10-24 after explicit owner approval and backup verification).
 
 - New table/index/identity sequence: `private_security_audit`, `private_security_audit_owner_recent`, `private_security_audit_id_seq`.
 - New trigger/function: `audit_private_snapshot` on `private_snapshots`; `audit_private_snapshot_write()` (definer, fixed search path, no public execution).
@@ -14,7 +14,7 @@ Migration: `supabase/migrations/20261024031314_personal_security_baseline.sql` (
 - Policies: restrict `Owner read push_subscriptions` to authenticated; service-only receipts policy; owner-read/service-read/service-append audit policies.
 - Grants: revoke browser/public access on the 16 unused normalized tables listed in architecture; restrict push reads to user_id/endpoint/disabled_at; server-derived delivery/estimate read-only; revoke snapshot DELETE; restrict history/audit sequence privileges. Existing owner RLS/history and all record values retained.
 
-These are access changes and require explicit approval before production. No DROP TABLE, TRUNCATE, live purge, credential rotation or existing identity rewrite is included.
+The owner explicitly approved these access changes for production on 2026-10-24. No DROP TABLE, TRUNCATE, live purge, credential rotation or existing identity rewrite is included.
 
 ## Source, test and documentation paths
 
@@ -48,6 +48,7 @@ These are access changes and require explicit approval before production. No DRO
 - `docs/pilot/INCIDENT_RESPONSE.md`
 - `docs/pilot/PILOT_DEPLOYMENT_GUIDE.md`
 - `docs/pilot/PILOT_TECHNICAL_READINESS.md`
+- `docs/pilot/PRODUCTION_RELEASE_2026-10-24.md`
 - `docs/pilot/SECURITY_AUDIT.md`
 - `docs/pilot/SUPABASE_RLS_TEST_REPORT.md`
 - `docs/pilot/SYSTEM_ARCHITECTURE.md`
@@ -76,7 +77,7 @@ These are access changes and require explicit approval before production. No DRO
 - `playwright.config.ts`
 - `scripts/scan-secrets.mjs`
 - `scripts/test-maps.mjs`
-- `supabase/migrations/20261024031314_personal_security_baseline.sql`
+- `supabase/migrations/20261024040536_personal_security_baseline.sql`
 - `tests/browser/MapHarness.tsx`
 - `tests/browser/SecurityHarness.tsx`
 - `tests/browser/security.spec.ts`

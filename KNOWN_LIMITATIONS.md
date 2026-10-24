@@ -1,5 +1,7 @@
 # Verified limitations
 
+> Release update 2026-10-24: production migration and record-preservation checks have passed following owner approval. See [release status](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md). Earlier candidate-state descriptions below are retained as the audit history.
+
 The current personal app and the isolated security candidate are distinct releases. Branch improvements are not deployed. See [candidate readiness](docs/pilot/PILOT_TECHNICAL_READINESS.md).
 
 1. Whole-account snapshot synchronization uses revision checks and encrypted device staging. Conflicts preserve local edits and stop overwrites; automatic merge and independent deletion tombstones are unavailable. A lost successful response may require manual reconciliation.

@@ -1,5 +1,7 @@
 # Pilot technical readiness and final engineering report
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Assessment date: 2026-10-23. Intended pilot: approximately 20–30 voluntary participants for 90 days. Candidate branch: `feat/daybridge-pilot-security-hardening`. Production and existing records remain unchanged by this branch. This report is suitable for preliminary partner review, not an assurance of production readiness or HIPAA certification.
 
 ## Recommendation

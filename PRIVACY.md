@@ -1,5 +1,7 @@
 # DayBridge privacy description
 
+> Release update 2026-10-24: production migration and record-preservation checks have passed following owner approval. See [release status](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md). Earlier candidate-state descriptions below are retained as the audit history.
+
 Updated October 2026. This describes the participant-controlled organizer and candidate pilot design, not a substitute for an approved institutional privacy notice.
 
 DayBridge handles user-entered schedules, self-reported attendance, medication/dose history, manual financial records, contacts and saved locations. No court-staff portal, automatic sanctions feed, adherence score or cross-participant sharing role exists. Attendance and dose entries are participant reports, not independently certified evidence.

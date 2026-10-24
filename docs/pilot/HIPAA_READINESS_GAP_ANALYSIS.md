@@ -1,5 +1,7 @@
 # HIPAA and healthcare privacy readiness
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Review date: 2026-10-23. Engineering assessment for preliminary review, not certification or a legal determination. Initial user scope was personal use; the later pilot specification introduces different institutional scenarios. No contract, paid compliance add-on or production setting was activated.
 
 ## Applicability decisions

@@ -1,5 +1,7 @@
 # Backup and recovery
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Date: 2026-10-23. Preserve all existing records and working functionality on every deployment and migration. This branch performed no production restore, purge, reset or backup export of private data.
 
 ## What was tested

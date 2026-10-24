@@ -12,10 +12,14 @@
     "20261022190000_atomic_travel_tile_rate_limit.sql",
     "20261023012558_scoped_travel_rate_limits.sql",
     "20261023025046_reliable_notification_delivery.sql",
-    "20261024031314_personal_security_baseline.sql"
+    "20261024040536_personal_security_baseline.sql"
   ],
   "syntheticAccounts": 3,
   "checks": [
+    {
+      "name": "A deliberately destructive synthetic migration is rejected and all data/schema changes roll back",
+      "status": "passed"
+    },
     {
       "name": "Security migration preserves every existing public-table row unchanged as normalized JSON",
       "status": "passed"

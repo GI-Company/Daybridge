@@ -1,5 +1,7 @@
 # Infrastructure estimate for a 90-day pilot
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Planning date: 2026-10-23. USD before tax; estimates, not purchased services or a vendor quote. Existing personal production stays on its current plan. Prices/entitlements must be reconfirmed before approval. No subscription was enabled.
 
 ## Baseline scenarios

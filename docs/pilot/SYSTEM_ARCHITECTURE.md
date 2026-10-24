@@ -1,5 +1,7 @@
 # DayBridge system architecture
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Review date: 2026-10-23 (America/New_York). Candidate branch: `feat/daybridge-pilot-security-hardening`. This describes source plus a read-only production metadata audit. Candidate changes and the security migration have **not** been deployed. See [readiness](PILOT_TECHNICAL_READINESS.md) for release gates.
 
 ## Runtime and trust boundaries
@@ -48,7 +50,7 @@ IndexedDB stores AES-256-GCM ciphertext, random IVs and per-account AAD. The non
 
 The live metadata audit found 26 public tables, all RLS-enabled; no public views and no Storage buckets/policies. The candidate adds `private_security_audit` (27 tables when applied). The 16 unused normalized tables (`profiles`, `calendar_events`, `event_occurrences`, `tasks`, `medications`, `medication_schedules`, `medication_logs`, `budget_accounts`, `money_transactions`, `paycheck_plans`, `wage_advances`, `bills`, `budget_reserves`, `reminder_rules`, `reminder_occurrences`, `resource_contacts`) retain their data and RLS but lose browser grants in the candidate migration.
 
-Active/support tables: `private_snapshots`, `private_snapshot_history`, `push_subscriptions`, `travel_preferences`, `travel_appointments`, `travel_estimates`, `notification_deliveries`, `notification_device_receipts`, `travel_request_limits`, `travel_worker_locks`. Ownership predicates apply where browser reads/writes are intended; receipts, worker locks and rate counters are service-only. Review all migration files as the executable policy/function inventory.
+Active/support tables: `private_snapshots`, `private_snapshot_history`, `push_subscriptions`, `travel_preferences`, `travel_appointments`, `travel_estimates`, `notification_deliveries`, `notification_device_receipts`, `travel_request_limits`, `travel_api_limits`. Ownership predicates apply where browser reads/writes are intended; receipts, worker locks and rate counters are service-only. Review all migration files as the executable policy/function inventory.
 
 Authenticated routes: travel route/geocode/places/tiles/overlays/push-test and notification device registration. Travel preferences and appointment persistence use authenticated owner-scoped database operations. Public version and branch liveness endpoints contain no records. The cron route requires a timing-safe secret comparison. Internal trigger functions use a fixed empty search path and revoked public execution. Service RPCs cannot be called by browser roles.
 

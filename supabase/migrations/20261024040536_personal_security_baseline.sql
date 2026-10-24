@@ -1,3 +1,17 @@
+-- Apply atomically and abort if any existing public record changes.
+-- Locks are short-lived and ordered consistently; no participant row is rewritten.
+do $daybridge_preserve_records$
+declare
+ relation record;
+ baseline jsonb := '{}'::jsonb;
+ row_count bigint;
+ row_digest text;
+begin
+ for relation in select tablename from pg_catalog.pg_tables where schemaname='public' order by tablename loop
+  execute format('lock table public.%I in share row exclusive mode',relation.tablename);
+  execute format('select count(*),encode(sha256(convert_to(coalesce(string_agg(to_jsonb(t)::text,'','' order by to_jsonb(t)::text),''''),''UTF8'')),''hex'') from public.%I t',relation.tablename) into row_count,row_digest;
+  baseline := baseline || jsonb_build_object(relation.tablename,jsonb_build_array(row_count,row_digest));
+ end loop;
 -- Personal-use security baseline. No records are deleted and no encryption keys are rotated.
 -- The shipped app uses private_snapshots; close unused legacy Data API surfaces.
 revoke all on public.profiles,public.calendar_events,public.event_occurrences,public.tasks,public.medications,public.medication_schedules,public.medication_logs,public.budget_accounts,public.money_transactions,public.paycheck_plans,public.wage_advances,public.bills,public.budget_reserves,public.reminder_rules,public.reminder_occurrences,public.resource_contacts from public,anon,authenticated;
@@ -124,3 +138,12 @@ end;
 $$;
 revoke all on function public.save_private_snapshot_for_user(uuid,jsonb,bigint) from public,anon;
 grant execute on function public.save_private_snapshot_for_user(uuid,jsonb,bigint) to authenticated;
+
+ for relation in select key,value from jsonb_each(baseline) loop
+  execute format('select count(*),encode(sha256(convert_to(coalesce(string_agg(to_jsonb(t)::text,'','' order by to_jsonb(t)::text),''''),''UTF8'')),''hex'') from public.%I t',relation.key) into row_count,row_digest;
+  if row_count is distinct from (relation.value->>0)::bigint or row_digest is distinct from relation.value->>1 then
+   raise exception 'record_preservation_guard_failed: %',relation.key;
+  end if;
+ end loop;
+end;
+$daybridge_preserve_records$;

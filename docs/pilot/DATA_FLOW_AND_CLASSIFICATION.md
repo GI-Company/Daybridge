@@ -1,5 +1,7 @@
 # Data flow and classification
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Date: 2026-10-23. Read with [architecture diagram](SYSTEM_ARCHITECTURE.md). “Sensitive” is a product classification; legal PHI status depends on relationships and use.
 
 | Information | Classification | Storage / disclosure | Minimization and residual risk |

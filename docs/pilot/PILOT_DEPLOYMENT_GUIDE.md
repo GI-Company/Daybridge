@@ -1,10 +1,12 @@
 # Pilot deployment and rollback guide
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Date: 2026-10-23. **Every deployment and migration must preserve existing records and working functionality.** The feature branch is for review; production `main` remains unchanged. No preview deployment, production SQL, credential change, record deletion, paid service or existing-user access change is authorized by creating/pushing this branch.
 
 ## Candidate changes and order
 
-The pending migration is `supabase/migrations/20261024031314_personal_security_baseline.sql`. It retains all tables/records, narrows grants, adds security audit/trigger, introduces service-only device registration/disable RPCs, extends the device rate scope and adds an owner-bound snapshot-save RPC. Existing two-argument snapshot RPC and revision history are preserved for old clients and rollback. New app/server code requires the new RPCs; **do not release application code before the migration is applied and verified in the target environment**.
+The pending migration is `supabase/migrations/20261024040536_personal_security_baseline.sql`. It retains all tables/records, narrows grants, adds security audit/trigger, introduces service-only device registration/disable RPCs, extends the device rate scope and adds an owner-bound snapshot-save RPC. Existing two-argument snapshot RPC and revision history are preserved for old clients and rollback. New app/server code requires the new RPCs; **do not release application code before the migration is applied and verified in the target environment**.
 
 The candidate restricts unused normalized browser APIs. Verify no external client depends on them before approval. The current app reads snapshots, not those tables. Old device-registration server code needs replacement alongside the migration. UI lock is opt-in for automatic inactivity to preserve existing offline behavior; manual lock requires internet to unlock.
 

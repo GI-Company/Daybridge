@@ -1,5 +1,7 @@
 # Threat model
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Date: 2026-10-23. Assets: private schedule/health/budget/location records, session/refresh tokens, push capabilities, cloud history, device queue, credentials, participant autonomy and reliable self-reports.
 
 ## Actors and boundaries

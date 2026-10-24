@@ -1,5 +1,7 @@
 # Security audit and remediation register
 
+> Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
+
 Date: 2026-10-23. Scope: repository, all migration sources, read-only live database metadata/advisors, isolated PostgreSQL tests, local browser/build checks. No private production payloads, password values, tokens or Vault secret values were requested as evidence. This is an engineering audit, not a penetration-test attestation.
 
 ## Prioritized findings
@@ -34,4 +36,4 @@ Input sanitation and CSP reduce XSS risk but cannot protect an origin after its 
 
 ## Release and evidence boundary
 
-`20261024031314_personal_security_baseline.sql` is pending and deliberately changes grants. It must not be applied merely because this branch is pushed. Candidate code depends on its new RPCs. Apply first to an isolated Supabase project, run actual Auth/Data API tests and advisor review, inspect existing integrations, take a verified backup, obtain explicit production approval, then coordinate one release. See [deployment/rollback](PILOT_DEPLOYMENT_GUIDE.md).
+`20261024040536_personal_security_baseline.sql` is pending and deliberately changes grants. It must not be applied merely because this branch is pushed. Candidate code depends on its new RPCs. Apply first to an isolated Supabase project, run actual Auth/Data API tests and advisor review, inspect existing integrations, take a verified backup, obtain explicit production approval, then coordinate one release. See [deployment/rollback](PILOT_DEPLOYMENT_GUIDE.md).

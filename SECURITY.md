@@ -1,5 +1,7 @@
 # DayBridge security model
 
+> Release update 2026-10-24: production migration and record-preservation checks have passed following owner approval. See [release status](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md). Earlier candidate-state descriptions below are retained as the audit history.
+
 The institutional security candidate is isolated on `feat/daybridge-pilot-security-hardening`; its migration and code require review and explicit production approval. Existing personal records and working features must survive every deployment/migration. See [audit and findings](docs/pilot/SECURITY_AUDIT.md), [test evidence](docs/pilot/evidence/TEST_RESULTS.md) and [deployment/rollback gates](docs/pilot/PILOT_DEPLOYMENT_GUIDE.md).
 
 Private views require a Supabase identity. Browser operations use owner RLS on snapshots/travel data; service credentials remain server-only. Public signup and anonymous Auth must also be disabled in provider configuration: hiding registration is insufficient. Password hashing and Auth abuse controls belong to Supabase; actual configured protections need verification. Existing username aliases remain compatible but lack email recovery; do not issue new pilot aliases without a reviewed recovery process.

@@ -113,3 +113,5 @@ DayBridge is a personal organization aid, **not** official court attendance veri
 ## Institutional security candidate
 
 The isolated security branch includes [pilot architecture, audit, test evidence and rollout gates](docs/pilot/PILOT_TECHNICAL_READINESS.md). Its pending migration is not permission to modify production. Every migration/deployment must preserve existing records and functionality, with a verified backup and explicit release approval. No HIPAA-compliance claim is made.
+
+The owner-approved personal production release and preservation checks are recorded in [2026-10-24 release verification](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md). Institutional readiness is assessed separately.

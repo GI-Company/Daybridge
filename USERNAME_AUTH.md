@@ -1,5 +1,7 @@
 # Authentication and provisioning status
 
+> Release update 2026-10-24: production migration and record-preservation checks have passed following owner approval. See [release status](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md). Earlier candidate-state descriptions below are retained as the audit history.
+
 Existing accounts are preserved. DayBridge accepts existing real email/password credentials and legacy assigned usernames. Supabase owns password hashing, refresh/session behavior and provider rate limits. No public privileged authentication API is exposed by the PWA.
 
 ## Existing username compatibility
