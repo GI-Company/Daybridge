@@ -2,6 +2,8 @@
 
 **DayBridge** is a private, installable daily organizer that brings appointments, tasks, medication records, budgeting, saved locations, and travel reminders into one interface. It is currently a **Next.js progressive web app (PWA)**, not a native Android application.
 
+> **Release scope (2026-10-24):** `main` contains the personal security baseline, encrypted device-first synchronization and daily drug-test check-ins. The owner-approved Supabase security migration passed record-preservation checks, but live installed-device acceptance and institutional enrollment approval are separate outstanding gates. DayBridge is **not represented as HIPAA compliant**. See [personal release evidence](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md) and [pilot readiness](docs/pilot/PILOT_TECHNICAL_READINESS.md).
+
 > **Map implementation:** Locations and appointment travel use one fully interactive MapLibre 6 renderer with TomTom Orbis street tiles, selectable markers, traffic layers and road geometry. Static-map replacement has been removed. Desktop/mobile browser tests use controlled tile fixtures; production credentials, authenticated imagery and installed-device behavior require separate live verification.
 
 ## What DayBridge does
@@ -9,7 +11,7 @@
 | Area | Capabilities |
 | --- | --- |
 | **Today** | Daily overview, upcoming commitments and quick actions. |
-| **Schedule** | Calendar month/week views, recurring appointments, classes/groups and self-help meetings, verified destination addresses. |
+| **Schedule** | Calendar month/week views, recurring appointments, classes/groups, self-help meetings, daily drug-test check-in windows, and verified destination addresses. |
 | **Tasks** | Private to-dos and priorities linked to the daily workflow. |
 | **Budget** | Real, manually maintained accounts, income/expense transactions, bills, paycheck plans and reserves. No fabricated account balances. |
 | **Medications** | Medication schedules and self-entered dose history; archive, restore or permanently delete with confirmation. |
@@ -17,6 +19,27 @@
 | **Other** | Court & classes, contacts/resources, weekly review, device/setup controls and security settings. |
 
 The mobile navigation groups the four primary sections as **Today, Schedule, Tasks, Budget**, with other features under **More**.
+
+## Daily drug-test check-ins
+
+The **Drug test check-in** event type supports a *personal reminder to check whether testing is required*. It does not determine whether a court or program actually called someone for testing, and it is not a test appointment or official verification.
+
+1. Open **Schedule → Add event**, choose **Drug test check-in**, and set the start and end of the daily call/check window in the intended timezone. **Daily** recurrence is preselected; confirm it before saving.
+2. The check-in appears in **Today** and on **Schedule**. During each occurrence's window, eligible appointment push reminders are generated in **15-minute slots** until the end of the window or until that day's check-in is marked done. Late server runs select the current slot instead of sending a backlog.
+3. Select **Mark done** after checking the program's actual testing instructions. **Undo done** reopens that occurrence; the next day is tracked independently. Completion is a private self-report and does **not** assert that a drug test was attended or passed.
+
+To stop **server-side** reminders, the completion must synchronize successfully; **Done on this device** means it is still awaiting cloud sync. Notifications require an active push subscription, notification permission, synced records and an operating scheduler; timing and device display are not guaranteed. Quiet hours and appointment-notification preferences apply. Keep a separate reliable way to check requirements and deadlines.
+
+## Sign-in and installation
+
+DayBridge is a **PWA**, installable from a supported browser on desktop or mobile; it is not a native Android app and does not have a continuously running background GPS service. First open it online at the same origin you intend to keep using, then use the browser's install/add-to-home-screen flow where supported.
+
+- Existing accounts can sign in with their **email and password**, or with a **previously assigned username and password**. Username compatibility uses an internal non-deliverable Supabase Auth alias; it does not create independent username-native authentication.
+- There is **no public sign-up** in the interface. Administrators manage approved accounts in Supabase. Provider-side signup restrictions must be verified separately; hiding registration in the UI is insufficient.
+- Existing users may change their password in **Settings**. Passkey login is experimental/provider dependent. Legacy username aliases have **no self-service email recovery**; use an approved private administrative recovery process.
+- Manual and optional inactivity locks are available, but unlocking them requires online password verification. Use device-level screen protection; locking the UI does not independently encrypt data.
+
+See [username authentication and provisioning](USERNAME_AUTH.md) for existing-account preservation and the restrictions on enrolling new pilot users.
 
 ## Travel, maps and notifications
 
@@ -28,7 +51,7 @@ The mobile navigation groups the four primary sections as **Today, Schedule, Tas
 
 **Background departure checks.** A Supabase scheduled job runs once a minute. It rebuilds reminder candidates and eligible travel plans from the latest synced calendar, including cancellations and occurrence edits. Traffic calculations run every minute near departure, every five minutes within four hours, and every thirty minutes for later appointments. Closed-app forecasts currently use the user's **explicitly approved saved origin**, not live GPS. Delivery additionally depends on the event having a verified destination, compatible push subscription, user permission, configured server credentials, network availability and OS/browser policy. The schedule does **not** guarantee exact-second or device-visible delivery.
 
-**Reminder delivery and destinations.** Appointment lead-time reminders, due tasks, scheduled medication doses, bill dates and explicit refill dates share the server queue. Medication snoozes are checked again after fifteen minutes. Bills/refill dates use 9 AM in the profile timezone; tasks use their saved due time. Routine alerts respect quiet hours, and each category can be disabled in Settings. Only the latest synced, incomplete records generate candidates, with a thirty-minute catch-up window rather than a backlog flood. Successful provider acceptance is recorded per device, allowing partial retries without resending to devices with saved receipts. Expired subscriptions are disabled; existing granted registrations reconnect on sign-in and network recovery. One browser endpoint can belong to only one active account.
+**Reminder delivery and destinations.** Appointment lead-time reminders, daily testing-window check-ins (15-minute slots), due tasks, scheduled medication doses, bill dates and explicit refill dates share the server queue. Medication snoozes are checked again after fifteen minutes. Bills/refill dates use 9 AM in the profile timezone; tasks use their saved due time. Routine alerts respect quiet hours, and each category can be disabled in Settings. Only the latest synced, incomplete records generate candidates, with a thirty-minute catch-up window rather than a backlog flood. Successful provider acceptance is recorded per device, allowing partial retries without resending to devices with saved receipts. Expired subscriptions are disabled; existing granted registrations reconnect on sign-in and network recovery. One browser endpoint can belong to only one active account.
 
 Tapping an appointment opens its occurrence details; traffic opens its selected calendar route; task, dose, bill and refill notifications focus their exact record. Targets survive startup/sign-in, and deleted/changed records produce a notice. Cross-account targets are rejected. Settings has one real push test scoped to the current device, which links back to Settings. Provider acceptance is not proof that the OS displayed the notification.
 
@@ -83,14 +106,28 @@ npm ci
 cp .env.example .env.local
 # Fill in the Supabase public URL and publishable key
 npm run typecheck
+npm run lint
+npm test
+npm run test:db
 npm run test:map
+npm run security:scan
 npm run build
 npm run dev
 ```
 
 Set at least `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local`. In production, configure `tom_tom` (or `TOMTOM_API_KEY`) for routing, search, traffic and map imagery, and optionally the dedicated server-only `MAPS_DISPLAY` key for Orbis imagery. Map tiles, background travel work and push notifications require their corresponding **server-side** credentials and migrations. Do not commit `.env.local` or publish private API keys as `NEXT_PUBLIC_*`.
 
-Apply the SQL migrations in `supabase/migrations` to **your own** Supabase project. For the connected project, many migrations and scheduled travel infrastructure are already installed; do not blindly reapply operations or disclose Vault secrets. Owner-only sign-up policy and auth configuration must be enforced by Supabase, not just hidden in the UI.
+Apply the SQL migrations in `supabase/migrations` to **your own** Supabase project with a reviewed migration history and backup. The existing connected production project already has migrations and scheduled infrastructure installed, including `20261024040536_personal_security_baseline.sql`; **do not blindly replay migrations, reset the database or reveal Vault secrets**. Owner-only sign-up policy and auth configuration must be enforced by Supabase, not just hidden in the UI.
+
+For browser acceptance tests, install Playwright Chromium (`npx playwright install chromium`) and run `npm run test:browser:production`. The production browser harness exercises the real UI/MapLibre worker against **synthetic** transport and map fixtures; it does not verify real TomTom credentials, push delivery, installed devices or hosted authentication. `npm run test:db` uses a disposable PGlite database rather than the production database.
+
+## Release and pilot readiness
+
+**Personal app, `main`:** The 2026-10-24 release record reports an owner-approved, guarded Supabase security migration and successful before/after preservation checks for all 26 pre-existing public tables. The current source includes account-specific access controls, manual/optional inactivity locking, push ownership controls, hardened API requests, revision-checked cloud saves and local encryption. This evidence **does not establish** that the latest Vercel build, live third-party services or the owner's installed-device smoke test passed; those require separate verification.
+
+**Validation boundaries:** The [local verification report](docs/pilot/evidence/TEST_RESULTS.md) records type checks, lint, unit/database/browser tests, a secret-pattern scan and an npm audit on the assessed revision. More recent commits (including the daily check-in implementation) should be retested independently. Hosted GitHub Actions was blocked by an account billing lock in that report, so a successful remote CI run must not be inferred.
+
+**Institutional pilot: NOT approved for enrollment.** Before using DayBridge with other participants or regulated treatment records, complete documented gates for secure provisioning/recovery, real-device notification behavior, incident operations, deletion/retention, hosted backups, consent, legal classification and relevant processor contracts/BAAs. Personal use and technical hardening are not HIPAA certification. See the [pilot readiness report](docs/pilot/PILOT_TECHNICAL_READINESS.md), [HIPAA/Part 2 gap analysis](docs/pilot/HIPAA_READINESS_GAP_ANALYSIS.md) and [privacy description](PRIVACY.md).
 
 ## Before relying on DayBridge
 
@@ -109,9 +146,10 @@ DayBridge is a personal organization aid, **not** official court attendance veri
 - [Travel worker and map deployment](TRAVEL_DEPLOYMENT.md)
 - [Security design](SECURITY.md)
 - [Known limitations](KNOWN_LIMITATIONS.md)
+- [Username authentication](USERNAME_AUTH.md)
+- [Testing and verification evidence](docs/pilot/evidence/TEST_RESULTS.md)
+- [Personal production release record](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md)
 
-## Institutional security candidate
+## Institutional security work
 
-The isolated security branch includes [pilot architecture, audit, test evidence and rollout gates](docs/pilot/PILOT_TECHNICAL_READINESS.md). Its pending migration is not permission to modify production. Every migration/deployment must preserve existing records and functionality, with a verified backup and explicit release approval. No HIPAA-compliance claim is made.
-
-The owner-approved personal production release and preservation checks are recorded in [2026-10-24 release verification](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md). Institutional readiness is assessed separately.
+The audit and technical readiness package originated on `feat/daybridge-pilot-security-hardening`; a specifically approved **personal** security baseline has since been brought into the production path. That approval does not authorize institutional onboarding, new credentials, regulated data, or additional production migrations. Review the [pilot architecture, audit, testing and rollout gates](docs/pilot/PILOT_TECHNICAL_READINESS.md) before any further expansion, preserving existing user records and release rollback options.
