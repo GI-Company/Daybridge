@@ -17,6 +17,7 @@ import {
   ArrowRight,
   RotateCcw,
 } from 'lucide-react';
+import {safeExternalURL} from '../../lib/security/urls';
 import { useDayBridge } from '../../lib/storage/store';
 import { calculateSafeToSpend, formatCents } from '../../lib/budget';
 import { getMedicationSlotsForDay, MEDICAL_DISCLAIMER } from '../../lib/medication';
@@ -39,6 +40,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
     medicationSchedules,
     medicationLogs,
     logDose,
+    undoDose,
     recordAttendance,
     accounts,
     bills,
@@ -185,10 +187,10 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
               </div>
             )}
 
-            {nextEvent.meetingUrl && (
+            {safeExternalURL(nextEvent.meetingUrl) && (
               <div className="mb-3">
                 <a
-                  href={nextEvent.meetingUrl}
+                  href={safeExternalURL(nextEvent.meetingUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs text-teal-800 hover:underline"
@@ -241,7 +243,8 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                     nextEvent.eventId,
                     nextEvent.attendanceStatus === 'attended_self_reported'
                       ? 'unconfirmed'
-                      : 'attended_self_reported'
+                      : 'attended_self_reported',
+                    '', nextEvent.startTime.toISOString(), nextEvent.endTime.toISOString()
                   )
                 }
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-750 transition"
@@ -327,7 +330,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                       )}
                       {isSnoozed && (
                         <span className="text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-800/40">
-                          Snoozed 30m
+                          Snoozed 15m
                         </span>
                       )}
                     </div>
@@ -340,20 +343,16 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                   {/* Actions (44px min tap targets) */}
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
                     <button
-                      onClick={() =>
-                        logDose(
-                          slot.medication.id,
-                          slot.scheduledTime,
-                          isTaken ? 'skipped' : 'taken'
-                        )
-                      }
+                      onClick={() => isTaken
+                        ? undoDose(slot.medication.id, slot.scheduledTime)
+                        : logDose(slot.medication.id, slot.scheduledTime, 'taken')}
                       className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold min-h-[44px] transition ${
                         isTaken
                           ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                           : 'bg-teal-500 hover:bg-teal-400 active:scale-98 text-slate-950 shadow-md shadow-teal-100/70'
                       }`}
                     >
-                      {isTaken ? 'Undo (Mark Not Taken)' : 'Take Dose'}
+                      {isTaken ? 'Undo dose entry' : 'Take Dose'}
                     </button>
 
                     {!isTaken && (

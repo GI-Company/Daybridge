@@ -1,4 +1,5 @@
 'use client';
+import {changeDose} from './dose-change';
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -22,6 +23,8 @@ import {
 } from '../types';
 import { isSupabaseConfigured, createClient } from '../supabase/client';
 import {readDeviceSnapshot,writeDeviceSnapshot,requestDurableStorage,type DeviceSnapshot} from './device-cache';
+import {newRecordId} from './record-id';
+import type {SupabaseClient} from '@supabase/supabase-js';
 import {applyAccountMovement} from '../budget-ledger';
 
 // Initial realistic baseline data
@@ -73,7 +76,7 @@ interface DayBridgeContextType {
     occurrenceId: string,
     eventId: string,
     status: AttendanceStatus,
-    note?: string
+    note?: string, startTimeUtc?:string, endTimeUtc?:string
   ) => void;
 
   addTask: (task: Omit<TaskItem, 'id' | 'userId' | 'completed' | 'createdAt' | 'updatedAt'>) => TaskItem;
@@ -88,6 +91,7 @@ interface DayBridgeContextType {
   replaceMedicationSchedules: (medicationId:string,times:string[],days:number[]) => void;
   deleteMedication: (id: string) => void;
   logDose: (medicationId: string, scheduledSlotUtc: string, action: DoseAction, reason?: string) => void;
+  undoDose:(medicationId:string,scheduledSlotUtc:string)=>void;
 
   addAccount: (account: Pick<BudgetAccount,'name'|'accountType'|'balanceCents'>) => string;
   updateAccountBalance: (accountId: string, newBalanceCents: number) => void;
@@ -112,15 +116,19 @@ interface DayBridgeContextType {
 
 export const DayBridgeContext = createContext<DayBridgeContextType | null>(null);
 
-export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: string }> = ({ children, userId }) => {
+export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: string; backend?:SupabaseClient|null }> = ({ children, userId, backend=createClient() }) => {
   const [profile, setProfile] = useState<UserProfile>({...DEFAULT_PROFILE,id:userId});
   const [savedPlaces,setSavedPlaces]=useState<SavedPlace[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [eventOccurrences, setEventOccurrences] = useState<EventOccurrence[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
+  const medicationsRef=useRef<Medication[]>([]);
+  useEffect(()=>{medicationsRef.current=medications;},[medications]);
   const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
   const [medicationLogs, setMedicationLogs] = useState<MedicationLog[]>([]);
+  const medicationLogsRef=useRef<MedicationLog[]>([]);
+  useEffect(()=>{medicationLogsRef.current=medicationLogs;},[medicationLogs]);
   const [accounts, setAccounts] = useState<BudgetAccount[]>([]);
   const [transactions, setTransactions] = useState<MoneyTransaction[]>([]);
   const [paycheckPlan, setPaycheckPlan] = useState<PaycheckPlan | null>(null);
@@ -175,7 +183,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   // The revision-checked RPC prevents overwriting newer edits from other devices.
   const flushSnapshot=useCallback(async()=>{
     if(savingRef.current||conflictRef.current||!pendingRef.current)return;
-    const client=createClient();
+    const client=backend;
     if(!client||!navigator.onLine){
       if(aliveRef.current&&!localFailedRef.current)setSyncStatus('device_saved');
       return;
@@ -183,17 +191,18 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     savingRef.current=true;
     let failed=false;
     try{
-      while(pendingRef.current&&!conflictRef.current){
+      while(aliveRef.current&&pendingRef.current&&!conflictRef.current){
         try{await deviceWriteChain.current;}catch{
           failed=true;break;
         }
         if(localFailedRef.current){failed=true;break}
+        if(!aliveRef.current)break;
         const item=pendingRef.current;
         pendingRef.current=null;
         let result:{data:unknown;error:{message:string}|null};
         try{
-          result=await client.rpc('save_private_snapshot',{
-            p_payload:item.payload,p_expected_revision:revisionRef.current
+          result=await client.rpc('save_private_snapshot_for_user',{
+            p_user_id:userId,p_payload:item.payload,p_expected_revision:revisionRef.current
           });
         }catch{result={data:null,error:{message:'Network error'}};}
         const nextRev=Number(result.data);
@@ -233,7 +242,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         setSyncStatus('synced');
       }
     }
-  },[saveOnDevice]);
+  },[saveOnDevice,backend,userId]);
 
   const retrySync=useCallback(()=>{
     if(conflictRef.current)return;
@@ -315,7 +324,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       try{device=await readDeviceSnapshot(userId);}
       catch{deviceError=true;localFailedRef.current=true;}
       if(!active)return;
-      const client=createClient();
+      const client=backend;
       let remote:{payload:Record<string,unknown>;revision:number}|null=null;
       let online=false;
       if(client&&navigator.onLine){
@@ -435,7 +444,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const addEvent = (newEventData: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
-    const id = `evt-${Date.now()}`;
+    const id = newRecordId('evt');
     const newEvent: CalendarEvent = {
       ...newEventData,
       id,
@@ -449,8 +458,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
   const updateEvent = (id: string, updates: Partial<CalendarEvent>) => {
     if(updates.startTime!==undefined||updates.endTime!==undefined||updates.venueType!==undefined){
-      const backend=createClient();
-      void backend?.from('travel_appointments').update({enabled:false,cancelled:true}).eq('source_event_id',id);
+      const travelBackend=backend;
+      void travelBackend?.from('travel_appointments').update({enabled:false,cancelled:true}).eq('source_event_id',id);
     }
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, ...updates, updatedAt: new Date().toISOString() } : e))
@@ -458,8 +467,8 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   };
 
   const deleteEvent = (id: string) => {
-    const backend=createClient();
-    void backend?.from('travel_appointments').update({enabled:false,cancelled:true}).eq('source_event_id',id);
+    const travelBackend=backend;
+    void travelBackend?.from('travel_appointments').update({enabled:false,cancelled:true}).eq('source_event_id',id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setEventOccurrences((prev) => prev.filter((o) => o.eventId !== id));
   };
@@ -468,10 +477,16 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     occurrenceId: string,
     eventId: string,
     status: AttendanceStatus,
-    note: string = ''
+    note: string = '', startTimeUtc?:string, endTimeUtc?:string
   ) => {
+    const source=events.find(event=>event.id===eventId);if(!source)return;
+    const generated=occurrenceId.startsWith(eventId+'-')?occurrenceId.slice(eventId.length+1).match(/^\d{10,}$/)?.[0]:undefined;
+    const start=new Date(startTimeUtc||(generated?Number(generated):source.startTime));
+    if(!Number.isFinite(start.getTime()))return;
+    const end=new Date(endTimeUtc||start.getTime()+Date.parse(source.endTime)-Date.parse(source.startTime));
+    if(!Number.isFinite(end.getTime()))return;
     setEventOccurrences((prev) => {
-      const existing = prev.find((o) => o.id === occurrenceId || o.eventId === eventId);
+      const existing = prev.find((o) => o.id === occurrenceId);
       if (existing) {
         return prev.map((o) =>
           o.id === existing.id
@@ -485,11 +500,11 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         );
       } else {
         const newOcc: EventOccurrence = {
-          id: occurrenceId || `occ-${Date.now()}`,
+          id: occurrenceId || newRecordId('occ'),
           eventId,
           userId: profile.id,
-          startTimeUtc: new Date().toISOString(),
-          endTimeUtc: new Date().toISOString(),
+          startTimeUtc: start.toISOString(),
+          endTimeUtc: end.toISOString(),
           attendanceStatus: status,
           attendanceRecordedAt: new Date().toISOString(),
           attendanceNote: note,
@@ -503,7 +518,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const addTask = (taskData: Omit<TaskItem, 'id' | 'userId' | 'completed' | 'createdAt' | 'updatedAt'>) => {
     const newTask: TaskItem = {
       ...taskData,
-      id: `tsk-${Date.now()}`,
+      id: newRecordId('tsk'),
       userId: profile.id,
       completed: false,
       createdAt: new Date().toISOString(),
@@ -536,7 +551,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     medData: Omit<Medication, 'id' | 'userId' | 'isActive' | 'createdAt' | 'updatedAt'>,
     schedulesData: { timeOfDay: string; daysOfWeek: number[]; dosageLabel: string }[]
   ) => {
-    const medId = `med-${Date.now()}`;
+    const medId = newRecordId('med');
     const newMed: Medication = {
       ...medData,
       id: medId,
@@ -599,23 +614,17 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     action: DoseAction,
     reason: string = ''
   ) => {
-    // Update inventory only when the slot changes between taken/not taken.
-    // Keeping the inventory adjustment outside a state updater avoids duplicated
-    // side effects when React replays state updates during development.
-    const previous=medicationLogs.find(l=>l.medicationId===medicationId&&l.scheduledSlotUtc===scheduledSlotUtc);
-    const wasTaken=previous?.action==='taken';
-    const willBeTaken=action==='taken';
-    if(wasTaken!==willBeTaken){
-      const delta=willBeTaken?-1:1;
-      setMedications(prev=>prev.map(m=>m.id===medicationId&&typeof m.inventoryCount==='number'
-        ? {...m,inventoryCount:Math.max(0,m.inventoryCount+delta)}
-        :m));
-    }
-    const newLog:MedicationLog={
-      id:crypto.randomUUID(),userId:profile.id,medicationId,scheduledSlotUtc,action,
-      recordedAtUtc:new Date().toISOString(),skipReason:reason,
-    };
-    setMedicationLogs(prev=>[...prev.filter(l=>!(l.medicationId===medicationId&&l.scheduledSlotUtc===scheduledSlotUtc)),newLog]);
+    const changed=changeDose(medicationsRef.current,medicationLogsRef.current,medicationId,scheduledSlotUtc,action,reason,profile.id);
+    if(!changed)return;
+    medicationsRef.current=changed.medications;medicationLogsRef.current=changed.logs;
+    setMedications(changed.medications);setMedicationLogs(changed.logs);
+  };
+
+  const undoDose=(medicationId:string,scheduledSlotUtc:string)=>{
+    const changed=changeDose(medicationsRef.current,medicationLogsRef.current,medicationId,scheduledSlotUtc,null,'',profile.id);
+    if(!changed)return;
+    medicationsRef.current=changed.medications;medicationLogsRef.current=changed.logs;
+    setMedications(changed.medications);setMedicationLogs(changed.logs);
   };
 
   const addAccount = (input: Pick<BudgetAccount,'name'|'accountType'|'balanceCents'>) => {
@@ -698,7 +707,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     if(!accounts.some(a=>a.id===depositAccountId&&a.isActive))return;
     const newAdv: WageAdvance = {
       ...advData,
-      id: `adv-${Date.now()}`,
+      id: newRecordId('adv'),
       userId: profile.id,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -751,7 +760,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const addBill = (billData: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => {
     const newBill: Bill = {
       ...billData,
-      id: `bill-${Date.now()}`,
+      id: newRecordId('bill'),
       userId: profile.id,
       isPaid: false,
     };
@@ -774,7 +783,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const addContact = (contactData: Omit<ResourceContact, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
     const newContact: ResourceContact = {
       ...contactData,
-      id: `con-${Date.now()}`,
+      id: newRecordId('con'),
       userId: profile.id,
       isEmergency: contactData.isEmergency || false,
     };
@@ -837,6 +846,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         replaceMedicationSchedules,
         deleteMedication,
         logDose,
+        undoDose,
 
         addAccount,
         updateAccountBalance,

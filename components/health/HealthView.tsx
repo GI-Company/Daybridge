@@ -37,6 +37,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd,focusMedi
     medicationSchedules,
     medicationLogs,
     logDose,
+    undoDose,
     deleteMedication,
     updateMedication,
   } = useDayBridge();
@@ -163,20 +164,16 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd,focusMedi
                   {/* Actions (44px min tap targets) */}
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
                     <button
-                      onClick={() =>
-                        logDose(
-                          slot.medication.id,
-                          slot.scheduledTime,
-                          isTaken ? 'skipped' : 'taken'
-                        )
-                      }
+                      onClick={() => isTaken
+                        ? undoDose(slot.medication.id, slot.scheduledTime)
+                        : logDose(slot.medication.id, slot.scheduledTime, 'taken')}
                       className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold min-h-[44px] transition ${
                         isTaken
                           ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                           : 'bg-teal-500 hover:bg-teal-400 active:scale-98 text-slate-950 shadow-md shadow-teal-100/70'
                       }`}
                     >
-                      {isTaken ? 'Undo (Mark Not Taken)' : 'Mark Taken'}
+                      {isTaken ? 'Undo dose entry' : 'Mark Taken'}
                     </button>
 
                     {!isTaken && (
@@ -187,7 +184,7 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd,focusMedi
                           }
                           className="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 min-h-[44px] border border-slate-700/60 transition"
                         >
-                          Snooze 30m
+                          Snooze 15m
                         </button>
                         <button
                           onClick={() =>

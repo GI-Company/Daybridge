@@ -128,6 +128,8 @@ export interface MedicationLog {
   recordedAtUtc: string;
   skipReason?: string;
   requestId?: string;
+  /** Actual stock adjustment for this entry; zero when inventory was already empty. */
+  inventoryDelta?: number;
 }
 
 export type AccountType = 'checking' | 'cash' | 'savings' | 'prepaid';

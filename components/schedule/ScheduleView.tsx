@@ -3,6 +3,7 @@
 import React,{useEffect,useState} from 'react';
 import {CalendarDays,ChevronLeft,ChevronRight,Plus,AlertTriangle,CheckCircle2,XCircle,
   HelpCircle,ExternalLink,Trash2,MapPin} from 'lucide-react';
+import {safeExternalURL} from '../../lib/security/urls';
 import {useDayBridge} from '../../lib/storage/store';
 import {expandEventOccurrences,detectEventConflicts} from '../../lib/recurrence';
 import {formatTime,formatDate,getRelativeDayLabel} from '../../lib/date-time';
@@ -260,11 +261,11 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                 </div>
               )}
 
-              {selectedOccurrence.meetingUrl && (
+              {safeExternalURL(selectedOccurrence.meetingUrl) && (
                 <div>
                   <div className="text-slate-600 mb-1">Virtual Meeting Link:</div>
                   <a
-                    href={selectedOccurrence.meetingUrl}
+                    href={safeExternalURL(selectedOccurrence.meetingUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-teal-700 p-2.5 bg-slate-50 rounded-xl border border-slate-200 hover:underline"
@@ -289,7 +290,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                         selectedOccurrence.id,
                         selectedOccurrence.eventId,
                         'attended_self_reported',
-                        'Attended as scheduled'
+                        'Attended as scheduled', selectedOccurrence.startTime.toISOString(), selectedOccurrence.endTime.toISOString()
                       );
                       setSelectedOccurrence((prev: any) => ({
                         ...prev,
@@ -312,7 +313,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                         selectedOccurrence.id,
                         selectedOccurrence.eventId,
                         'not_attended_self_reported',
-                        'Self-reported absence'
+                        'Self-reported absence', selectedOccurrence.startTime.toISOString(), selectedOccurrence.endTime.toISOString()
                       );
                       setSelectedOccurrence((prev: any) => ({
                         ...prev,
