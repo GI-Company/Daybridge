@@ -45,7 +45,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
       <AutomaticLiveTravel/>
       <NotificationConnection/>
       <BackgroundReadiness userId={userId} suppressed={!!(target?.account||target?.event||target?.task||target?.medication||target?.bill)}/>
-      <div className={currentTab==='notes'?'flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-50 text-slate-900 font-sans selection:bg-teal-100 selection:text-teal-950':'min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950'}>
+      <div className={currentTab==='notes'?'daybridge-notes-viewport flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-50 text-slate-900 font-sans selection:bg-teal-100 selection:text-teal-950':'min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950'}>
         {/* Sticky Header */}
         <Header
           onOpenQuickAdd={() => openQuickAdd()}
