@@ -6,6 +6,7 @@ import type {Route} from '../../lib/travel/types';
 import {useTravelRequest} from '../../lib/travel/use-travel-request';
 import {NotificationsHarness} from './NotificationsHarness';
 import {StorageHarness,LockHarness,AuthHarness,UpdateHarness} from './SecurityHarness';
+import {PolishHarness} from './PolishHarness';
 import {CheckInHarness} from './CheckInHarness';
 import {CalendarMapHarness} from './CalendarMapHarness';
 
@@ -22,6 +23,8 @@ const routes: Route[] = [
 ];
 
 export default function MapHarness() {
+  const [viewCenter,setViewCenter]=useState('');
+  const [liveOrigin,setLiveOrigin]=useState(origin);
   const [selected, setSelected] = useState<string | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
   const [appointment, setAppointment] = useState(false);
@@ -33,9 +36,12 @@ export default function MapHarness() {
   if(!ready)return <main>Loading test harness…</main>;
   if (typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('notifications')==='test')return <NotificationsHarness/>;
   if(typeof window!=='undefined'){const security=new URLSearchParams(window.location.search).get('security');if(security==='storage')return <StorageHarness/>;if(security==='lock')return <LockHarness/>;if(security==='auth')return <AuthHarness/>;if(security==='update')return <UpdateHarness/>;}
+  if(new URLSearchParams(window.location.search).get('polish')==='test')return <PolishHarness/>;
   if(new URLSearchParams(window.location.search).get('checkin')==='test')return <CheckInHarness/>;
   if (calendar) return <main className="mx-auto max-w-4xl p-3"><CalendarMapHarness/></main>;
   return <main className="mx-auto max-w-4xl space-y-3 p-3">
+    <p data-testid="map-view-center">{viewCenter}</p>
+    <button onClick={()=>setLiveOrigin(value=>({...value,lat:value.lat+0.001}))}>Update origin only</button>
     <button onClick={() => setSelected('clinic')}>Select clinic</button>{' '}
     <button onClick={() => {setSelected('clinic'); setRoute(routes[0]);}}>Show route</button>{' '}
     <button onClick={() => setRoute(routes[1])}>Alternative route</button>{' '}
@@ -54,7 +60,7 @@ export default function MapHarness() {
     <p data-testid="selection">{selected ?? 'No selection'}</p>
     {appointment ? <RouteMap origin={origin} destination={places[0]} route={route ?? routes[0]}/> :
       <ExploreMap initialCenter={places[0]} initialZoom={14} areaLabel="Browser test area"
-        places={places} selectedId={selected} origin={route ? origin : null} route={route}
+        places={places} selectedId={selected} origin={route ? liveOrigin : null} route={route} onViewChange={point=>setViewCenter(point.lat.toFixed(5)+','+point.lon.toFixed(5))}
         onSelectPlace={place => setSelected(place.id)} onLocate={point => setPosition(point.lat + ',' + point.lon)}/>}
   </main>;
 }

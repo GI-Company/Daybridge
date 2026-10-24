@@ -24,7 +24,7 @@ function fitRoad(map: MapLibreMap, data: GeoJSON.FeatureCollection<GeoJSON.LineS
   if (!points?.length) return;
   const bounds = points.reduce<[number, number, number, number]>((b, [x, y]) =>
     [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [Infinity, Infinity, -Infinity, -Infinity]);
-  map.fitBounds(bounds, {padding: 45, maxZoom: 15, duration: 350});
+  map.fitBounds(bounds, {padding: 45, maxZoom: 15, duration: 300, linear: true});
 }
 
 export function ExploreMap(props: Props) {
@@ -36,6 +36,8 @@ export function ExploreMap(props: Props) {
   const latest = useRef(props);
   latest.current = props;
   const interacted = useRef(false);
+  const reloadStreets=useRef<(()=>void)|null>(null);
+  const lastCamera=useRef('');
   const [retry, setRetry] = useState(0);
   const [ready, setReady] = useState(false);
   const [tilesLoaded, setTilesLoaded] = useState(false);
@@ -55,6 +57,7 @@ export function ExploreMap(props: Props) {
     let watchdog: ReturnType<typeof setTimeout> | undefined;
     let refreshTraffic: ReturnType<typeof setInterval> | undefined;
     let removeOnline: (() => void) | undefined;
+    lastCamera.current='';
     setReady(false); setTilesLoaded(false); setMapError(''); setOverlayError('');
     void (async () => {
       try {
@@ -65,6 +68,8 @@ export function ExploreMap(props: Props) {
         const m = new runtime.Map({
           container: host.current, center: mapCoordinate(center), zoom: current.initialZoom,
           minZoom: 2, maxZoom: 18, attributionControl: {compact: true},
+          // Keep lower-resolution streets rendering while sharper tiles arrive.
+          cancelPendingTileRequestsWhileZooming: false,
           style: {version: 8, sources: {
             streets: {type: 'raster', tiles: ['/api/travel/map-tile/{z}/{x}/{y}'], tileSize: 256,
               minzoom: 0, maxzoom: 18, attribution: '© TomTom'},
@@ -121,14 +126,33 @@ export function ExploreMap(props: Props) {
             }).catch(() => undefined);
           }
         });
-        m.on('sourcedata', event => {
-          // A loaded source can contain failed tiles. Require a tile with content.
-          if (!cancelled && event.sourceId === 'streets' &&
-              event.tile?.state === 'loaded') {
-            setTilesLoaded(true); setMapError('');
-            if (watchdog) clearTimeout(watchdog);
-          }
+        let haveStreetContent=false,streetFailed=false;
+        const loading=()=>{
+          if(cancelled)return;
+          setTilesLoaded(false);
+          if(!watchdog)watchdog=setTimeout(()=>{
+            watchdog=undefined;
+            if(!cancelled)setMapError('Street imagery is taking too long to load. Check your connection and retry.');
+          },20000);
+        };
+        const settled=()=>{
+          if(cancelled||!haveStreetContent||!m.isSourceLoaded('streets'))return;
+          setTilesLoaded(true);
+          if(watchdog){clearTimeout(watchdog);watchdog=undefined;}
+          // Another tile succeeding must not hide a failed street tile.
+          if(!streetFailed)setMapError('');
+        };
+        reloadStreets.current=()=>{
+          streetFailed=false;setMapError('');loading();m.refreshTiles('streets');
+        };
+        m.on('sourcedataloading',event=>{if(event.sourceId==='streets')loading();});
+        m.on('sourcedata',event=>{
+          if(event.sourceId!=='streets')return;
+          if(event.tile?.state==='loaded')haveStreetContent=true;
+          settled();
         });
+        m.on('idle',settled);
+        loading();
         m.on('error', event => {
           if (cancelled) return;
           const sourceId = (event as {sourceId?: string}).sourceId;
@@ -136,6 +160,8 @@ export function ExploreMap(props: Props) {
           if (sourceId === 'flow' || sourceId === 'incidents' || message.includes('/map-overlay/')) {
             setOverlayError('Traffic tiles could not be loaded. Retry traffic to request the layers again.');
           } else {
+            streetFailed=true;
+            if(watchdog){clearTimeout(watchdog);watchdog=undefined;}
             const status = (event.error as Error & {status?: number})?.status;
             setMapError(status === 401 ? 'Your session expired. Sign in again to load the map.' :
               status === 429 ? 'Map request limit reached. Wait a moment, then retry.' :
@@ -161,12 +187,10 @@ export function ExploreMap(props: Props) {
         m.on('mouseleave', 'places-dots', () => {m.getCanvas().style.cursor = '';});
         observer = new ResizeObserver(() => m.resize());
         observer.observe(host.current);
-        watchdog = setTimeout(() => {
-          if (!cancelled) setMapError('The interactive map is taking too long to load. Check your connection and retry.');
-        }, 20000);
         const refresh = () => {
           if (cancelled || !m.isStyleLoaded()) return;
-          for (const id of ['streets', 'flow', 'incidents']) {
+          reloadStreets.current?.();
+          for (const id of ['flow', 'incidents']) {
             const source = m.getSource(id);
             if (source?.type === 'raster') (source as RasterTileSource).setTiles([
               id === 'streets' ? '/api/travel/map-tile/{z}/{x}/{y}' : `/api/travel/map-overlay/${id}/{z}/{x}/{y}`
@@ -194,7 +218,7 @@ export function ExploreMap(props: Props) {
       if (watchdog) clearTimeout(watchdog);
       if (refreshTraffic) clearInterval(refreshTraffic);
       removeOnline?.(); observer?.disconnect(); popup.current?.remove(); popup.current = null;
-      geolocate.current = null;
+      geolocate.current = null; reloadStreets.current=null;
       if (mapRef.current === map) mapRef.current = null;
       map?.remove();
     };
@@ -213,7 +237,7 @@ export function ExploreMap(props: Props) {
         popup.current = new Popup({closeButton: false, offset: 15}).setLngLat(mapCoordinate(place))
           .setText(place.label).addTo(m);
       });
-      if (!route) m.flyTo({center: mapCoordinate(place), zoom: Math.max(12, m.getZoom())});
+
     }
     return () => {cancelled = true; popup.current?.remove(); popup.current = null;};
   }, [markers, places, selectedId, ready, route]);
@@ -223,8 +247,20 @@ export function ExploreMap(props: Props) {
     if (!m || !ready) return;
     (m.getSource('route') as GeoJSONSource).setData(road);
     (m.getSource('origin') as GeoJSONSource).setData(start);
-    fitRoad(m, road);
+
   }, [road, start, ready]);
+
+  useEffect(()=>{
+    const m=mapRef.current;if(!m||!ready)return;
+    const place=places.find(item=>item.id===selectedId&&validMapPoint(item));
+    const key=road.features.length?JSON.stringify([selectedId,road.features[0].geometry.coordinates]):place?JSON.stringify([place.id,place.lat,place.lon]):'';
+    if(!key||lastCamera.current===key)return;
+    lastCamera.current=key;
+    // One bounded camera movement replaces any obsolete destination animation.
+    m.stop();
+    if(road.features.length)fitRoad(m,road);
+    else if(place)m.easeTo({center:mapCoordinate(place),zoom:Math.min(14,Math.max(12,m.getZoom())),duration:300});
+  },[road,places,selectedId,ready]);
 
   useEffect(() => {
     const m = mapRef.current;
@@ -236,7 +272,7 @@ export function ExploreMap(props: Props) {
   useEffect(() => {
     if (!ready || interacted.current || latest.current.route || latest.current.selectedId) return;
     const point = validMapPoint(initialCenter) ? initialCenter : overview;
-    mapRef.current?.flyTo({center: mapCoordinate(point), zoom: initialZoom});
+    mapRef.current?.easeTo({center: mapCoordinate(point), zoom: initialZoom, duration:300});
   }, [initialCenter.lat, initialCenter.lon, initialZoom, ready]);
 
   return <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4" aria-label={compact ? 'TomTom route map' : 'Explore map'}>
@@ -269,9 +305,9 @@ export function ExploreMap(props: Props) {
         setOverlayError('');
       }}>Retry traffic</button></div>}
     <div className={`relative w-full overflow-hidden rounded-xl bg-slate-100 ${compact ? 'h-[320px]' : 'h-[360px] sm:h-[480px]'}`}>
-      <div ref={host} style={{position: 'absolute', inset: 0}} role="region" aria-label="Interactive TomTom street map"/>
+      <div ref={host} style={{position: 'absolute', inset: 0}} role="region" aria-label="Interactive TomTom street map" aria-busy={!tilesLoaded&&!mapError}/>
       {mapError && <div role="alert" className="absolute inset-x-3 bottom-3 rounded-xl border border-amber-300 bg-white/95 p-3 text-sm text-slate-900">
-        <p>{mapError}</p><button type="button" onClick={() => setRetry(value => value + 1)}
+        <p>{mapError}</p><button type="button" onClick={() => {if(reloadStreets.current)reloadStreets.current();else setRetry(value=>value+1);}}
           className="mt-2 min-h-[44px] rounded-lg bg-teal-800 px-3 py-2 font-semibold text-white">Retry interactive map</button>
       </div>}
       {!tilesLoaded && !mapError && <p role="status" className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-white/95 px-3 py-2 text-xs font-semibold text-slate-800">Loading interactive map…</p>}

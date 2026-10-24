@@ -6,7 +6,7 @@ import {CalendarDays,ChevronLeft,ChevronRight,Plus,AlertTriangle,CheckCircle2,XC
 import {safeExternalURL} from '../../lib/security/urls';
 import {useDayBridge} from '../../lib/storage/store';
 import {expandEventOccurrences,detectEventConflicts} from '../../lib/recurrence';
-import {formatTime,formatDate,getRelativeDayLabel} from '../../lib/date-time';
+import {formatTime,formatDate,getRelativeDayLabel,calendarHeading} from '../../lib/date-time';
 import {calendarDayKey,calendarMonthDays,calendarMove,calendarRange,calendarSameDay} from '../../lib/calendar';
 import type {EventCategory} from '../../lib/types';
 import {CheckInCard} from './CheckInCard';
@@ -182,7 +182,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
   <section className="space-y-3" aria-label="Selected day schedule">
    <div className="flex flex-wrap items-center justify-between gap-2">
     <div>
-     <h3 className="text-lg font-bold text-slate-950">{getRelativeDayLabel(selectedDate)} · {formatDate(selectedDate)}</h3>
+     <h3 className="text-lg font-bold text-slate-950">{calendarHeading(selectedDate)}</h3>
      <p className="text-xs text-slate-600">{selectedDayOccurrences.length} scheduled item{selectedDayOccurrences.length===1?'':'s'}</p>
     </div>
     <button type="button" onClick={()=>onOpenQuickAdd(calendarDayKey(selectedDate))}

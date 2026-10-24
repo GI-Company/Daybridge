@@ -208,8 +208,10 @@ export const HealthView: React.FC<HealthViewProps> = ({ onOpenQuickAdd,focusMedi
         )}
       </section>
 
-      <MedicationListManager/>
-      <MedicationScheduleManager/>
+      <details className="rounded-3xl border border-slate-200 bg-white p-3">
+        <summary className="min-h-11 cursor-pointer p-3 text-sm font-semibold text-slate-900">Manage medications & dose times <span className="font-normal text-slate-600">· {medications.filter(m=>m.isActive).length} active</span></summary>
+        <div className="space-y-3"><MedicationListManager/><MedicationScheduleManager/></div>
+      </details>
       {/* 2. REFILL OUTLOOK & INVENTORY */}
       <details className="rounded-3xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer p-3 text-sm font-semibold text-slate-900">Refills & inventory <span className="text-xs font-normal text-slate-600">· Expand</span></summary>
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">

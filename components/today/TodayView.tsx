@@ -58,6 +58,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
     reserves,
     nextPayday: paycheckPlan?.nextPayday,
     emergencyBufferCents: profile.emergencyBufferCents,
+    timezone:profile.timezone,
   });
 
   // 2. Expand Events for Today & Tomorrow
@@ -400,7 +401,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Safe-to-Spend</h3>
               <p className="text-[11px] text-slate-600">
-                Until payday ({safeToSpend.daysUntilPayday} days left)
+                {paycheckPlan?`Until payday (${safeToSpend.daysUntilPayday} days left)`:'Payday not set'}
               </p>
             </div>
           </div>
@@ -419,7 +420,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             </span>
             {safeToSpend.shortfallCents > 0 && (
               <span className="text-xs font-bold text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-800/40">
-                Shortfall: -{formatCents(safeToSpend.shortfallCents)}
+                You need {formatCents(safeToSpend.shortfallCents)} more
               </span>
             )}
           </div>

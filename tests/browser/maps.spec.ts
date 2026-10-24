@@ -82,6 +82,8 @@ test('a tile outage retries the interactive renderer without a static image', as
   });
   await page.goto('/map-test-internal');
   await expect(page.getByRole('button', {name: 'Retry interactive map', exact: true})).toBeVisible();
+  const canvas=page.locator('canvas.maplibregl-canvas');
+  await canvas.evaluate(node=>node.setAttribute('data-retry-canvas','kept'));
   recovering = true;
   await page.getByRole('button', {name: 'Retry interactive map', exact: true}).click();
   broken = false;
@@ -89,6 +91,7 @@ test('a tile outage retries the interactive renderer without a static image', as
   await expect(page.getByText('Loading interactive map…')).toBeHidden({timeout: 20000});
   await expect(page.locator('section [role="alert"]')).toBeHidden();
   await page.getByRole('button', {name: 'Zoom in', exact: true}).click();
+  await expect(canvas).toHaveAttribute('data-retry-canvas','kept');
   expect(staticRequests).toEqual([]);
 });
 
@@ -100,4 +103,32 @@ test('appointment route uses the same functioning interactive engine', async ({p
   await expect(page.locator('section [role="alert"]')).toBeHidden();
   await page.getByRole('button', {name: 'Fit route', exact: true}).click();
   await page.getByRole('button', {name: 'Zoom in', exact: true}).click();
+});
+
+test('street loading returns after zoom and recovering imagery keeps the same interactive canvas',async({page})=>{
+ const png=await readFile('tests/browser/tile.png');let paused=false,release!:()=>void;
+ const blocked=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/travel/map-tile/**',async route=>{if(paused)await blocked;await route.fulfill({contentType:'image/png',body:png}).catch(()=>undefined);});
+ await page.goto('/map-test-internal');await expect(page.getByText('Loading interactive map…')).toBeHidden();
+ const canvas=page.locator('canvas.maplibregl-canvas');await canvas.evaluate(node=>node.setAttribute('data-kept','yes'));
+ paused=true;
+ await page.getByRole('button',{name:'Zoom in',exact:true}).click();
+ await expect(page.getByText('Loading interactive map…')).toBeVisible();
+ await expect(page.getByRole('region',{name:'Interactive TomTom street map'})).toHaveAttribute('aria-busy','true');
+ paused=false;release();
+ await expect(page.getByText('Loading interactive map…')).toBeHidden();
+ await expect(canvas).toHaveAttribute('data-kept','yes');
+});
+test('updating just the starting-point marker does not undo user panning or refit the route',async({page})=>{
+ await page.goto('/map-test-internal');await page.getByRole('button',{name:'Show route',exact:true}).click();
+ await expect(page.getByText('Loading interactive map…')).toBeHidden();
+ const canvas=page.locator('canvas.maplibregl-canvas'),box=(await canvas.boundingBox())!;
+ await page.mouse.move(box.x+100,box.y+100);await page.mouse.down();await page.mouse.move(box.x+200,box.y+180,{steps:12});await page.mouse.up();
+ // Let drag inertia finish before testing that an unrelated marker update preserves the viewport.
+ await page.waitForTimeout(700);
+ await expect(page.getByTestId('map-view-center')).not.toBeEmpty();
+ const center=await page.getByTestId('map-view-center').innerText();
+ await page.getByRole('button',{name:'Update origin only',exact:true}).click();
+ await page.waitForTimeout(500);
+ await expect(page.getByTestId('map-view-center')).toHaveText(center);
 });

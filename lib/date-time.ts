@@ -3,19 +3,19 @@
  */
 
 export function formatTime(isoStringOrDate: string | Date): string {
-  const date = typeof isoStringOrDate === 'string' ? new Date(isoStringOrDate) : isoStringOrDate;
+  const date = typeof isoStringOrDate === 'string' ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(isoStringOrDate)?isoStringOrDate+'T12:00:00':isoStringOrDate) : isoStringOrDate;
   if (isNaN(date.getTime())) return '--:--';
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 export function formatDate(isoStringOrDate: string | Date): string {
-  const date = typeof isoStringOrDate === 'string' ? new Date(isoStringOrDate) : isoStringOrDate;
+  const date = typeof isoStringOrDate === 'string' ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(isoStringOrDate)?isoStringOrDate+'T12:00:00':isoStringOrDate) : isoStringOrDate;
   if (isNaN(date.getTime())) return '';
   return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function formatShortDate(isoStringOrDate: string | Date): string {
-  const date = typeof isoStringOrDate === 'string' ? new Date(isoStringOrDate) : isoStringOrDate;
+  const date = typeof isoStringOrDate === 'string' ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(isoStringOrDate)?isoStringOrDate+'T12:00:00':isoStringOrDate) : isoStringOrDate;
   if (isNaN(date.getTime())) return '';
   return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -61,4 +61,11 @@ export function getTodayGreeting(name?: string): string {
     timeGreeting = 'Good evening';
   }
   return name ? `${timeGreeting}, ${name}` : timeGreeting;
+}
+
+/** One date, with a relative label only when it adds information. */
+export function calendarHeading(date:Date,now=new Date()):string {
+  const offset=Math.round((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()))/86400000);
+  const relative=offset===0?'Today':offset===1?'Tomorrow':offset===-1?'Yesterday':null;
+  return relative?`${relative} · ${formatDate(date)}`:date.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric',year:'numeric'});
 }

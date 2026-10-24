@@ -1,3 +1,4 @@
+import {safeTimezone,zonedParts} from './notifications/time.ts';
 import type {
   BudgetAccount,
   Bill,
@@ -55,12 +56,16 @@ export function calculateSafeToSpend({
   reserves,
   nextPayday,
   emergencyBufferCents = 1000,
+  now = new Date(),
+  timezone,
 }: {
   accounts: BudgetAccount[];
   bills: Bill[];
   reserves: BudgetReserve[];
   nextPayday?: string;
   emergencyBufferCents?: number;
+  now?: Date;
+  timezone?: string;
 }): SafeToSpendResult {
   // Aggregate liquid balance
   const activeLiquidAccounts = accounts.filter(
@@ -69,28 +74,18 @@ export function calculateSafeToSpend({
   const totalConfirmedCents = activeLiquidAccounts.reduce((sum, a) => sum + a.balanceCents, 0);
 
   // Check for stale account snapshots (> 7 days without user confirmation)
-  const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const staleAccountWarning = activeLiquidAccounts.some(
     (a) => new Date(a.lastConfirmedAt).getTime() < sevenDaysAgo.getTime()
   );
 
-  // Calculate days until next payday
-  let daysUntilPayday = 7;
-  let targetPaydayDate: Date | null = null;
-  if (nextPayday) {
-    targetPaydayDate = new Date(`${nextPayday}T23:59:59`);
-    const diffMs = targetPaydayDate.getTime() - now.getTime();
-    daysUntilPayday = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  }
-
-  // Unpaid bills due before next payday
-  const unpaidPrePaydayBills = bills.filter((b) => {
-    if (b.isPaid) return false;
-    if (!targetPaydayDate) return true; // if no payday specified, treat pending bills as upcoming
-    const billDueDate = new Date(`${b.nextDueDate}T23:59:59`);
-    return billDueDate.getTime() <= targetPaydayDate.getTime();
-  });
+  // Count calendar dates in the profile zone, not elapsed 24-hour periods or end-of-day fractions.
+  const today=zonedParts(now,safeTimezone(timezone)).slice(0,10);
+  const payday=nextPayday&&/^\d{4}-\d{2}-\d{2}$/.test(nextPayday)&&
+    Number.isFinite(Date.parse(nextPayday+'T00:00:00Z'))&&
+    new Date(nextPayday+'T00:00:00Z').toISOString().slice(0,10)===nextPayday?nextPayday:null;
+  const daysUntilPayday=payday?Math.max(0,Math.round((Date.parse(payday+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))/86400000)):0;
+  const unpaidPrePaydayBills=bills.filter(b=>!b.isPaid&&(!payday||b.nextDueDate.slice(0,10)<=payday));
   const unpaidPrePaydayBillsCents = unpaidPrePaydayBills.reduce((sum, b) => sum + b.amountCents, 0);
 
   // Earmarked essential reserves

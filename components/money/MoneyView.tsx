@@ -86,6 +86,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd,focusBillId
     reserves,
     nextPayday: paycheckPlan?.nextPayday,
     emergencyBufferCents: profile.emergencyBufferCents,
+    timezone:profile.timezone,
   });
 
   // Paycheck remaining calculation (advances deducted)
@@ -214,8 +215,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd,focusBillId
             )}
           </div>
           <span className="text-xs text-slate-600 font-medium">
-            Next Payday: {paycheckPlan ? formatDate(paycheckPlan.nextPayday) : 'Not set'} (
-            {safeToSpend.daysUntilPayday}d)
+            Next Payday: {paycheckPlan ? `${formatDate(paycheckPlan.nextPayday)} (${safeToSpend.daysUntilPayday}d)` : 'Not set'}
           </span>
         </div>
 
@@ -226,7 +226,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd,focusBillId
           {!activeAccounts.length&&<p className="text-sm text-slate-700">Add a money account above to calculate your available balance.</p>}
           {safeToSpend.shortfallCents > 0 && (
             <div className="text-xs font-bold text-rose-700 mt-1">
-              Shortfall of -{formatCents(safeToSpend.shortfallCents)} to cover pre-payday obligations
+              You need {formatCents(safeToSpend.shortfallCents)} more to cover planned obligations
             </div>
           )}
         </div>
