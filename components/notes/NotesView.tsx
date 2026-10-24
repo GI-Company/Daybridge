@@ -22,7 +22,7 @@ export function NotesView(){
  const [copyStatus,setCopyStatus]=useState('');
  const gesture=useRef<{pointerId:number;x:number;y:number}|null>(null);
  const [drag,setDrag]=useState({x:0,y:0});
- const flipTimeout=useRef<ReturnType<typeof window.setTimeout>|null>(null);
+ const flipTimeout=useRef<number|null>(null);
  const flipping=useRef(false);
  useEffect(()=>()=>{if(flipTimeout.current!==null)clearTimeout(flipTimeout.current);},[]);
  const book=noteBooklets.find(item=>item.id===selectedId);
