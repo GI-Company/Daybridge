@@ -14,6 +14,7 @@ import {
   PhoneCall,
   Calendar,
 } from 'lucide-react';
+import {CheckInCard} from '../schedule/CheckInCard';
 import { useDayBridge } from '../../lib/storage/store';
 import { expandEventOccurrences } from '../../lib/recurrence';
 import { formatTime, formatDate, getRelativeDayLabel } from '../../lib/date-time';
@@ -32,7 +33,7 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
 
   // Filter only court and case management events
   const courtEvents = events.filter(
-    (e) => e.category === 'court' || e.category === 'class' || e.category === 'drug_testing' || e.category === 'case_management'
+    (e) => !e.checkInReminderMinutes&&(e.category === 'court' || e.category === 'class' || e.category === 'drug_testing' || e.category === 'case_management')
   );
 
   const courtOccurrences = courtEvents.flatMap((evt) =>
@@ -43,6 +44,11 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
 
   const upcomingCourtOccurrences = courtOccurrences.filter((occ) => occ.endTime >= now);
   const pastCourtOccurrences = courtOccurrences.filter((occ) => occ.endTime < now).reverse();
+
+  const todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const todayEnd=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999);
+  const checkIns=events.filter(event=>event.checkInReminderMinutes===15).flatMap(event=>
+    expandEventOccurrences(event,todayStart,todayEnd,eventOccurrences)).filter(occ=>occ.attendanceStatus==='unconfirmed');
 
   // Find court contacts
   const courtContacts = contacts.filter((c) => c.category === 'court' || c.category === 'case_manager');
@@ -102,6 +108,11 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
           Weekly Review →
         </button>
       </div>
+
+      {checkIns.length>0&&<section aria-label="Today’s check-ins" className="space-y-3">
+        <h3 className="font-bold text-slate-900">Today’s check-ins</h3>
+        {checkIns.map(occ=><CheckInCard key={occ.id} occurrence={occ}/>)}
+      </section>}
 
       {/* 1. UPCOMING COURT CLASSES & APPEARANCES */}
       <section className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
@@ -165,7 +176,7 @@ export const CourtView: React.FC<CourtViewProps> = ({ onOpenQuickAdd, onNavigate
                           occ.id,
                           occ.eventId,
                           isAttended ? 'unconfirmed' : 'attended_self_reported',
-                          'Attended court requirement'
+                          'Attended court requirement',occ.originalStartTimeUtc,occ.endTime.toISOString()
                         )
                       }
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold min-h-[44px] transition ${

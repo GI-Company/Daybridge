@@ -72,6 +72,7 @@ interface DayBridgeContextType {
   addEvent: (event: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => CalendarEvent;
   updateEvent: (id: string, updates: Partial<CalendarEvent>) => void;
   deleteEvent: (id: string) => void;
+  setCheckInDone: (eventId:string, originalStartTimeUtc:string, endTimeUtc:string, done:boolean) => void;
   recordAttendance: (
     occurrenceId: string,
     eventId: string,
@@ -473,6 +474,22 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     setEventOccurrences((prev) => prev.filter((o) => o.eventId !== id));
   };
 
+  const setCheckInDone = (eventId:string,originalStartTimeUtc:string,endTimeUtc:string,done:boolean) => {
+    const source=events.find(event=>event.id===eventId);
+    if(source?.category!=='drug_testing'||source.checkInReminderMinutes!==15)return;
+    const start=Date.parse(originalStartTimeUtc),end=Date.parse(endTimeUtc);
+    if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return;
+    const completedAt=done?new Date().toISOString():undefined;
+    setEventOccurrences(prev=>{
+      const existing=prev.find(o=>o.eventId===eventId&&Date.parse(o.startTimeUtc)===start);
+      if(existing)return prev.map(o=>o===existing?{...o,checkInCompletedAt:completedAt}:o);
+      if(!done)return prev;
+      return [...prev,{id:`occ-${eventId}-${start}`,eventId,userId:profile.id,
+        startTimeUtc:new Date(start).toISOString(),endTimeUtc:new Date(end).toISOString(),
+        attendanceStatus:'unconfirmed',checkInCompletedAt:completedAt,isException:false}];
+    });
+  };
+
   const recordAttendance = (
     occurrenceId: string,
     eventId: string,
@@ -835,6 +852,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         addEvent,
         updateEvent,
         deleteEvent,
+        setCheckInDone,
         recordAttendance,
 
         addTask,

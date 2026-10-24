@@ -9,9 +9,9 @@ import {UpdateMonitor} from '../../components/common/UpdateMonitor';
 const slot='2026-10-23T12:00:00Z';
 const seed=(id:string)=>({profile:{id,fullName:'Synthetic '+id},tasks:[],medications:[{id:'synthetic-med',userId:id,name:'Synthetic medication',inventoryCount:1,isActive:true,isPrn:false}],medicationLogs:[],events:[{id:'synthetic-event',userId:id,title:'Synthetic event',startTime:'2026-10-23T12:00:00Z',endTime:'2026-10-23T13:00:00Z'}]});
 // Simulated transport only. The production provider and encrypted IndexedDB are used unchanged.
-function simulatedBackend(id:string):SupabaseClient{
+export function simulatedBackend(id:string,initialPayload:unknown=seed(id)):SupabaseClient{
  const key='synthetic-remote-'+id;
- const read=()=>JSON.parse(sessionStorage.getItem(key)||JSON.stringify({payload:seed(id),revision:1}));
+ const read=()=>JSON.parse(sessionStorage.getItem(key)||JSON.stringify({payload:initialPayload,revision:1}));
  return {from(){const query={select(){return query;},eq(){return query;},async maybeSingle(){return {data:read(),error:null};}};return query;},async rpc(name:string,args:Record<string,unknown>){
   if(!navigator.onLine)return {data:null,error:{message:'Synthetic offline'}};
   if(name!=='save_private_snapshot_for_user'||args.p_user_id!==id)return {data:null,error:{message:'owner mismatch'}};

@@ -23,21 +23,22 @@ export function wallTime(value:string,zone:string):number {
 export function shiftDay(day:string,amount:number):string {
  const date=new Date(day+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+amount);return date.toISOString().slice(0,10);
 }
-export type CalendarInstance={event:CalendarEvent;start:number;end:number;originalStart:number;title:string;status:EventOccurrence['attendanceStatus']};
+export type CalendarInstance={event:CalendarEvent;start:number;end:number;originalStart:number;title:string;status:EventOccurrence['attendanceStatus'];occurrence?:EventOccurrence};
 export function calendarInstances(event:CalendarEvent,exceptions:EventOccurrence[],from:number,to:number):CalendarInstance[] {
  const zone=safeTimezone(event.timezone),original=wallTime(event.startTime,zone),end=wallTime(event.endTime,zone);
  if(!Number.isFinite(original)||!Number.isFinite(end))return [];
- const sourceWall=zonedParts(original,zone),duration=end-original;
+ const sourceWall=zonedParts(original,zone),endWall=zonedParts(end,zone),duration=end-original;
+ const endDayOffset=Math.round((Date.parse(endWall.slice(0,10)+'T12:00:00Z')-Date.parse(sourceWall.slice(0,10)+'T12:00:00Z'))/86400000);
  const instances:CalendarInstance[]=[];
  const add=(start:number)=>{
   const exception=exceptions.find(x=>x.eventId===event.id&&(!event.rrule||Math.abs(Date.parse(x.startTimeUtc)-start)<60000));
   const actual=exception?.overrideStartTime?wallTime(exception.overrideStartTime,zone):start;
-  const finish=exception?.overrideEndTime?wallTime(exception.overrideEndTime,zone):actual+duration;
-  if(actual>=from&&actual<=to)instances.push({event,start:actual,end:finish,originalStart:start,title:exception?.overrideTitle||event.title,status:exception?.attendanceStatus||'unconfirmed'});
+  const finish=exception?.overrideEndTime?wallTime(exception.overrideEndTime,zone):exception?.overrideStartTime?actual+duration:wallTime(shiftDay(zonedParts(start,zone).slice(0,10),endDayOffset)+endWall.slice(10),zone);
+  if(actual>=from&&actual<=to&&Number.isFinite(finish)&&finish>actual)instances.push({event,start:actual,end:finish,originalStart:start,title:exception?.overrideTitle||event.title,status:exception?.attendanceStatus||'unconfirmed',occurrence:exception});
  };
  if(!event.rrule){add(original);return instances;}
  const rule=Object.fromEntries(event.rrule.toUpperCase().split(';').map(x=>x.split('=')));
- if(rule.FREQ!=='WEEKLY')return [];
+ if(rule.FREQ!=='WEEKLY'&&rule.FREQ!=='DAILY')return [];
  const weekdays=['SU','MO','TU','WE','TH','FR','SA'];
  const sourceDay=sourceWall.slice(0,10),sourceWeekday=new Date(sourceDay+'T12:00:00Z').getUTCDay();
  const days=(rule.BYDAY||weekdays[sourceWeekday]).split(',');
@@ -47,7 +48,8 @@ export function calendarInstances(event:CalendarEvent,exceptions:EventOccurrence
  for(let day=first;day<=last;day=shiftDay(day,1)){
   const weekday=new Date(day+'T12:00:00Z').getUTCDay();
   const week=Math.floor((Date.parse(day+'T12:00:00Z')-Date.parse(sourceDay+'T12:00:00Z')+sourceWeekday*86400000)/(7*86400000));
-  if(week%interval===0&&days.includes(weekdays[weekday])){
+  const dayOffset=Math.round((Date.parse(day+'T12:00:00Z')-Date.parse(sourceDay+'T12:00:00Z'))/86400000);
+  if(rule.FREQ==='DAILY'?dayOffset%interval===0:week%interval===0&&days.includes(weekdays[weekday])){
    const start=wallTime(day+sourceWall.slice(10),zone);
    if(start>=original&&Number.isFinite(start))add(start);
   }

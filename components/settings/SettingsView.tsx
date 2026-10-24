@@ -135,8 +135,8 @@ export const SettingsView: React.FC = () => {
         </div>
 
         <div className="space-y-3 border-t border-slate-200 pt-4">
-          <p className="text-xs text-slate-600">Choose which synced records create reminders. Tapping a reminder opens its item. Task reminders use the due time; bills and refill dates use 9 AM in your profile timezone. Medication snoozes remind you again after 15 minutes.</p>
-          {([['event','Appointments'],['task','Tasks'],['medication','Scheduled medications'],['bill','Bills'],['refill','Refill dates']] as const).map(([key,label])=>
+          <p className="text-xs text-slate-600">Choose which synced records create reminders. Tapping a reminder opens its item. Task reminders use the due time; bills and refill dates use 9 AM in your profile timezone. Medication snoozes remind you again after 15 minutes. Drug test check-ins remind at the start and every 15 minutes within their window until that day is done and synced.</p>
+          {([['event','Appointments & check-ins'],['task','Tasks'],['medication','Scheduled medications'],['bill','Bills'],['refill','Refill dates']] as const).map(([key,label])=>
            <label key={key} className="flex min-h-11 items-center justify-between gap-3 text-sm text-slate-800">
             {label}<input type="checkbox" className="h-5 w-5 accent-teal-800" checked={profile.notificationPreferences?.[key]!==false}
              onChange={event=>updateProfile({notificationPreferences:{...profile.notificationPreferences,[key]:event.target.checked}})}/>

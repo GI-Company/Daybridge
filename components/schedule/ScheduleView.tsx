@@ -9,6 +9,7 @@ import {expandEventOccurrences,detectEventConflicts} from '../../lib/recurrence'
 import {formatTime,formatDate,getRelativeDayLabel} from '../../lib/date-time';
 import {calendarDayKey,calendarMonthDays,calendarMove,calendarRange,calendarSameDay} from '../../lib/calendar';
 import type {EventCategory} from '../../lib/types';
+import {CheckInCard} from './CheckInCard';
 import {TravelPlanner} from '../travel/TravelPlanner';
 
 interface ScheduleViewProps {
@@ -21,7 +22,7 @@ type Occurrence=ReturnType<typeof expandEventOccurrences>[number];
 type CalendarMode='month'|'week';
 
 const categoryLabels:Record<EventCategory,string>={
- court:'Court',class:'Class / group',self_help:'Self-help meeting',drug_testing:'Drug test',
+ court:'Court',class:'Class / group',self_help:'Self-help meeting',drug_testing:'Drug test check-in',
  therapy:'Therapy',work:'Work',case_management:'Case management',personal:'Personal',other:'Other'
 };
 const categoryDot:Record<EventCategory,string>={
@@ -41,7 +42,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
   if(Number.isFinite(date.getTime()))setSelectedDate(date);
  },[focusDate]);
  const [selectedCategory,setSelectedCategory]=useState<EventCategory|'all'>('all');
- const [selectedOccurrence,setSelectedOccurrence]=useState<Occurrence|null>(null);
+ const [selection,setSelectedOccurrence]=useState<Occurrence|null>(null);
  const [notificationNotice,setNotificationNotice]=useState('');
  const handledFocus=React.useRef('');
  useEffect(()=>{
@@ -57,9 +58,10 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
  const {start:rangeStart,end:rangeEnd,days}=calendarRange(selectedDate,view);
  const allOccurrences=events.flatMap(event=>expandEventOccurrences(event,rangeStart,rangeEnd,eventOccurrences))
    .sort((a,b)=>a.startTime.getTime()-b.startTime.getTime());
+ const selectedOccurrence=selection?(allOccurrences.find(occ=>occ.eventId===selection.eventId&&occ.originalStartTimeUtc===selection.originalStartTimeUtc)||selection):null;
  const filteredOccurrences=allOccurrences.filter(occ=>selectedCategory==='all'||occ.category===selectedCategory);
  const selectedDayOccurrences=filteredOccurrences.filter(occ=>calendarSameDay(occ.startTime,selectedDate));
- const conflicts=detectEventConflicts(filteredOccurrences);
+ const conflicts=detectEventConflicts(filteredOccurrences.filter(occ=>!occ.checkInReminderMinutes));
  const selectedIds=new Set(selectedDayOccurrences.map(occ=>occ.eventId));
  const dayConflicts=conflicts.filter(c=>selectedIds.has(c.eventId1)||selectedIds.has(c.eventId2));
  const startLabel=view==='month'
@@ -207,7 +209,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
       {categoryLabels[occ.category]}{occ.location?' · '+occ.location:''}
      </span>
     </span>
-    {occ.attendanceStatus==='attended_self_reported'
+    {occ.checkInCompletedAt?<CheckCircle2 aria-label="Check-in done" className="h-5 w-5 shrink-0 text-emerald-700"/>:occ.attendanceStatus==='attended_self_reported'
      ?<CheckCircle2 aria-label="Self-reported attended" className="h-5 w-5 shrink-0 text-emerald-700"/>
      :occ.attendanceStatus==='not_attended_self_reported'
       ?<XCircle aria-label="Self-reported missed" className="h-5 w-5 shrink-0 text-rose-700"/>
@@ -226,7 +228,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700">
-                  {selectedOccurrence.category==='self_help'?'Self-help meeting':selectedOccurrence.category.replace('_', ' ')}
+                  {categoryLabels[selectedOccurrence.category]}
                 </span>
                 <h3 className="font-bold text-lg text-slate-900">{selectedOccurrence.title}</h3>
               </div>
@@ -278,8 +280,9 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
 
               {selectedOccurrence.venueType === 'in_person' && <TravelPlanner key={selectedOccurrence.eventId+'-'+selectedOccurrence.startTime.toISOString()} eventId={selectedOccurrence.eventId} title={selectedOccurrence.title} startTime={selectedOccurrence.startTime} location={selectedOccurrence.location}/>} 
 
-              {/* Attendance Recording */}
-              <div className="pt-2">
+              {/* A check-in is completion of a daily task, not attendance at a test. */}
+              {selectedOccurrence.checkInReminderMinutes===15?<CheckInCard occurrence={selectedOccurrence}
+                onChange={done=>setSelectedOccurrence(prev=>prev?{...prev,checkInCompletedAt:done?new Date().toISOString():undefined}:prev)}/>:<div className="pt-2">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                   Self-Report Attendance
                 </label>
@@ -335,6 +338,8 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                 </p>
               </div>
 
+              }
+
               {/* Delete Event Series */}
               <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
                 <button
@@ -354,7 +359,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                   onClick={() => setSelectedOccurrence(null)}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold min-h-[44px]"
                 >
-                  Done
+                  Close
                 </button>
               </div>
             </div>

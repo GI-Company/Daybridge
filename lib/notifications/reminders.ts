@@ -21,6 +21,13 @@ export function dueReminders(snapshot:ReminderSnapshot,userId:string,now:number)
   for(const instance of calendarInstances(event,snapshot.eventOccurrences||[],now-86400000,now+86400000)){
    if(instance.status!=='unconfirmed'||instance.end<=now)continue;
    const day=zonedParts(instance.start,safeTimezone(event.timezone)).slice(0,10);
+   if(event.category==='drug_testing'&&event.checkInReminderMinutes===15){
+    if(instance.occurrence?.checkInCompletedAt||now<instance.start)continue;
+    // Select only the current slot. Late runs must not flood users with missed reminders.
+    const interval=15*60000,due=instance.start+Math.floor((now-instance.start)/interval)*interval;
+    add('event',event.id,instance.originalStart+':check-in:'+due,due,Math.min(instance.end,due+interval),{tab:'schedule',event:event.id,date:day});
+    continue;
+   }
    add('event',event.id,String(instance.originalStart),instance.start-lead,Math.min(instance.end,instance.start+15*60000),{tab:'schedule',event:event.id,date:day});
   }
  }

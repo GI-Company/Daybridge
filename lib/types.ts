@@ -40,6 +40,8 @@ export interface CalendarEvent {
   meetingUrl?: string;
   contactInfo?: string;
   rrule?: string; // e.g., "FREQ=WEEKLY;BYDAY=WE"
+  /** A randomized-testing check-in window, not a testing appointment. */
+  checkInReminderMinutes?: 15;
   travelBufferMinutes: number;
   destinationLat?:number;
   destinationLon?:number;
@@ -56,6 +58,8 @@ export interface EventOccurrence {
   startTimeUtc: string;
   endTimeUtc: string;
   attendanceStatus: AttendanceStatus;
+  /** Completion applies only to this occurrence; it does not report attendance. */
+  checkInCompletedAt?: string;
   attendanceRecordedAt?: string;
   attendanceNote?: string;
   isException: boolean;

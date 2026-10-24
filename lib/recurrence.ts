@@ -1,4 +1,5 @@
 import type { CalendarEvent, EventOccurrence } from './types';
+import {calendarInstances} from './notifications/time.ts';
 
 export interface EventConflict {
   eventId1: string;
@@ -9,130 +10,32 @@ export interface EventConflict {
   explanation: string;
 }
 
-/**
- * Expands an event over a given date range (start to end) according to simple or RFC 5545 RRULE.
- * Generates materialized occurrence instances.
- */
+/** Calendar and background reminders share occurrence identities and timezone rules. */
 export function expandEventOccurrences(
   event: CalendarEvent,
   rangeStart: Date,
   rangeEnd: Date,
   existingOccurrences: EventOccurrence[] = []
-): {
-  id: string;
-  eventId: string;
-  userId: string;
-  title: string;
-  category: CalendarEvent['category'];
-  startTime: Date;
-  endTime: Date;
-  venueType: CalendarEvent['venueType'];
-  location?: string;
-  meetingUrl?: string;
-  travelBufferMinutes: number;
-  prepChecklist: CalendarEvent['prepChecklist'];
-  attendanceStatus: EventOccurrence['attendanceStatus'];
-  attendanceNote?: string;
-}[] {
-  const eventStart = new Date(event.startTime);
-  const eventEnd = new Date(event.endTime);
-  const durationMs = eventEnd.getTime() - eventStart.getTime();
-
-  const occurrences = [];
-
-  // Check if non-recurring
-  if (!event.rrule) {
-    if (eventStart >= rangeStart && eventStart <= rangeEnd) {
-      const matchOcc = existingOccurrences.find((o) => o.eventId === event.id);
-      occurrences.push({
-        id: matchOcc ? matchOcc.id : `occ-${event.id}-${eventStart.getTime()}`,
-        eventId: event.id,
-        userId: event.userId,
-        title: matchOcc?.overrideTitle || event.title,
-        category: event.category,
-        startTime: matchOcc?.overrideStartTime ? new Date(matchOcc.overrideStartTime) : eventStart,
-        endTime: matchOcc?.overrideEndTime ? new Date(matchOcc.overrideEndTime) : eventEnd,
-        venueType: event.venueType,
-        location: event.location,
-        meetingUrl: event.meetingUrl,
-        travelBufferMinutes: event.travelBufferMinutes,
-        prepChecklist: event.prepChecklist,
-        attendanceStatus: matchOcc ? matchOcc.attendanceStatus : 'unconfirmed',
-        attendanceNote: matchOcc?.attendanceNote,
-      });
-    }
-    return occurrences;
-  }
-
-  // Parse recurrence rule, e.g. "FREQ=WEEKLY;BYDAY=WE" or "FREQ=WEEKLY;INTERVAL=1"
-  const isWeekly = event.rrule.includes('FREQ=WEEKLY');
-  const dayMatch = event.rrule.match(/BYDAY=([A-Z,]+)/);
-  const targetDays: number[] = [];
-
-  if (dayMatch && dayMatch[1]) {
-    const dayMap: Record<string, number> = {
-      SU: 0,
-      MO: 1,
-      TU: 2,
-      WE: 3,
-      TH: 4,
-      FR: 5,
-      SA: 6,
-    };
-    dayMatch[1].split(',').forEach((d) => {
-      if (dayMap[d] !== undefined) targetDays.push(dayMap[d]);
-    });
-  } else {
-    // Default to the day of the week of start_time
-    targetDays.push(eventStart.getDay());
-  }
-
-  // Iterate day by day across the range
-  const cursor = new Date(rangeStart);
-  cursor.setHours(0, 0, 0, 0);
-
-  const endLimit = new Date(rangeEnd);
-  endLimit.setHours(23, 59, 59, 999);
-
-  while (cursor <= endLimit) {
-    if (targetDays.includes(cursor.getDay())) {
-      // Build occurrence preserving the local wall-clock hours and minutes
-      const occStart = new Date(cursor);
-      occStart.setHours(eventStart.getHours(), eventStart.getMinutes(), 0, 0);
-
-      // Only include occurrences after original start
-      if (occStart.getTime() >= eventStart.getTime() - 60000) {
-        const occEnd = new Date(occStart.getTime() + durationMs);
-
-        // Find if user already customized this occurrence
-        const matchOcc = existingOccurrences.find((o) => {
-          if (o.eventId !== event.id) return false;
-          const oStart = new Date(o.startTimeUtc);
-          return Math.abs(oStart.getTime() - occStart.getTime()) < 3600000; // within 1 hour match
-        });
-
-        occurrences.push({
-          id: matchOcc ? matchOcc.id : `occ-${event.id}-${occStart.getTime()}`,
-          eventId: event.id,
-          userId: event.userId,
-          title: matchOcc?.overrideTitle || event.title,
-          category: event.category,
-          startTime: matchOcc?.overrideStartTime ? new Date(matchOcc.overrideStartTime) : occStart,
-          endTime: matchOcc?.overrideEndTime ? new Date(matchOcc.overrideEndTime) : occEnd,
-          venueType: event.venueType,
-          location: event.location,
-          meetingUrl: event.meetingUrl,
-          travelBufferMinutes: event.travelBufferMinutes,
-          prepChecklist: event.prepChecklist,
-          attendanceStatus: matchOcc ? matchOcc.attendanceStatus : 'unconfirmed',
-          attendanceNote: matchOcc?.attendanceNote,
-        });
-      }
-    }
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return occurrences;
+) {
+  return calendarInstances(event, existingOccurrences, rangeStart.getTime(), rangeEnd.getTime()).map(instance => ({
+    id: instance.occurrence?.id || `occ-${event.id}-${instance.originalStart}`,
+    eventId: event.id,
+    userId: event.userId,
+    title: instance.title,
+    category: event.category,
+    startTime: new Date(instance.start),
+    originalStartTimeUtc: new Date(instance.originalStart).toISOString(),
+    endTime: new Date(instance.end),
+    venueType: event.venueType,
+    location: event.location,
+    meetingUrl: event.meetingUrl,
+    travelBufferMinutes: event.travelBufferMinutes,
+    prepChecklist: event.prepChecklist,
+    checkInReminderMinutes: event.checkInReminderMinutes,
+    checkInCompletedAt: instance.occurrence?.checkInCompletedAt,
+    attendanceStatus: instance.status,
+    attendanceNote: instance.occurrence?.attendanceNote,
+  }));
 }
 
 /**

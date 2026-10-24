@@ -83,7 +83,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [eventLocationCandidates,setEventLocationCandidates]=useState<Array<{label:string;lat:number;lon:number}>>([]);
   const [checkingEventAddress,setCheckingEventAddress]=useState(false);
   const [eventTravelBuffer, setEventTravelBuffer] = useState('15');
-  const [eventRepeatWeekly, setEventRepeatWeekly] = useState(false);
+  const [eventRepeat, setEventRepeat] = useState<'none'|'daily'|'weekly'>('none');
+  const isCheckIn=activeType==='event'&&eventCategory==='drug_testing';
   const [eventContact, setEventContact] = useState('');
 
   // Medication form state
@@ -177,7 +178,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       }
       const startIso = `${eventDate}T${eventStartTime}:00`;
       const endIso = `${eventDate}T${eventEndTime}:00`;
-      const rrule = eventRepeatWeekly ? 'FREQ=WEEKLY' : undefined;
+      const rrule = eventRepeat==='daily'?'FREQ=DAILY':eventRepeat==='weekly'?'FREQ=WEEKLY':undefined;
 
       const matchedPlace=savedPlaces.find(place=>place.address===eventLocation.trim())||
         (verifiedEventLocation&&verifiedEventLocation.label===eventLocation.trim()
@@ -189,16 +190,17 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         startTime: startIso,
         endTime: endIso,
         timezone: profile.timezone,
-        venueType: eventVenue,
-        location: eventLocation.trim(),
-        destinationLat:matchedPlace?.lat,
-        destinationLon:matchedPlace?.lon,
+        venueType: isCheckIn?'phone':eventVenue,
+        location: isCheckIn?undefined:eventLocation.trim(),
+        destinationLat:isCheckIn?undefined:matchedPlace?.lat,
+        destinationLon:isCheckIn?undefined:matchedPlace?.lon,
         contactInfo: eventContact.trim(),
         rrule,
-        travelBufferMinutes: eventVenue==='in_person'?(parseInt(eventTravelBuffer, 10) || 0):0,
+        checkInReminderMinutes: isCheckIn?15:undefined,
+        travelBufferMinutes: !isCheckIn&&eventVenue==='in_person'?(parseInt(eventTravelBuffer, 10) || 0):0,
         prepChecklist: [],
       });
-      if(matchedPlace&&eventVenue==='in_person'){
+      if(!isCheckIn&&matchedPlace&&eventVenue==='in_person'){
         void enrollTrafficAlerts(created,matchedPlace).catch(()=>undefined);
       }
     } else if (activeType === 'medication') {
@@ -327,6 +329,23 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
           {/* EVENT / CLASS / MEETING FORM */}
           {(activeType === 'event'||activeType === 'class'||activeType === 'self_help') && (
             <>
+                {activeType==='event'&&<label className="block text-sm font-medium text-slate-800">Appointment type
+                  <select value={eventCategory} onChange={e=>{
+                    const category=e.target.value as EventCategory;setEventCategory(category);
+                    if(category==='drug_testing'){setEventRepeat('daily');if(!eventTitle.trim())setEventTitle('Drug test check-in');}
+                  }}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                    <option value="personal">Personal appointment</option>
+                    <option value="court">Court appearance</option>
+                    <option value="drug_testing">Drug test check-in</option>
+                    <option value="therapy">Therapy</option>
+                    <option value="work">Work shift</option>
+                    <option value="case_management">Case management</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>}
+
+              {isCheckIn&&<p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-950">Check whether you are selected for a randomized drug test. Reminders start at the beginning of your window and repeat every 15 minutes until the end time or until you mark that day done. Uses appointment notifications and your quiet hours.</p>}
               {activeType==='self_help'&&<p className="rounded-lg bg-teal-50 p-3 text-xs text-teal-950">Self-help meetings are kept as private calendar events. Attendance is self-reported; no GPS check-in is required.</p>}
 
               <div>
@@ -356,6 +375,19 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     className="mt-1 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
                 </label>
               </div>
+                <label className="block text-sm font-medium text-slate-800">End time
+                  <input type="time" required value={eventEndTime} onChange={e=>setEventEndTime(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
+                </label>
+              <label className="block text-sm font-medium text-slate-800">Repeat
+                <select aria-label="Repeat" value={eventRepeat} onChange={e=>setEventRepeat(e.target.value as 'none'|'daily'|'weekly')}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="none">Does not repeat</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly on this day</option>
+                </select>
+              </label>
+              {!isCheckIn&&<>
               <p className="text-xs text-slate-600">For automatic traffic alerts, verify the destination below or choose a saved location. Approve a starting point in Travel settings once; background traffic monitoring then needs no further setup for each eligible appointment.</p>
               {!!savedPlaces.length&&<label className="block text-sm font-medium text-slate-800">Choose a saved location (optional)
                 <select value={savedPlaces.find(p=>p.address===eventLocation)?.id||''}
@@ -390,10 +422,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                  ?<p role="status" className="text-xs text-teal-800">Address verified for automatic route estimates.</p>
                  :<p className="text-xs text-slate-600">You can still save the appointment without verifying; traffic alerts won't start until an address is verified.</p>}
                </div>}
-              {(activeType==='class'||activeType==='self_help')&&<label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-800">
-                <input type="checkbox" checked={eventRepeatWeekly} onChange={e=>setEventRepeatWeekly(e.target.checked)}
-                  className="h-4 w-4 accent-teal-800"/>Repeat weekly on this day
-              </label>}
+              </>}
               <button type="button" onClick={()=>setAdvanced(prev=>!prev)}
                 aria-expanded={advanced}
                 className="flex w-full min-h-[44px] items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-teal-900">
@@ -401,22 +430,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 <span aria-hidden="true">{advanced?'−':'+'}</span>
               </button>
               {advanced&&<div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <label className="block text-sm font-medium text-slate-800">End time
-                  <input type="time" required value={eventEndTime} onChange={e=>setEventEndTime(e.target.value)}
-                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
-                </label>
-                {activeType==='event'&&<label className="block text-sm font-medium text-slate-800">Appointment type
-                  <select value={eventCategory} onChange={e=>setEventCategory(e.target.value as EventCategory)}
-                    className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
-                    <option value="personal">Personal appointment</option>
-                    <option value="court">Court appearance</option>
-                    <option value="drug_testing">Drug testing</option>
-                    <option value="therapy">Therapy</option>
-                    <option value="work">Work shift</option>
-                    <option value="case_management">Case management</option>
-                    <option value="other">Other</option>
-                  </select>
-                </label>}
+                {!isCheckIn&&<>
                 <label className="block text-sm font-medium text-slate-800">Meeting format
                   <select value={eventVenue} onChange={e=>setEventVenue(e.target.value as VenueType)}
                     className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
@@ -435,10 +449,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                     <option value="60">60 minutes</option>
                   </select>
                 </label>}
-                {activeType==='event'&&<label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-800">
-                  <input type="checkbox" checked={eventRepeatWeekly} onChange={e=>setEventRepeatWeekly(e.target.checked)}
-                    className="h-4 w-4 accent-teal-800"/>Repeat weekly
-                </label>}
+                </>}
                 <label className="block text-sm font-medium text-slate-800">Contact or instructor (optional)
                   <input type="text" value={eventContact} onChange={e=>setEventContact(e.target.value)}
                     className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"
@@ -847,7 +858,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
               type="submit"
               className="px-5 py-2.5 rounded-xl text-xs font-bold bg-teal-500 hover:bg-teal-400 active:scale-95 text-slate-950 min-h-[44px] shadow-lg shadow-teal-100/70 transition"
             >
-              Save {activeType==='class'?'Class':activeType==='self_help'?'Meeting':activeType==='event'?'Appointment':activeType==='location'?'Location':activeType==='transaction'?'Transaction':'Record'}
+              Save {activeType==='class'?'Class':activeType==='self_help'?'Meeting':activeType==='event'?(isCheckIn?'Check-in':'Appointment'):activeType==='location'?'Location':activeType==='transaction'?'Transaction':'Record'}
             </button>
           </div>
         </form>}

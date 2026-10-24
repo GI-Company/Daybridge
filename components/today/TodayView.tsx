@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Clock,
   MapPin,
@@ -17,6 +17,7 @@ import {
   ArrowRight,
   RotateCcw,
 } from 'lucide-react';
+import {CheckInCard} from '../schedule/CheckInCard';
 import {safeExternalURL} from '../../lib/security/urls';
 import { useDayBridge } from '../../lib/storage/store';
 import { calculateSafeToSpend, formatCents } from '../../lib/budget';
@@ -60,16 +61,15 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
   });
 
   // 2. Expand Events for Today & Tomorrow
-  const now = new Date();
+  const [now,setNow]=useState(()=>new Date());
+  useEffect(()=>{
+    const refresh=()=>setNow(new Date());
+    const timer=window.setInterval(refresh,60000);
+    window.addEventListener('focus',refresh);
+    return ()=>{window.clearInterval(timer);window.removeEventListener('focus',refresh);};
+  },[]);
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const endOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 23, 59, 59);
-
-  const upcomingOccurrences = expandEventOccurrences(
-    events[0] || ({} as any),
-    startOfToday,
-    endOfTomorrow,
-    eventOccurrences
-  );
 
   // Gather all events for today and tomorrow
   const allExpandedOccurrences = events.flatMap((evt) =>
@@ -80,10 +80,11 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
   allExpandedOccurrences.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
   // Check conflicts
-  const conflicts = detectEventConflicts(allExpandedOccurrences);
+  const conflicts = detectEventConflicts(allExpandedOccurrences.filter(occ=>!occ.checkInReminderMinutes));
 
   // Next upcoming event (today or upcoming)
-  const nextEvent = allExpandedOccurrences.find((occ) => occ.endTime.getTime() > now.getTime());
+  const nextEvent = allExpandedOccurrences.find((occ) => !occ.checkInReminderMinutes&&occ.attendanceStatus==='unconfirmed'&&occ.endTime.getTime() > now.getTime());
+  const todayCheckIns=allExpandedOccurrences.filter(occ=>occ.checkInReminderMinutes===15&&occ.startTime<new Date(now.getFullYear(),now.getMonth(),now.getDate()+1)&&occ.attendanceStatus==='unconfirmed');
 
   // Tomorrow preview events
   const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
@@ -151,6 +152,8 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             </div>
           </div>
         )}
+
+        {todayCheckIns.length>0&&<div className="mb-4 space-y-3">{todayCheckIns.map(occ=><CheckInCard key={occ.id} occurrence={occ}/>)}</div>}
 
         {/* 1. NEXT OBLIGATION CARD */}
         {nextEvent ? (
