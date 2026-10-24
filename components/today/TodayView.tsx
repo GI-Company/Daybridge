@@ -242,7 +242,8 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                 </span>
               </span>
               <button
-                onClick={() =>
+                onClick={() => {
+                  if(!window.confirm(nextEvent.attendanceStatus==='attended_self_reported'?'Undo this attendance record?':'Mark this appointment as attended (self-reported)?'))return;
                   recordAttendance(
                     nextEvent.id,
                     nextEvent.eventId,
@@ -250,7 +251,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                       ? 'unconfirmed'
                       : 'attended_self_reported',
                     '', nextEvent.startTime.toISOString(), nextEvent.endTime.toISOString()
-                  )
+                  );
                 }
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-750 transition"
               >
@@ -479,7 +480,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             {urgentTasks.map((task) => (
               <div
                 key={task.id}
-                onClick={() => {if(task.completed||window.confirm('Mark this task as done?'))toggleTask(task.id);}}
+                onClick={() => {if(window.confirm(task.completed?'Undo completion of this task?':'Mark this task as done?'))toggleTask(task.id);}}
                 className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-750 transition cursor-pointer min-h-[48px]"
               >
                 <div
