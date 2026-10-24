@@ -90,7 +90,7 @@ export function NotesView(){
    try{await navigator.clipboard.writeText(page.content);setCopyStatus('Copied to clipboard.');}
    catch{setCopyStatus('Clipboard unavailable. Select the text to copy it.');}
  };
- return <section className="relative flex h-full min-h-0 w-full flex-col gap-2 overflow-hidden" aria-label="Sticky notes workspace">
+ return <section className="relative flex min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden" aria-label="Sticky notes workspace">
   {!book ? <>
    <div className="flex shrink-0 items-center justify-between gap-2 py-1">
     <div className="min-w-0">
