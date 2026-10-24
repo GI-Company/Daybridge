@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import {headers} from 'next/headers';
 import './globals.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {productionVersion} from '../lib/release/version';
@@ -11,4 +12,4 @@ export const metadata: Metadata = {
  appleWebApp:{capable:true,title:'DayBridge',statusBarStyle:'default'},
 };
 export const viewport: Viewport = {width:'device-width',initialScale:1,themeColor:'#f8fafc'};
-export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en" data-daybridge-version={productionVersion()}><body className="min-h-screen bg-slate-50 text-slate-900 antialiased">{children}</body></html>}
+export default async function RootLayout({children}:{children:React.ReactNode}){await headers();return <html lang="en" data-daybridge-version={productionVersion()}><body className="min-h-screen bg-slate-50 text-slate-900 antialiased">{children}</body></html>}

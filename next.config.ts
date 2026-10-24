@@ -9,17 +9,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  // Allow access to remote image placeholder.
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**', // This allows any path under the hostname
-      },
-    ],
-  },
   async headers() {
     return [{
       source: '/:path*',
@@ -28,7 +17,9 @@ const nextConfig: NextConfig = {
         { key:'X-Frame-Options', value:'DENY' },
         { key:'Referrer-Policy', value:'no-referrer' },
         { key:'Permissions-Policy', value:'camera=(), microphone=(), geolocation=(self), payment=(), usb=()' },
-        { key:'Content-Security-Policy', value:"frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
+        { key:'Strict-Transport-Security', value:'max-age=31536000; includeSubDomains' },
+        { key:'Cross-Origin-Opener-Policy', value:'same-origin' },
+        { key:'X-DNS-Prefetch-Control', value:'off' },
       ],
     }];
   },

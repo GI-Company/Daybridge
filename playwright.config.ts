@@ -8,6 +8,6 @@ export default defineConfig({
     {name: 'desktop', use: {...devices['Desktop Chrome'], launchOptions: {args: ['--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']}}},
     {name: 'mobile', use: {...devices['Pixel 7'], launchOptions: {args: ['--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']}}}
   ],
-  webServer: {command: 'next dev -p 3100 -H 127.0.0.1', url: 'http://127.0.0.1:3100/map-test-internal',
+  webServer: {command: process.env.DAYBRIDGE_TEST_PRODUCTION==='true'?'next start -p 3100 -H 127.0.0.1':'next dev -p 3100 -H 127.0.0.1', url: 'http://127.0.0.1:3100/map-test-internal',
     reuseExistingServer: false, timeout: 120000}
 });

@@ -7,7 +7,8 @@ export const maxDuration=60;
 export async function POST(req:Request){
  const expected=process.env.DAYBRIDGE_CRON_SECRET;
  const actual=req.headers.get('x-daybridge-cron-secret')||'';
- if(!expected||actual.length!==expected.length||!timingSafeEqual(Buffer.from(actual),Buffer.from(expected)))return NextResponse.json({error:'Unauthorized'},{status:401});
+ const expectedBytes=Buffer.from(expected||''),actualBytes=Buffer.from(actual);
+ if(!expected||actualBytes.length!==expectedBytes.length||!timingSafeEqual(actualBytes,expectedBytes))return NextResponse.json({error:'Unauthorized'},{status:401});
  try{
   // Independent pipelines: a routing outage must not block ordinary reminders.
   const results=await Promise.allSettled([monitorReminders(),monitorTravel()]);

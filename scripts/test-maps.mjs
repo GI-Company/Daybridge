@@ -16,9 +16,14 @@ if (entries.length && (entries.length !== 1 || entries[0] !== 'page.tsx' || awai
   throw new Error('Test harness path contains non-test files; refusing to overwrite it.');
 }
 await writeFile(page, source);
+const production=process.argv.includes('--production');
 try {
-  const child = spawn(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...process.argv.slice(2)], {
-    stdio: 'inherit', env: {...process.env, NEXT_DIST_DIR: '.next-map-tests'}
+  if(production){
+    const build=spawn(process.execPath,['node_modules/next/dist/bin/next','build'],{stdio:'inherit',env:{...process.env,NEXT_DIST_DIR:'.next-map-tests'}});
+    const [code]=await once(build,'exit');if(code!==0)throw new Error('Production harness build failed');
+  }
+  const child = spawn(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', ...process.argv.slice(2).filter(arg=>arg!=='--production')], {
+    stdio: 'inherit', env: {...process.env, NEXT_DIST_DIR: '.next-map-tests', DAYBRIDGE_TEST_PRODUCTION: production?'true':'false'}
   });
   const interrupt = () => child.kill('SIGINT');
   const terminate = () => child.kill('SIGTERM');

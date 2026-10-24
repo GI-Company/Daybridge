@@ -16,6 +16,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
+import {AutoLockPreference} from '../common/DeviceLockSettings';
 import { DeviceSetup } from '../common/DeviceSetup';
 import { TravelPreferencesCard } from '../travel/TravelPreferences';
 import { ChangePasswordCard } from '../common/ChangePasswordCard';
@@ -48,6 +49,13 @@ export const SettingsView: React.FC = () => {
           Preferences, quiet hours, notifications, and privacy options
         </p>
       </div>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+        <h3 className="font-bold text-slate-900">Private workspace lock</h3>
+        <p className="text-sm text-slate-700">Locking hides private records while preserving open work and the encrypted save queue. Unlock requires your account password and an internet connection. Automatic locking is optional so existing offline use is preserved.</p>
+        <AutoLockPreference userId={profile.id}/>
+        <button type="button" onClick={()=>window.dispatchEvent(new Event('daybridge:lock'))} className="min-h-11 rounded-xl bg-teal-800 px-4 py-2 font-semibold text-white">Lock DayBridge now</button>
+      </section>
 
       <section className="rounded-3xl border border-teal-200 bg-teal-50 p-4">
         <h3 className="text-sm font-bold text-teal-950">Background reminders</h3>

@@ -1,4 +1,5 @@
 import 'server-only';
+import {PrivateRequestError} from '../security/request';
 import { serverSupabase } from '../supabase/server';
 import {takeTravelApiSlot, type TravelRequestScope} from './rate-limit';
 import { NextResponse } from 'next/server';
@@ -15,4 +16,8 @@ export function jsonError(message:string,status:number) {
 }
 export async function checkRateLimit(userId:string,scope:TravelRequestScope){
  return takeTravelApiSlot(userId,scope);
+}
+
+export function privateRequestError(error:unknown,fallback:string){
+ return error instanceof PrivateRequestError?jsonError(error.message,error.status):jsonError(fallback,503);
 }

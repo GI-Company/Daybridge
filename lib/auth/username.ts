@@ -24,7 +24,8 @@ export function usernameToAuthEmail(value: string): string | null {
 /**
  * Existing admin-created users may already use a real email address.
  * Permit email/password sign-in for those users without a database migration.
- * New username accounts continue to use internal aliases.
+ * Alias compatibility is retained for existing accounts only. New pilot accounts
+ * require a verified recovery channel and a reviewed provisioning process.
  */
 export function loginIdentifierToEmail(value: string): string | null {
   const identifier = value.trim().toLowerCase();

@@ -14,7 +14,7 @@ export function dueReminders(snapshot:ReminderSnapshot,userId:string,now:number)
  const add=(kind:ReminderKind,sourceId:string,slot:string,due:number,expires:number,target:NotificationDestination)=>{
   if(enabled[kind]===false||!Number.isFinite(due)||due>now||now>=expires||now-due>30*60000)return;
   reminders.push({kind,sourceId,due,expires,key:[kind,sourceId,slot].join(':'),url:notificationURL({...target,account:userId}),
-   title:'DayBridge reminder',body:'Open DayBridge to review your '+(kind==='medication'?'scheduled medication':kind==='event'?'appointment':kind==='refill'?'refill reminder':kind)+'.',
+   title:'DayBridge reminder',body:'Open DayBridge to review a scheduled item.',
    silent:inQuietHours(now,zone,profile.quietHoursStart,profile.quietHoursEnd)});
  };
  for(const event of snapshot.events||[]){

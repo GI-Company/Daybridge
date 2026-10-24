@@ -1,5 +1,6 @@
+import {assertSameOrigin,readPrivateJSON} from '../../../../lib/security/request';
 import {NextResponse} from 'next/server';
-import {authenticated,checkRateLimit,jsonError} from '../../../../lib/travel/auth';
+import {authenticated,checkRateLimit,jsonError,privateRequestError} from '../../../../lib/travel/auth';
 import {tomTomKey} from '../../../../lib/travel/tomtom';
 
 export const runtime='nodejs';
@@ -10,9 +11,10 @@ type FuzzyResult={
 };
 export async function POST(request:Request){
  try{
+  assertSameOrigin(request);
   const auth=await authenticated();
   if(!auth)return jsonError('Unauthorized',401);
-  const data=await request.json().catch(()=>null) as
+  const data=await readPrivateJSON(request) as
     {query?:unknown;lat?:unknown;lon?:unknown}|null;
   const q=typeof data?.query==='string'?data.query.trim():'';
   if(q.length<2||q.length>90)return jsonError('Enter a valid place or address',400);
@@ -41,5 +43,5 @@ export async function POST(request:Request){
    return [{label,address:address||label,lat:p.lat,lon:p.lon}];
   }).slice(0,8);
   return NextResponse.json({results},{headers:{'Cache-Control':'private, no-store'}});
- }catch{return jsonError('Place search currently unavailable',503);}
+ }catch(error){return privateRequestError(error,'Place search currently unavailable');}
 }

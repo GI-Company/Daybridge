@@ -1,4 +1,5 @@
 import 'server-only';
+import {validPushEndpoint,validPushKeys} from '../security/urls.ts';
 import * as webpush from 'web-push';
 import type {SupabaseClient} from '@supabase/supabase-js';
 
@@ -25,6 +26,9 @@ export async function deliverNotification(admin:SupabaseClient,delivery:Delivery
  let sent=0,failed=0;
  for(const sub of subscriptions){
   if(accepted.has(sub.id))continue;
+  if(!validPushEndpoint(sub.endpoint)||!validPushKeys({auth:sub.keys_auth,p256dh:sub.keys_p256dh})){
+   await admin.from('push_subscriptions').update({disabled_at:stamp,last_failure_at:stamp}).eq('id',sub.id).eq('user_id',delivery.userId);continue;
+  }
   try{
    await send({endpoint:sub.endpoint,keys:{auth:sub.keys_auth,p256dh:sub.keys_p256dh}},JSON.stringify({...delivery.message,tag:delivery.message.tag||'daybridge-'+existing.id}),{
     TTL:Math.max(1,Math.min(1800,Math.floor((delivery.expires-now)/1000))),urgency:delivery.urgent?'high':'normal',timeout:8000

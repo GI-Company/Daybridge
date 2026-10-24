@@ -3,7 +3,7 @@ import {adminClient} from './monitor';
 
 const limits = {
   'map-streets': 600, 'map-flow': 600, 'map-incidents': 600,
-  places: 12, geocode: 20, route: 30, 'push-test': 5
+  places: 12, geocode: 20, route: 30, 'push-test': 5, device: 12
 } as const;
 export type TravelRequestScope = keyof typeof limits;
 

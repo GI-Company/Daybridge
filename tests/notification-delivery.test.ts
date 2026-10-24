@@ -8,7 +8,7 @@ registerHooks({resolve(specifier:string,context:unknown,next:(specifier:string,c
 const {deliverNotification}=await import('../lib/notifications/delivery.ts');
 type Row=Record<string,unknown>;
 function database(){
- const tables:Record<string,Row[]>={push_subscriptions:[{id:'device-a',user_id:'owner',endpoint:'https://push.test/a',keys_auth:'auth',keys_p256dh:'key',disabled_at:null},{id:'device-b',user_id:'owner',endpoint:'https://push.test/b',keys_auth:'auth',keys_p256dh:'key',disabled_at:null}],notification_deliveries:[],notification_device_receipts:[]};
+ const tables:Record<string,Row[]>={push_subscriptions:[{id:'device-a',user_id:'owner',endpoint:'https://fcm.googleapis.com/a',keys_auth:'a'.repeat(22),keys_p256dh:'B'.repeat(87),disabled_at:null},{id:'device-b',user_id:'owner',endpoint:'https://fcm.googleapis.com/b',keys_auth:'a'.repeat(22),keys_p256dh:'B'.repeat(87),disabled_at:null}],notification_deliveries:[],notification_device_receipts:[]};
  function from(name:string){
   let mode='select',value:Row={},filters:((row:Row)=>boolean)[]=[],options:{ignoreDuplicates?:boolean;onConflict?:string}={};
   const query={select(){return query;},eq(key:string,target:unknown){filters.push(row=>row[key]===target);return query;},is(key:string,target:unknown){return query.eq(key,target);},update(row:Row){mode='update';value=row;return query;},upsert(row:Row,opts:typeof options){mode='upsert';value=row;options=opts;return query;},maybeSingle(){return Promise.resolve(execute(true));},then(resolve:(value:unknown)=>unknown){return Promise.resolve(execute(false)).then(resolve);}};
@@ -35,7 +35,7 @@ test('partial delivery retries only the failed device and becomes complete after
  const retry=async(subscription:{endpoint:string})=>{calls.push(subscription.endpoint);return {statusCode:201,body:'',headers:{}};};
  assert.deepEqual(await deliverNotification(db.admin,delivery,now+60000,retry),{accepted:0,failed:0});
  assert.deepEqual(await deliverNotification(db.admin,delivery,now+180000,retry),{accepted:1,failed:0});
- assert.deepEqual(calls,['https://push.test/a','https://push.test/b','https://push.test/b']);
+ assert.deepEqual(calls,['https://fcm.googleapis.com/a','https://fcm.googleapis.com/b','https://fcm.googleapis.com/b']);
  assert.equal(db.tables.notification_deliveries[0].status,'sent');
  await deliverNotification(db.admin,delivery,now+360000,retry);assert.equal(calls.length,3);
 });
@@ -45,4 +45,10 @@ test('expired device subscriptions are disabled and expired reminders are never 
  assert.deepEqual(await deliverNotification(db.admin,{...delivery,expires:now},now,send),{accepted:0,failed:0});assert.equal(calls,0);
  await deliverNotification(db.admin,delivery,now,send);assert.equal(calls,2);
  assert.ok(db.tables.push_subscriptions.every(row=>row.disabled_at));assert.equal(db.tables.notification_deliveries[0].status,'no_subscription');
+});
+
+test('malicious stored push destinations are disabled without making network requests',async()=>{
+ const db=database();db.tables.push_subscriptions.forEach(row=>{row.endpoint='https://169.254.169.254/latest';});
+ let calls=0;const send=async()=>{calls++;return {statusCode:201,body:'',headers:{}};};
+ await deliverNotification(db.admin,delivery,now,send);assert.equal(calls,0);assert.ok(db.tables.push_subscriptions.every(row=>row.disabled_at));
 });
