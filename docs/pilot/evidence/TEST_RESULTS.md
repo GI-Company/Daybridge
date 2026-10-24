@@ -24,6 +24,6 @@ Full browser run: 54 passed. The final lock change was checked with six focused 
 - Hosted Supabase GoTrue signed/expired/forged JWT, signup configuration, real concurrent database sessions, full Auth/Vault/Edge/PITR recovery and advisor results on the unapplied candidate schema.
 - Physical installed iOS/iPadOS, Android and signed-in macOS app behavior; real provider push display/acknowledgment; candidate production TomTom/PWA services.
 - Complete account erasure/backup expiry, secure new username provisioning/recovery, administrative MFA enforcement, 30-account load, operational alert delivery or legal/vendor contracts.
-- Remote GitHub Actions success. An earlier workflow encountered an account billing restriction; inspect the branch run before relying on remote CI.
+- Remote GitHub Actions success. [Branch run 40060351560](https://github.com/GI-Company/Daybridge/actions/runs/40060351560) for code/document commit `0a4bdad9f384c2f2a9636d61daf4599ce81eee38` stopped before tests: GitHub reported “The job was not started because your account is locked due to a billing issue.” No remote test pass is claimed. Later documentation-only commits do not change the tested code.
 
 No production migrations, credentials, records or existing-user access were changed. No preview or production deployment was triggered intentionally. See the deployment guide for explicit approval and data-preservation gates.

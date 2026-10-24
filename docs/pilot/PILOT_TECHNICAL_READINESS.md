@@ -23,7 +23,7 @@ The user's current personal records and functioning application must be preserve
 
 Local results and coverage are recorded in [test evidence](evidence/TEST_RESULTS.md) and the [RLS report](SUPABASE_RLS_TEST_REPORT.md). Browser fixtures use production components and actual IndexedDB/WebGL/worker behavior with synthetic transport/tile responses. They do not prove production TomTom, push display, signed hosted JWTs or real iPhone/Android background behavior. Full dependency scans report known advisories only; they are not a general vulnerability certification.
 
-The candidate SQL was executed on disposable PostgreSQL with existing synthetic rows and a second-database archive restore. It was **not applied to the live Supabase project**. No staging/preview deployment was created. GitHub Actions remote execution availability remains an account-level gate; local success is not a fabricated remote CI pass.
+The candidate SQL was executed on disposable PostgreSQL with existing synthetic rows and a second-database archive restore. It was **not applied to the live Supabase project**. No staging/preview deployment was created. GitHub Actions branch run 40060351560 was blocked before jobs started by an account billing lock; local success is not a remote CI pass.
 
 ## Enrollment gates and accountable evidence
 
