@@ -71,6 +71,10 @@ interface DayBridgeContextType {
   bills: Bill[];
   reserves: BudgetReserve[];
   contacts: ResourceContact[];
+  canUndo:boolean;
+  canRedo:boolean;
+  undoChange:()=>void;
+  redoChange:()=>void;
   syncStatus: 'synced' | 'device_saved' | 'local_only' | 'syncing' | 'offline';
   syncIssue: string | null;
   retrySync: () => void;
@@ -147,6 +151,49 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
   const [bills, setBills] = useState<Bill[]>([]);
   const [reserves, setReserves] = useState<BudgetReserve[]>([]);
   const [contacts, setContacts] = useState<ResourceContact[]>([]);
+
+  // Recent undo snapshots stay in memory, never in unencrypted browser storage.
+  // The existing encrypted local queue automatically saves every reversal.
+  const historyCurrentRef=useRef('');
+  const undoStackRef=useRef<string[]>([]);
+  const redoStackRef=useRef<string[]>([]);
+  const historyRestoringRef=useRef<string|null>(null);
+  const [,refreshHistory]=useState(0);
+  const applyHistory=(serialized:string)=>{
+    const previous=JSON.parse(serialized) as Record<string,unknown>;
+    setProfile(previous.profile as UserProfile);
+    setSavedPlaces(previous.savedPlaces as SavedPlace[]);
+    setEvents(previous.events as CalendarEvent[]);
+    setEventOccurrences(previous.eventOccurrences as EventOccurrence[]);
+    setTasks(previous.tasks as TaskItem[]);
+    setNoteBooklets(previous.noteBooklets as NoteBooklet[]);
+    setMedications(previous.medications as Medication[]);
+    setMedicationSchedules(previous.medicationSchedules as MedicationSchedule[]);
+    setMedicationLogs(previous.medicationLogs as MedicationLog[]);
+    setAccounts(previous.accounts as BudgetAccount[]);
+    setTransactions(previous.transactions as MoneyTransaction[]);
+    setPaycheckPlan(previous.paycheckPlan as PaycheckPlan|null);
+    setAdvances(previous.advances as WageAdvance[]);
+    setBills(previous.bills as Bill[]);
+    setReserves(previous.reserves as BudgetReserve[]);
+    setContacts(previous.contacts as ResourceContact[]);
+  };
+  const undoChange=()=>{
+    if(!undoStackRef.current.length||!window.confirm('Undo your last change? This updates saved records.'))return;
+    const previous=undoStackRef.current.pop()!;
+    redoStackRef.current.push(historyCurrentRef.current);
+    historyRestoringRef.current=previous;
+    applyHistory(previous);
+    refreshHistory(v=>v+1);
+  };
+  const redoChange=()=>{
+    if(!redoStackRef.current.length||!window.confirm('Redo your last undone change? This updates saved records.'))return;
+    const next=redoStackRef.current.pop()!;
+    undoStackRef.current.push(historyCurrentRef.current);
+    historyRestoringRef.current=next;
+    applyHistory(next);
+    refreshHistory(v=>v+1);
+  };
 
   const [syncStatus, setSyncStatus] = useState<'synced' | 'device_saved' | 'local_only' | 'syncing' | 'offline'>('local_only');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -418,7 +465,18 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
       hydratedRef.current=true;
       // Initial load is never a user edit. Only restored dirty state is synced.
       savedFingerprintRef.current=fingerprint;
+      historyCurrentRef.current=fingerprint;
       return;
+    }
+    if(historyRestoringRef.current===fingerprint){
+      historyCurrentRef.current=fingerprint;
+      historyRestoringRef.current=null;
+    }else if(historyCurrentRef.current&&historyCurrentRef.current!==fingerprint){
+      undoStackRef.current.push(historyCurrentRef.current);
+      if(undoStackRef.current.length>30)undoStackRef.current.shift();
+      redoStackRef.current=[];
+      historyCurrentRef.current=fingerprint;
+      refreshHistory(v=>v+1);
     }
     if(fingerprint===savedFingerprintRef.current&&!pendingRef.current)return;
     pendingRef.current={payload,fingerprint};
@@ -897,6 +955,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         bills,
         reserves,
         contacts,
+        canUndo:undoStackRef.current.length>0,
+        canRedo:redoStackRef.current.length>0,
+        undoChange,
+        redoChange,
         syncStatus,
         syncIssue,
         retrySync,

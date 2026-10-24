@@ -109,6 +109,7 @@ export const MoneyView: React.FC<MoneyViewProps> = ({ onOpenQuickAdd,focusBillId
     const account=activeAccounts.find(a=>a.id===billAccountId);
     if(!account){setBudgetMessage('Choose the account that paid this bill.');return;}
     const name=bills.find(b=>b.id===billId)?.title||'Bill';
+    if(!window.confirm('Mark '+name+' as paid and record the expense from '+account.name+'?'))return;
     markBillPaid(billId,true,account.id);
     setPayingBillId(null);setBillAccountId('');
     setBudgetMessage(name+' marked paid and deducted from '+account.name+'.');

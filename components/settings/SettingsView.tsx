@@ -29,6 +29,7 @@ export const SettingsView: React.FC = () => {
     profile,
     updateProfile,
     isLiveSupabase,
+    canUndo,canRedo,undoChange,redoChange,
   } = useDayBridge();
 
   const handleExportJSON=()=>{
@@ -50,6 +51,14 @@ export const SettingsView: React.FC = () => {
         </p>
       </div>
 
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+        <h3 className="font-semibold text-slate-950">Undo and redo changes</h3>
+        <p className="text-xs text-slate-600">Every reversal requires confirmation and automatically saves and syncs. Recent change history remains available until you close the workspace.</p>
+        <div className="flex gap-3">
+          <button type="button" disabled={!canUndo} onClick={undoChange} className="min-h-11 rounded-xl border border-slate-300 px-5 font-semibold text-slate-800 disabled:opacity-40">Undo</button>
+          <button type="button" disabled={!canRedo} onClick={redoChange} className="min-h-11 rounded-xl border border-slate-300 px-5 font-semibold text-slate-800 disabled:opacity-40">Redo</button>
+        </div>
+      </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
         <h3 className="font-bold text-slate-900">Private workspace lock</h3>
         <p className="text-sm text-slate-700">Locking hides private records while preserving open work and the encrypted save queue. Unlock with your account password, or with your registered device passkey when available. This is a privacy gate, not sign-out; automatic locking is optional.</p>

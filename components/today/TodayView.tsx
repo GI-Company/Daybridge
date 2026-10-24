@@ -349,7 +349,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
                     <button
                       onClick={() => isTaken
-                        ? undoDose(slot.medication.id, slot.scheduledTime)
+                        ? (window.confirm('Undo this recorded dose?')&&undoDose(slot.medication.id, slot.scheduledTime))
                         : logDose(slot.medication.id, slot.scheduledTime, 'taken')}
                       className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold min-h-[44px] transition ${
                         isTaken

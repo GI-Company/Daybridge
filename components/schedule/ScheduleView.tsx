@@ -295,6 +295,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => {
+                      if(!window.confirm('Record self-reported attendance for this appointment?'))return;
                       recordAttendance(
                         selectedOccurrence.id,
                         selectedOccurrence.eventId,
@@ -318,6 +319,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
 
                   <button
                     onClick={() => {
+                      if(!window.confirm('Record self-reported absence for this appointment?'))return;
                       recordAttendance(
                         selectedOccurrence.id,
                         selectedOccurrence.eventId,
