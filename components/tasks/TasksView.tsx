@@ -24,7 +24,7 @@ interface TasksViewProps {
 }
 
 export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId,focusRevision }) => {
-  const { tasks, toggleTask, deleteTask, addTask } = useDayBridge();
+  const { tasks, toggleTask, updateTask, deleteTask } = useDayBridge();
   const [filter, setFilter] = useState<'pending' | 'completed' | 'all'>('pending');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
@@ -165,6 +165,26 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId
                 </div>
               </div>
               {task.notes&&<div className="mt-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap break-words">{task.notes}<button type="button" onClick={()=>void navigator.clipboard.writeText(task.notes||'').catch(()=>window.alert('Clipboard is unavailable on this device.'))} className="ml-2 font-semibold text-teal-800 underline">Copy</button></div>}
+              <details className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-teal-900">Task notes & reminder timing</summary>
+                <div className="mt-3 space-y-3">
+                  <label className="block text-xs font-semibold text-slate-700">Due date and time
+                    <input type="datetime-local" value={task.dueDate?.slice(0,16)||''}
+                      onChange={e=>updateTask(task.id,{dueDate:e.target.value?e.target.value+':00':undefined})}
+                      className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white p-2 text-base"/>
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">Reminder: {task.reminderLeadMinutes||0} minutes before task due
+                    <input type="range" min="0" max="300" step="5" value={task.reminderLeadMinutes||0}
+                      onChange={e=>updateTask(task.id,{reminderLeadMinutes:Number(e.target.value)})}
+                      className="mt-2 block w-full accent-teal-800"/>
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">Notes
+                    <textarea rows={3} maxLength={4000} value={task.notes||''}
+                      onChange={e=>updateTask(task.id,{notes:e.target.value})}
+                      className="mt-1 block w-full rounded-lg border border-slate-300 p-2 text-base font-normal"/>
+                  </label>
+                </div>
+              </details>
               {task.completed&&<button type="button" className="mt-2 text-xs font-semibold text-teal-800 underline" onClick={()=>{if(window.confirm('Undo completion of this task?'))toggleTask(task.id);}}>Undo completion</button>}
 
               {/* Subtasks */}

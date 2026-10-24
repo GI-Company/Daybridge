@@ -106,6 +106,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [taskTitle, setTaskTitle] = useState('');
   const [taskPriority, setTaskPriority] = useState<PriorityLevel>('medium');
   const [taskDueDate, setTaskDueDate] = useState(localDate());
+  const [taskDueTime,setTaskDueTime]=useState('12:00');
   const [taskLead,setTaskLead]=useState(0);
   const [taskNotes,setTaskNotes]=useState('');
 
@@ -237,7 +238,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       addTask({
         title: taskTitle.trim(),
         priority: taskPriority,
-        dueDate: taskDueDate ? `${taskDueDate}T12:00:00` : undefined,
+        dueDate: taskDueDate ? taskDueDate+'T'+taskDueTime+':00' : undefined,
         reminderLeadMinutes:taskLead,
         notes:taskNotes.trim(),
         isRecurring: false,
@@ -603,6 +604,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                   />
                 </div>
               </div>
+              <label className="block text-sm font-semibold text-slate-800">Task due time
+                <input type="time" value={taskDueTime} onChange={e=>setTaskDueTime(e.target.value)}
+                 className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-base"/>
+              </label>
             </>
           )}
 

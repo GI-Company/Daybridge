@@ -130,7 +130,7 @@ export async function monitorTravel(){
      routeOptions:ordered.length
    });
    const leaveMs=impact.leaveByMs;
-   const phase=travelReminderPhase(startMs,best.durationSeconds,plan.arrival_buffer_minutes,source?.profile?.reminderLeadMinutes,now);
+   const phase=travelReminderPhase(startMs,best.durationSeconds,plan.arrival_buffer_minutes,(source?.events||[]).find(e=>e.id===plan.source_event_id)?.reminderLeadMinutes??source?.profile?.reminderLeadMinutes,now);
    await admin.from('travel_estimates').insert({
      user_id:plan.user_id,appointment_id:plan.id,travel_seconds:best.durationSeconds,
      traffic_delay_seconds:best.delaySeconds,historic_seconds:best.historicSeconds,

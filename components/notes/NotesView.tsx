@@ -89,7 +89,7 @@ export function NotesView(){
     <div className="relative min-h-[400px] overflow-hidden rounded-2xl px-5 pb-5 pt-6 shadow-xl sm:px-7"
      style={{backgroundColor:swatch.background,transformOrigin:'top center',
       transform:folding?'perspective(900px) rotateX(76deg) translateY(-50px)':'perspective(900px) rotateX(0deg)',
-      opacity:folding?.78:1,transition:'transform 230ms ease-in, opacity 230ms ease-in'}}
+      opacity:folding ? 0.78 : 1,transition:'transform 230ms ease-in, opacity 230ms ease-in'}}
      onTouchStart={e=>{const point=e.touches[0];touch.current={x:point.clientX,y:point.clientY};}}
      onTouchEnd={e=>{const start=touch.current;touch.current=null;const point=e.changedTouches[0];if(!start||!point)return;
        const dx=point.clientX-start.x,dy=point.clientY-start.y;

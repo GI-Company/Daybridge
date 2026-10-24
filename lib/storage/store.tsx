@@ -94,6 +94,7 @@ interface DayBridgeContextType {
   ) => void;
 
   addTask: (task: Omit<TaskItem, 'id' | 'userId' | 'completed' | 'createdAt' | 'updatedAt'>) => TaskItem;
+  updateTask:(id:string,updates:Partial<Pick<TaskItem,'dueDate'|'notes'|'reminderLeadMinutes'>>) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
 
@@ -614,6 +615,13 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     return newTask;
   };
 
+  const updateTask=(id:string,updates:Partial<Pick<TaskItem,'dueDate'|'notes'|'reminderLeadMinutes'>>)=>{
+    setTasks(prev=>prev.map(task=>task.id===id?{...task,...updates,
+      notes:updates.notes===undefined?task.notes:updates.notes.slice(0,4000),
+      reminderLeadMinutes:updates.reminderLeadMinutes===undefined?task.reminderLeadMinutes:Math.max(0,Math.min(300,updates.reminderLeadMinutes)),
+      updatedAt:new Date().toISOString()}:task));
+  };
+
   const toggleTask = (id: string) => {
     setTasks((prev) =>
       prev.map((t) => {
@@ -972,6 +980,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         recordAttendance,
 
         addTask,
+        updateTask,
         toggleTask,
         deleteTask,
 
