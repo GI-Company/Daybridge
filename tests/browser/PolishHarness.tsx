@@ -2,11 +2,13 @@
 import {useMemo,useState} from 'react';
 import {DayBridgeProvider,useDayBridge} from '../../lib/storage/store';
 import {simulatedBackend} from './SecurityHarness';
+import {SettingsView} from '../../components/settings/SettingsView';
 import {TodayView} from '../../components/today/TodayView';
 import {MoneyView} from '../../components/money/MoneyView';
 import {HealthView} from '../../components/health/HealthView';
 import {ReviewView} from '../../components/review/ReviewView';
 import {ScheduleView} from '../../components/schedule/ScheduleView';
+import {AutomaticLiveTravel} from '../../components/travel/AutomaticLiveTravel';
 import {Header} from '../../components/common/Header';
 import {Navigation} from '../../components/common/Navigation';
 const id='synthetic-polish',createdAt='2026-10-01T12:00:00Z';
@@ -22,7 +24,7 @@ const seed={profile:{id,fullName:'Alex (Demo)',timezone:'America/New_York',emerg
 function Workspace(){
  const data=useDayBridge();const [tab,setTab]=useState('today');
  const navigate=(next:string)=>{setTab(next);window.scrollTo({top:0});};
- return <div className="min-h-screen bg-slate-50 text-slate-900">
+ return <><AutomaticLiveTravel/><div className="min-h-screen bg-slate-50 text-slate-900">
   <div className="bg-teal-950 px-4 py-2 text-center text-xs font-semibold text-white">Local demonstration · Fictional data</div>
   <Header currentTab={tab} onNavigate={navigate} onOpenQuickAdd={()=>{}}/>
   <div className="flex"><Navigation currentTab={tab} onTabChange={navigate}/>
@@ -33,9 +35,10 @@ function Workspace(){
     {tab==='schedule'&&<ScheduleView onOpenQuickAdd={()=>{}}/>}
     {tab==='health'&&<HealthView onOpenQuickAdd={()=>{}}/>}
     {tab==='review'&&<ReviewView/>}
-    {!['today','money','schedule','health','review'].includes(tab)&&<p>Demonstration covers Today, Schedule, Budget, Medications, and Weekly Review.</p>}
+    {tab==='settings'&&<SettingsView/>}
+    {!['today','money','schedule','health','review','settings'].includes(tab)&&<p>Demonstration covers Today, Schedule, Budget, Medications, and Weekly Review.</p>}
    </main>
   </div>
- </div>;
+ </div></>;
 }
 export function PolishHarness(){const backend=useMemo(()=>simulatedBackend(id,seed),[]);return <DayBridgeProvider userId={id} backend={backend}><Workspace/></DayBridgeProvider>;}

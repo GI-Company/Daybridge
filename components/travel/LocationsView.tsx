@@ -1,6 +1,6 @@
 'use client';
 
-import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useState} from 'react';
 import {MapPinned,Plus,Trash2,MapPin} from 'lucide-react';
 import {useDayBridge} from '../../lib/storage/store';
 import {createClient} from '../../lib/supabase/client';
@@ -10,7 +10,9 @@ import {ExploreMap,type MapPlace} from './ExploreMap';
 import {TravelPreferencesCard} from './TravelPreferences';
 import {useTravelRequest} from '../../lib/travel/use-travel-request';
 import {scheduledTrips} from '../../lib/travel/scheduled-trips';
+import {useCurrentLocation} from '../../lib/travel/use-current-location';
 import {useAutomaticRoute} from '../../lib/travel/use-automatic-route';
+import {arrivalBuffer,arrivalTarget} from '../../lib/travel/timing';
 import {TripDetails} from './TripDetails';
 import {validMapPoint} from '../../lib/travel/geometry';
 import {calendarDayKey} from '../../lib/calendar';
@@ -56,7 +58,7 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
  const [placeResults,setPlaceResults]=useState<Array<AddressResult&{address:string}>>([]);
  const [placeBusy,setPlaceBusy]=useState(false),[placeMessage,setPlaceMessage]=useState('');
  const [alt,setAlt]=useState(0),[showAdvanced,setShowAdvanced]=useState(false);
- const [currentFix,setCurrentFix]=useState<{point:Point;at:number}|null>(null);
+ const deviceLocation=useCurrentLocation();
  const [searchCenter,setSearchCenter]=useState<Point|null>(null);
  const [now,setNow]=useState(()=>new Date());
  useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(timer)},[]);
@@ -73,26 +75,21 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
  const trip=trips.find(item=>item.id===tripId)||trips[0]||null;
  const manual=savedPlaces.find(place=>place.id===destinationId)||
   (destinationId==='__searched'&&searchedDestination?{...searchedDestination,id:'__searched'}:null);
- const activeTrip=manual?null:trip;
+ const activeTrip=manual||!trip?null:{...trip,bufferMinutes:arrivalBuffer(trip.bufferMinutes,preferences.arrival_buffer_minutes)};
  const scheduledDestination=activeTrip?.destination?{...activeTrip.destination,id:'schedule-'+activeTrip.id,label:activeTrip.title,address:activeTrip.address}:null;
  const selected=manual||scheduledDestination;
  const approvedPoint={lat:preferences.saved_origin_lat,lon:preferences.saved_origin_lon};
  const approvedOrigin=validMapPoint(approvedPoint)?approvedPoint:null;
- const freshFix=currentFix&&now.getTime()-currentFix.at<120000?currentFix.point:null;
- const automaticOrigin=preferences.origin_kind==='saved'&&approvedOrigin?approvedOrigin:freshFix||approvedOrigin;
- const originLabel=!automaticOrigin?'a starting location':automaticOrigin===freshFix?'your current location':preferences.saved_origin_label||'your approved starting location';
+ const freshFix=deviceLocation.fix?.point||null;
+ const automaticOrigin=preferences.origin_kind==='saved'?approvedOrigin:freshFix;
+ const originLabel=!automaticOrigin?'your current location (waiting for GPS)':automaticOrigin===freshFix?'your current location':preferences.saved_origin_label||'your approved starting location';
  const mode=activeTrip?.travelMode||preferences.travel_mode;
- const target=selected?{id:selected.id,point:{lat:selected.lat,lon:selected.lon},mode,arriveAt:activeTrip?.startTime.toISOString()}:null;
+ const target=selected?{id:selected.id,point:{lat:selected.lat,lon:selected.lon},mode,arriveAt:activeTrip?arrivalTarget(activeTrip.startTime,activeTrip.bufferMinutes).toISOString():undefined}:null;
  const {state:routeState,refresh}=useAutomaticRoute(target,automaticOrigin);
  const route=routeState?.result||null;
  const best=route?.routes[alt]||route?.routes[0]||null;
  const routeFrom=routeState?.from||null;
  useEffect(()=>setAlt(0),[route]);
- const onLocate=useCallback((point:Point)=>setCurrentFix(previous=>{
-  // Keep GPS jitter from repeatedly recalculating an otherwise unchanged trip.
-  const same=previous&&Math.abs(previous.point.lat-point.lat)<0.0005&&Math.abs(previous.point.lon-point.lon)<0.0005;
-  return {point:same?previous.point:point,at:Date.now()};
- }),[]);
  const beginSearch=useTravelRequest(placeQuery);
  const beginAddress=useTravelRequest(address);
  useEffect(()=>{setPlaceBusy(false);setPlaceResults([]);setPlaceMessage('');},[placeQuery]);
@@ -169,7 +166,7 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
   (firstSaved?{lat:firstSaved.lat,lon:firstSaved.lon}:{lat:39.8283,lon:-98.5795});
  const initialMapZoom=approvedOrigin||firstSaved?12:4;
  const mapAreaLabel=approvedOrigin?'Centered on your approved starting point':
-  firstSaved?'Centered on a saved location':'Showing United States — tap Use my location';
+  firstSaved?'Centered on a saved location':'Showing United States — acquiring current location automatically';
  function selectMapPlace(place:MapPlace){
   if(place.id.startsWith('schedule-')){
    setTripId(place.id.slice('schedule-'.length));setDestinationId('');return;
@@ -189,11 +186,13 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
     <p className="mt-1 text-sm text-slate-700">Your calendar supplies the trip. Routes and traffic load automatically.</p></div>
    <button onClick={()=>openAdd('therapy')} className="flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-3 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Add a place</button>
   </div>
+  {preferences.origin_kind==='current'&&deviceLocation.status==='denied'&&<p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Location access is denied. Enable location for DayBridge in your device or browser settings. Travel timing waits for a fresh fix.</p>}
+  {preferences.origin_kind==='current'&&deviceLocation.status==='unavailable'&&<p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">An accurate location is unavailable. Enable precise location and check your GPS signal; saved coordinates will not be used instead.</p>}
   <ExploreMap
    initialCenter={initialMapCenter} initialZoom={initialMapZoom} areaLabel={mapAreaLabel}
    places={mapPlaces} selectedId={selected?.id||null}
    origin={routeFrom} route={best||null} onSelectPlace={selectMapPlace}
-   onLocate={onLocate} onViewChange={setSearchCenter}
+   onViewChange={setSearchCenter}
   />
   <TripDetails trip={activeTrip} destination={selected} origin={routeFrom||automaticOrigin} originLabel={originLabel}
    result={route} status={routeState?.status} mode={mode} now={now} index={alt} onChoose={setAlt} onRefresh={refresh}
@@ -283,7 +282,7 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
   <details className="rounded-2xl border border-slate-200 bg-white p-4" open={showAdvanced} onToggle={e=>setShowAdvanced(e.currentTarget.open)}>
    <summary className="cursor-pointer text-sm font-semibold text-slate-900">Travel settings & background alerts</summary>
    <div className="mt-4"><TravelPreferencesCard/></div>
-   <p className="mt-3 text-xs text-slate-600">Background departure alerts also require an approved saved origin, notification permissions and an active server monitoring schedule. GPS is requested only when you choose it.</p>
+   <p className="mt-3 text-xs text-slate-600">GPS starts automatically after permission. Current-location departure alerts need a fresh fix while the app is open; closed-app reminders invite you to open it for updated timing. Saved-location forecasts require an explicit choice in travel settings.</p>
   </details>
  </div>;
 }

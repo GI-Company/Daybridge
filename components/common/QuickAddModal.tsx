@@ -24,6 +24,7 @@ import { useDayBridge } from '../../lib/storage/store';
 import { parseDollarsToCents } from '../../lib/budget';
 import {AddBudgetAccount} from '../money/AddBudgetAccount';
 import {enrollTrafficAlerts} from '../../lib/travel/auto-reminder';
+import {appointmentCategories} from '../../lib/appointment-categories';
 import { EventCategory, VenueType, PriorityLevel, SavedPlaceCategory } from '../../lib/types';
 
 interface QuickAddModalProps {
@@ -35,7 +36,7 @@ interface QuickAddModalProps {
 
 type QuickAddType = 'event' | 'class' | 'self_help' | 'medication' | 'task' | 'transaction' | 'bill' | 'contact' | 'location';
 const addChoices: {id: QuickAddType; label: string; detail: string; icon: typeof Calendar}[] = [
- {id:'event',label:'Appointment',detail:'Court, work, or personal',icon:Calendar},
+ {id:'event',label:'Appointment',detail:'Your calendar categories',icon:Calendar},
  {id:'class',label:'Class / Group',detail:'Classes and sessions',icon:GraduationCap},
  {id:'self_help',label:'Self-Help Meeting',detail:'AA, NA, SMART, or other',icon:Users},
  {id:'task',label:'Task',detail:'Something to remember',icon:CheckSquare},
@@ -73,7 +74,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
 
   // Event form state
   const [eventTitle, setEventTitle] = useState('');
-  const [eventCategory, setEventCategory] = useState<EventCategory>('personal');
+  const categories=appointmentCategories(profile).filter(category=>!category.hidden);
+  const [eventCategory, setEventCategory] = useState<EventCategory>(categories.find(category=>category.id==='personal')?.id||categories[0]?.id||'personal');
+  const effectiveCategory=categories.some(category=>category.id===eventCategory)?eventCategory:categories[0]?.id||'personal';
   const [eventDate, setEventDate] = useState(initialDate||localDate());
   const [eventStartTime, setEventStartTime] = useState('10:00');
   const [eventEndTime, setEventEndTime] = useState('11:00');
@@ -84,7 +87,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [checkingEventAddress,setCheckingEventAddress]=useState(false);
   const [eventTravelBuffer, setEventTravelBuffer] = useState('15');
   const [eventRepeat, setEventRepeat] = useState<'none'|'daily'|'weekly'>('none');
-  const isCheckIn=activeType==='event'&&eventCategory==='drug_testing';
+  const isCheckIn=activeType==='event'&&effectiveCategory==='drug_testing';
   const [eventContact, setEventContact] = useState('');
 
   // Medication form state
@@ -185,7 +188,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
           ?{address:verifiedEventLocation.label,lat:verifiedEventLocation.lat,lon:verifiedEventLocation.lon}:null);
       const created=addEvent({
         title: eventTitle.trim(),
-        category: activeType==='class'?'class':activeType==='self_help'?'self_help':eventCategory,
+        category: activeType==='class'?'class':activeType==='self_help'?'self_help':effectiveCategory,
         description: activeType==='self_help'?'Private self-help meeting':'',
         startTime: startIso,
         endTime: endIso,
@@ -310,7 +313,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         {activeType===null&&<div className="p-4 sm:p-5">
           <p className="mb-4 text-sm text-slate-700">Choose what you want to add. You'll only see fields for that item.</p>
           <div className="grid grid-cols-2 gap-3">
-            {addChoices.map(({id,label,detail,icon:Icon})=><button key={id} type="button" onClick={()=>switchType(id)}
+            {addChoices.filter(choice=>(choice.id!=='class'&&choice.id!=='self_help')||categories.some(category=>category.id===choice.id)).map(({id,label,detail,icon:Icon})=><button key={id} type="button" onClick={()=>switchType(id)}
               className="flex min-h-[100px] flex-col items-start justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-teal-400 hover:bg-teal-50 focus-visible:ring-2 focus-visible:ring-teal-700">
               <Icon aria-hidden="true" className="h-5 w-5 text-teal-800"/>
               <strong className="text-sm leading-tight text-slate-950">{label}</strong>
@@ -330,18 +333,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
           {(activeType === 'event'||activeType === 'class'||activeType === 'self_help') && (
             <>
                 {activeType==='event'&&<label className="block text-sm font-medium text-slate-800">Appointment type
-                  <select value={eventCategory} onChange={e=>{
+                  <select value={effectiveCategory} onChange={e=>{
                     const category=e.target.value as EventCategory;setEventCategory(category);
                     if(category==='drug_testing'){setEventRepeat('daily');if(!eventTitle.trim())setEventTitle('Drug test check-in');}
                   }}
                     className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
-                    <option value="personal">Personal appointment</option>
-                    <option value="court">Court appearance</option>
-                    <option value="drug_testing">Drug test check-in</option>
-                    <option value="therapy">Therapy</option>
-                    <option value="work">Work shift</option>
-                    <option value="case_management">Case management</option>
-                    <option value="other">Other</option>
+                    {categories.map(category=><option key={category.id} value={category.id}>{category.label}</option>)}
                   </select>
                 </label>}
 
@@ -388,7 +385,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                 </select>
               </label>
               {!isCheckIn&&<>
-              <p className="text-xs text-slate-600">For automatic traffic alerts, verify the destination below or choose a saved location. Approve a starting point in Travel settings once; background traffic monitoring then needs no further setup for each eligible appointment.</p>
+              <p className="text-xs text-slate-600">Verify the destination below or choose a saved location. Current-location travel timing loads automatically after GPS permission. Appointment reminders continue when closed; open them for a fresh travel estimate.</p>
               {!!savedPlaces.length&&<label className="block text-sm font-medium text-slate-800">Choose a saved location (optional)
                 <select value={savedPlaces.find(p=>p.address===eventLocation)?.id||''}
                   onChange={e=>{

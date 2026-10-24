@@ -1,7 +1,9 @@
 import {test, expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
-test.beforeEach(async ({page}) => {
+test.beforeEach(async ({page,context}) => {
+  await context.setGeolocation({latitude:34.59,longitude:-83.72});
+  await context.grantPermissions(['geolocation']);
   const tile = await readFile('tests/browser/tile.png');
   await page.route('**/api/travel/map-tile/**', route => route.fulfill({contentType: 'image/png', body: tile}));
   await page.route('**/api/travel/route', async route => {

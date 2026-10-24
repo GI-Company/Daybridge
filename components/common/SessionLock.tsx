@@ -1,4 +1,5 @@
 'use client';
+import {WorkspaceVisibility} from '../../lib/workspace-visibility';
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {LockKeyhole} from 'lucide-react';
 
@@ -46,7 +47,7 @@ export function SessionLock({userId,verify,children,idleMilliseconds=0}:SessionL
   finally{setPassword('');setBusy(false);}
  };
  return <>
-  <div hidden={!ready||locked} inert={!ready||locked?true:undefined} aria-hidden={!ready||locked?true:undefined}>{children}</div>
+  <div hidden={!ready||locked} inert={!ready||locked?true:undefined} aria-hidden={!ready||locked?true:undefined}><WorkspaceVisibility.Provider value={ready&&!locked}>{children}</WorkspaceVisibility.Provider></div>
   {ready&&locked&&<main className="flex min-h-screen items-center justify-center bg-slate-50 p-5">
    <section aria-labelledby="locked-title" className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
     <LockKeyhole className="h-8 w-8 text-teal-800" aria-hidden="true"/>

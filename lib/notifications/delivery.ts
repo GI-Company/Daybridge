@@ -3,11 +3,12 @@ import {validPushEndpoint,validPushKeys} from '../security/urls.ts';
 import * as webpush from 'web-push';
 import type {SupabaseClient} from '@supabase/supabase-js';
 
-type Delivery={userId:string;key:string;kind:string;appointmentId?:string;message:{kind:string;title:string;body:string;url:string;tag?:string;silent?:boolean};expires:number;urgent?:boolean};
+type Delivery={userId:string;subscriptionId?:string;key:string;kind:string;appointmentId?:string;message:{kind:string;title:string;body:string;url:string;tag?:string;silent?:boolean};expires:number;urgent?:boolean};
 /** Provider acceptance is recorded per device, to avoid resending after a successful device receipt. */
 export async function deliverNotification(admin:SupabaseClient,delivery:Delivery,now=Date.now(),send=webpush.sendNotification):Promise<{accepted:number;failed:number}>{
  if(delivery.expires<=now)return {accepted:0,failed:0};
- const {data:subscriptions,error:subError}=await admin.from('push_subscriptions').select('id,endpoint,keys_auth,keys_p256dh').eq('user_id',delivery.userId).is('disabled_at',null);
+ const devices=admin.from('push_subscriptions').select('id,endpoint,keys_auth,keys_p256dh').eq('user_id',delivery.userId).is('disabled_at',null);
+ const {data:subscriptions,error:subError}=await (delivery.subscriptionId?devices.eq('id',delivery.subscriptionId):devices);
  if(subError)throw Error('Could not load notification devices');
  if(!subscriptions?.length)return {accepted:0,failed:0};
  const {data:inserted,error:insertError}=await admin.from('notification_deliveries').upsert({user_id:delivery.userId,appointment_id:delivery.appointmentId??null,dedupe_key:delivery.key,kind:delivery.kind,status:'pending'},{onConflict:'user_id,dedupe_key',ignoreDuplicates:true}).select('*').maybeSingle();
@@ -30,7 +31,7 @@ export async function deliverNotification(admin:SupabaseClient,delivery:Delivery
    await admin.from('push_subscriptions').update({disabled_at:stamp,last_failure_at:stamp}).eq('id',sub.id).eq('user_id',delivery.userId);continue;
   }
   try{
-   await send({endpoint:sub.endpoint,keys:{auth:sub.keys_auth,p256dh:sub.keys_p256dh}},JSON.stringify({...delivery.message,tag:delivery.message.tag||'daybridge-'+existing.id}),{
+   await send({endpoint:sub.endpoint,keys:{auth:sub.keys_auth,p256dh:sub.keys_p256dh}},JSON.stringify({...delivery.message,expiresAt:delivery.expires,tag:delivery.message.tag||'daybridge-'+existing.id}),{
     TTL:Math.max(1,Math.min(1800,Math.floor((delivery.expires-now)/1000))),urgency:delivery.urgent?'high':'normal',timeout:8000
    });
    const {error}=await admin.from('notification_device_receipts').upsert({delivery_id:existing.id,subscription_id:sub.id,accepted_at:stamp},{onConflict:'delivery_id,subscription_id'});

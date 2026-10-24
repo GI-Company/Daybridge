@@ -1,6 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
-import {normalizeTomTomRoutePoints} from './geometry';
+import {normalizeTomTomRoutePoints} from './geometry.ts';
 
 export const coordinateSchema = z.object({
  lat:z.number().finite().min(-90).max(90),
@@ -15,7 +15,7 @@ export const routeInput=z.object({
 });
 export type Coordinates=z.infer<typeof coordinateSchema>;
 export type RouteInput=z.infer<typeof routeInput>;
-export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[];instructions?:string[]};
+export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[];departureTime?:string;arrivalTime?:string;instructions?:string[]};
 export type RouteResult={basis:'live'|'historical';routes:RouteOption[];checkedAt:string};
 const cache=new Map<string,{expires:number,value:RouteResult}>();
 export function tomTomKey():string {
@@ -51,7 +51,7 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
  const res=await fetch(url.toString(),{cache:'no-store',signal:AbortSignal.timeout(9000)});
  if(!res.ok)throw new Error('Routing currently unavailable ('+res.status+')');
  const data=await res.json() as {routes?:Array<{
-  summary?:{travelTimeInSeconds?:number;trafficDelayInSeconds?:number;lengthInMeters?:number;historicTrafficTravelTimeInSeconds?:number};
+  summary?:{travelTimeInSeconds?:number;trafficDelayInSeconds?:number;lengthInMeters?:number;historicTrafficTravelTimeInSeconds?:number;departureTime?:string;arrivalTime?:string};
   guidance?:{instructions?:Array<{message?:string}>};
   legs?:Array<{points?:Array<{latitude?:number;longitude?:number;lat?:number;lon?:number}>}>
  }>};
@@ -61,6 +61,7 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
   distanceMeters:Math.max(0,Math.round(r.summary?.lengthInMeters??0)),
   historicSeconds: r.summary?.historicTrafficTravelTimeInSeconds??null,
   points:normalizeTomTomRoutePoints((r.legs??[]).flatMap(l=>l.points??[])),
+  departureTime:r.summary?.departureTime,arrivalTime:r.summary?.arrivalTime,
   instructions:(r.guidance?.instructions??[]).map(i=>i.message??'').filter(Boolean).slice(0,100)
  })).filter(r=>r.durationSeconds>0&&r.points.length>=2).sort((a,b)=>a.durationSeconds-b.durationSeconds);
  if(!routes.length)throw new Error('No usable route found');

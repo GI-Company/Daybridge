@@ -12,6 +12,7 @@ import { QuickAddModal } from '../components/common/QuickAddModal';
 import { TodayView } from '../components/today/TodayView';
 import { ScheduleView } from '../components/schedule/ScheduleView';
 import { LocationsView } from '../components/travel/LocationsView';
+import {AutomaticLiveTravel} from '../components/travel/AutomaticLiveTravel';
 import { AutomaticTravelReminders } from '../components/travel/AutomaticTravelReminders';
 import {NotificationAppBridge} from '../components/common/NotificationAppBridge';
 import {NotificationConnection} from '../components/common/NotificationConnection';
@@ -40,6 +41,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
   return (
     <DayBridgeProvider userId={userId}>
       <AutomaticTravelReminders/>
+      <AutomaticLiveTravel/>
       <NotificationConnection/>
       <BackgroundReadiness userId={userId} suppressed={!!(target?.account||target?.event||target?.task||target?.medication||target?.bill)}/>
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950">

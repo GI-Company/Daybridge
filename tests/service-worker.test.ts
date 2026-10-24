@@ -41,3 +41,10 @@ test('an installed app is preferred over a focused regular browser tab',async()=
  await w.fire('notificationclick',{notification:{data:{url:'/?tab=settings'},close:()=>{}}});
  assert.equal(browserCalls,0);assert.equal(appCalls,1);
 });
+
+test('a delayed push is suppressed after its GPS or reminder expiry',async()=>{
+ const w=worker();await w.fire('push',{data:{json:()=>({kind:'leave_now',body:'Old travel timing',expiresAt:Date.now()-1})}});
+ assert.equal(w.notifications.length,0);
+ await w.fire('push',{data:{json:()=>({kind:'leave_now',body:'Fresh travel timing',expiresAt:Date.now()+60000})}});
+ assert.equal(w.notifications.length,1);
+});

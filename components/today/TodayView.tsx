@@ -17,6 +17,7 @@ import {
   ArrowRight,
   RotateCcw,
 } from 'lucide-react';
+import {appointmentCategory} from '../../lib/appointment-categories';
 import {CheckInCard} from '../schedule/CheckInCard';
 import {safeExternalURL} from '../../lib/security/urls';
 import { useDayBridge } from '../../lib/storage/store';
@@ -165,7 +166,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                 <span>Next Obligation ({getRelativeDayLabel(nextEvent.startTime)})</span>
               </span>
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize bg-slate-100 text-slate-700 border border-slate-700/60">
-                {nextEvent.category.replace('_', ' ')}
+                {appointmentCategory(profile,nextEvent.category).label}
               </span>
             </div>
 
@@ -548,7 +549,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                   </div>
                 </div>
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                  {evt.category.replace('_', ' ')}
+                  {appointmentCategory(profile,evt.category).label}
                 </span>
               </div>
             ))}

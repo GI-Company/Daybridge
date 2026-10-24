@@ -2,6 +2,8 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import type {SupabaseClient,User} from '@supabase/supabase-js';
 import {DayBridgeProvider,useDayBridge} from '../../lib/storage/store';
+import {ExploreMap} from '../../components/travel/ExploreMap';
+import {useCurrentLocation} from '../../lib/travel/use-current-location';
 import {SessionLock} from '../../components/common/SessionLock';
 import {SecureAppGate} from '../../components/common/SecureAppGate';
 import {SettingsView} from '../../components/settings/SettingsView';
@@ -42,10 +44,11 @@ export function StorageHarness(){
   <button onClick={()=>{const key='synthetic-remote-'+id;const prior=JSON.parse(sessionStorage.getItem(key)||JSON.stringify({payload:seed(id),revision:1}));sessionStorage.setItem(key,JSON.stringify({...prior,revision:prior.revision+1}));}}>Other device advances revision</button>
   <p data-testid="owner">{id}</p><DayBridgeProvider key={id} userId={id} backend={backend}><Workspace/></DayBridgeProvider></main>;
 }
+function LocationProbe(){const location=useCurrentLocation();return <p data-testid="lock-location">{location.status}</p>;}
 export function LockHarness(){
  const [idle,setIdle]=useState(0);
  return <><button onClick={()=>setIdle(1000)}>Enable synthetic short idle timer</button><button onClick={()=>window.dispatchEvent(new Event('daybridge:lock'))}>Lock test workspace</button>
-  <SessionLock userId="synthetic-lock" idleMilliseconds={idle} verify={async password=>password==='synthetic-password'}><label>Unsaved synthetic draft<input aria-label="Unsaved synthetic draft"/></label></SessionLock></>;
+  <SessionLock userId="synthetic-lock" idleMilliseconds={idle} verify={async password=>password==='synthetic-password'}><LocationProbe/>{new URLSearchParams(window.location.search).get('gpsmap')==='test'&&<ExploreMap initialCenter={{lat:34.6,lon:-83.7}} initialZoom={12} areaLabel="Synthetic area" places={[]} selectedId={null} origin={null} route={null} onSelectPlace={()=>{}}/>}<label>Unsaved synthetic draft<input aria-label="Unsaved synthetic draft"/></label></SessionLock></>;
 }
 export function UpdateHarness(){
  const [draft,setDraft]=useState(true);

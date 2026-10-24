@@ -1,5 +1,6 @@
 'use client';
 
+import {useWorkspaceVisible} from '../../lib/workspace-visibility';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import type {GeoJSONSource, GeolocateControl, Map as MapLibreMap, Popup, RasterTileSource} from 'maplibre-gl';
 import type {Point, Route} from '../../lib/travel/types';
@@ -45,6 +46,7 @@ export function ExploreMap(props: Props) {
   const [showIncidents, setShowIncidents] = useState(false);
   const [mapError, setMapError] = useState('');
   const [overlayError, setOverlayError] = useState('');
+  const locationAllowed=useWorkspaceVisible();
   const [gpsState, setGpsState] = useState<'idle' | 'locating' | 'current' | 'unavailable'>('idle');
   const markers = useMemo(() => placesData(places, selectedId), [places, selectedId]);
   const road = useMemo(() => routeData(route), [route]);
@@ -120,11 +122,6 @@ export function ExploreMap(props: Props) {
           setReady(true);
           const center = m.getCenter();
           latest.current.onViewChange?.({lat: center.lat, lon: center.lng});
-          if (!latest.current.route && navigator.permissions) {
-            void navigator.permissions.query({name: 'geolocation'}).then(permission => {
-              if (!cancelled && !interacted.current && !latest.current.route && permission.state === 'granted') location.trigger();
-            }).catch(() => undefined);
-          }
         });
         let haveStreetContent=false,streetFailed=false;
         const loading=()=>{
@@ -274,6 +271,18 @@ export function ExploreMap(props: Props) {
     const point = validMapPoint(initialCenter) ? initialCenter : overview;
     mapRef.current?.easeTo({center: mapCoordinate(point), zoom: initialZoom, duration:300});
   }, [initialCenter.lat, initialCenter.lon, initialZoom, ready]);
+
+  useEffect(()=>{
+    const map=mapRef.current,control=geolocate.current;
+    if(!ready||!map||!control)return;
+    if(!locationAllowed){if(map.hasControl(control))map.removeControl(control);setGpsState('idle');return;}
+    if(!map.hasControl(control))map.addControl(control,'top-right');
+    // Starts on every visible/unlocked map, including preselected calendar routes.
+    let active=true;
+    // Re-adding a control initializes its tracking state in a microtask.
+    queueMicrotask(()=>{if(active&&map.hasControl(control)){setGpsState('locating');control.trigger();}});
+    return()=>{active=false;};
+  },[ready,locationAllowed]);
 
   return <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4" aria-label={compact ? 'TomTom route map' : 'Explore map'}>
     <div className="flex flex-wrap items-center justify-between gap-2">

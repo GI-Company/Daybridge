@@ -1,3 +1,4 @@
+import {reminderLeadMinutes} from '../travel/timing.ts';
 import type {UserProfile,CalendarEvent,EventOccurrence,TaskItem,Medication,MedicationSchedule,MedicationLog,Bill} from '../types';
 import {notificationURL,type NotificationDestination} from './destination.ts';
 import {calendarInstances,inQuietHours,safeTimezone,shiftDay,wallTime,zonedParts} from './time.ts';
@@ -8,13 +9,13 @@ export type DueReminder={key:string;kind:ReminderKind;sourceId:string;due:number
 /** Rebuild from the latest synced records each pass; completed/cancelled items disappear before retries. */
 export function dueReminders(snapshot:ReminderSnapshot,userId:string,now:number):DueReminder[]{
  const profile=snapshot.profile||{},zone=safeTimezone(profile.timezone),today=zonedParts(now,zone).slice(0,10);
- const lead=Math.max(0,Math.min(120,profile.reminderLeadMinutes??30))*60000;
+ const lead=reminderLeadMinutes(profile.reminderLeadMinutes)*60000;
  const enabled=profile.notificationPreferences||{};
  const reminders:DueReminder[]=[];
- const add=(kind:ReminderKind,sourceId:string,slot:string,due:number,expires:number,target:NotificationDestination)=>{
+ const add=(kind:ReminderKind,sourceId:string,slot:string,due:number,expires:number,target:NotificationDestination,body?:string)=>{
   if(enabled[kind]===false||!Number.isFinite(due)||due>now||now>=expires||now-due>30*60000)return;
   reminders.push({kind,sourceId,due,expires,key:[kind,sourceId,slot].join(':'),url:notificationURL({...target,account:userId}),
-   title:'DayBridge reminder',body:'Open DayBridge to review a scheduled item.',
+   title:'DayBridge reminder',body:body||'Open DayBridge to review a scheduled item.',
    silent:inQuietHours(now,zone,profile.quietHoursStart,profile.quietHoursEnd)});
  };
  for(const event of snapshot.events||[]){
@@ -28,7 +29,7 @@ export function dueReminders(snapshot:ReminderSnapshot,userId:string,now:number)
     add('event',event.id,instance.originalStart+':check-in:'+due,due,Math.min(instance.end,due+interval),{tab:'schedule',event:event.id,date:day});
     continue;
    }
-   add('event',event.id,String(instance.originalStart),instance.start-lead,Math.min(instance.end,instance.start+15*60000),{tab:'schedule',event:event.id,date:day});
+   add('event',event.id,String(instance.originalStart),instance.start-lead,Math.min(instance.end,instance.start+15*60000),{tab:'schedule',event:event.id,date:day},event.venueType==='in_person'?'Open DayBridge to refresh your current location and travel timing.':undefined);
   }
  }
  for(const task of snapshot.tasks||[]){

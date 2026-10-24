@@ -18,9 +18,9 @@ export async function enrollTrafficAlerts(event:CalendarEvent,destination:Verifi
  const {data:{user},error:authError}=await db.auth.getUser();
  if(authError||!user)return false;
  const {data:prefs,error:prefError}=await db.from('travel_preferences')
-  .select('traffic_notifications,saved_origin_lat,saved_origin_lon,saved_origin_label,travel_mode,arrival_buffer_minutes')
+  .select('traffic_notifications,origin_kind,saved_origin_lat,saved_origin_lon,saved_origin_label,travel_mode,arrival_buffer_minutes')
   .eq('user_id',user.id).maybeSingle();
- if(prefError||!prefs?.traffic_notifications||
+ if(prefError||!prefs?.traffic_notifications||prefs.origin_kind!=='saved'||
    !Number.isFinite(prefs.saved_origin_lat)||!Number.isFinite(prefs.saved_origin_lon)||
    prefs.saved_origin_lat===null||prefs.saved_origin_lon===null)return false;
 
@@ -40,8 +40,8 @@ export async function enrollTrafficAlerts(event:CalendarEvent,destination:Verifi
    destination_lon:destination.lon,
    origin_lat:prefs.saved_origin_lat,origin_lon:prefs.saved_origin_lon,
    origin_label:prefs.saved_origin_label||null,
-   travel_mode:prefs.travel_mode||'car',
-   arrival_buffer_minutes:prefs.arrival_buffer_minutes??15,
+   travel_mode:event.travelMode||prefs.travel_mode||'car',
+   arrival_buffer_minutes:Math.max(event.travelBufferMinutes||0,prefs.arrival_buffer_minutes??15),
    timezone:event.timezone||'America/New_York',
    source_revision:[event.id,event.startTime,event.location,event.rrule||'',week].join(':'),
    enabled:true,cancelled:false,updated_at:new Date().toISOString()

@@ -93,6 +93,7 @@ function notificationDestination(raw){
 self.addEventListener('push',event=>{
  let message={};
  try{message=event.data?.json()||{}}catch{}
+ if(typeof message.expiresAt==='number'&&Number.isFinite(message.expiresAt)&&message.expiresAt<=Date.now())return;
  const kind=String(message.kind||'general').replace(/[^a-z_]/g,'').slice(0,24);
  const title=typeof message.title==='string'?message.title.slice(0,100):'DayBridge reminder';
  const body=typeof message.body==='string'?message.body.slice(0,240):'Open DayBridge to review an upcoming item.';

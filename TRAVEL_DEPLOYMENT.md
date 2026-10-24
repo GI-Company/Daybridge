@@ -1,3 +1,15 @@
+# Automatic current-location release — October 24, 2026
+
+This release requires no schema migration and preserves all existing records. The current-location foreground watch starts automatically after permission, expires after two minutes without an accurate update, and clears on hide/lock. `/api/travel/live-check` authenticates the user, checks origin/rate limits and push-device ownership, uses the latest cloud calendar, respects per-occurrence opt-outs, and sends GPS-based notices only to the reporting device. No raw fix is persisted. The service worker rejects expired push payloads.
+
+The **Remind me** slider below **Arrive early** supports up to five hours before calculated departure while GPS is fresh. The existing profile reminder lead also drives closed-app appointment reminders before appointment start; those invite a fresh GPS estimate. A one-hour drive plus fifteen-minute buffer is included before applying the departure reminder interval. Existing current-mode plans no longer produce saved-origin traffic notices. Explicit `origin_kind='saved'` remains a separate forecast option. Background setup no longer requires or coerces a saved origin.
+
+Both map views and server routes use the same early-arrival target, buffer and travel mode. Forecasts retain provider arrival/departure times; immediate and scheduled-departure arrival labels are distinct and include appointment-zone dates. Live GPS cannot be read by a closed PWA. Web Push display remains best effort.
+
+Schedule categories are editable private-profile metadata. Removal archives the category choice without deleting or reclassifying appointments. No existing appointment, occurrence, medication, financial record or saved place is migrated.
+
+The historical deployment notes below describe earlier releases; current-location behavior above supersedes their saved-origin setup requirements and one-hour preparation timing.
+
 # Notification reliability update — October 22, 2026
 
 The reliable-notification-delivery migration changes the existing Supabase schedule to once per minute and sets a 60-second HTTP timeout. Deploy the updated `daybridge-travel-dispatch` function with its existing Vault-secret authentication; it allows up to 55 seconds and returns the worker's per-pipeline counts/failures. No Vercel Cron or preview deployment is needed.
@@ -93,7 +105,7 @@ Do not activate until you have set Vercel secrets, inserted Vault secret, confir
 - During the final two hours the worker requests up to two alternatives alongside the fastest TomTom route. The recommended route is the quickest of the returned candidates. If departing from the saved origin now risks arriving after appointment start, the worker prioritizes a possible-lateness notice; it does not claim to know the user's live location.
 - For far-future appointments TomTom supplies forecast/historical estimates; close to departure the route is calculated using current traffic. Estimates and arrival times are not guarantees, and a faster route is not always available.
 - Traffic push notifications link to the appointment's local calendar date. Sensitive route and appointment details stay off the lock screen when private notification wording is enabled.
-- Opening the appointment's travel section automatically loads route choices when a saved starting location was approved. Only explicitly started foreground guidance uses current phone GPS. While foreground guidance remains open, it refreshes live routes as the user moves, keeping the fastest displayed option selected. This is not a full turn-by-turn navigation engine; an external navigation app remains recommended while driving.
+- Opening the appointment's travel section automatically acquires current phone GPS and loads route choices after permission. Saved-origin routing requires explicit forecast selection. While foreground guidance remains open, it refreshes live routes as the user moves, keeping the fastest displayed option selected. This is not a full turn-by-turn navigation engine; an external navigation app remains recommended while driving.
 - Permanent/background GPS tracking, automatic changes to an external navigation application's active route, and guaranteed real-time delivery while the phone is offline are not supported.
 
 

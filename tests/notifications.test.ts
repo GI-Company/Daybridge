@@ -72,3 +72,15 @@ test('foreground medication slots and background reminders use the same profile-
  assert.equal(slot.scheduledTime,'2026-10-23T12:00:00.000Z');
  assert.equal(parseNotificationDestination(reminder.url,'https://app.test')?.slot,slot.scheduledTime);
 });
+
+test('closed-app in-person reminders request fresh travel timing without claiming a saved-origin ETA',()=>{
+ const [reminder]=dueReminders({profile,events:[{...event,venueType:'in_person'}]},user,at('2026-10-23T09:31:00'));
+ assert.equal(reminder.body,'Open DayBridge to refresh your current location and travel timing.');
+ assert.match(reminder.url,/tab=schedule&event=event-1/);
+});
+
+test('a five-hour appointment lead continues to schedule an early reminder while closed',()=>{
+ const snapshot={profile:{...profile,reminderLeadMinutes:300},events:[{...event,venueType:'in_person' as const}]};
+ assert.equal(dueReminders(snapshot,user,at('2026-10-23T05:00:00')).length,1);
+ assert.equal(dueReminders(snapshot,user,at('2026-10-23T04:59:00')).length,0);
+});

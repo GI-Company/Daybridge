@@ -1,9 +1,11 @@
 'use client';
 
+import {arrivalTarget,travelTimes} from '../../lib/travel/timing';
+import {safeTimezone} from '../../lib/notifications/time';
 import {Navigation} from 'lucide-react';
 import type {MapPlace} from '../../lib/travel/map-data';
 import type {ScheduledTrip} from '../../lib/travel/scheduled-trips';
-import {leaveBy, mapsUrl, type Mode, type Point, type RouteResult} from '../../lib/travel/types';
+import {mapsUrl, type Mode, type Point, type RouteResult} from '../../lib/travel/types';
 
 type Props = {
   trip: ScheduledTrip | null; destination: MapPlace | null; origin: Point | null; originLabel: string;
@@ -20,17 +22,19 @@ export function TripDetails({trip, destination, origin, originLabel, result, sta
     navigation.searchParams.set('api', '1'); navigation.searchParams.set('destination', destination.lat + ',' + destination.lon);
     navigation.searchParams.set('travelmode', mode === 'car' ? 'driving' : mode === 'bicycle' ? 'bicycling' : 'walking');
   }
-  const time = (date: Date) => date.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  const zone=safeTimezone(trip?.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const time = (date: Date) => date.toLocaleString([], {timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+  const times=best&&result?travelTimes(best,result.basis,now,trip?.startTime,trip?.bufferMinutes):null;
   return <section className="space-y-3 rounded-2xl border border-teal-200 bg-white p-4" aria-label="Trip details">
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">{trip ? 'From your calendar' : destination ? 'Selected place' : 'Calendar travel'}</p>
       <h3 className="mt-1 font-bold text-slate-950">{trip?.title ?? destination?.label ?? 'No upcoming in-person trips'}</h3>
-      {trip && <p className="mt-1 text-sm text-slate-700">{trip.startTime.toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'})}{trip.address ? ' · ' + trip.address : ''}</p>}
+      {trip && <p className="mt-1 text-sm text-slate-700">{trip.startTime.toLocaleString([], {timeZone:zone,timeZoneName:'short',weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'})}{trip.address ? ' · ' + trip.address : ''}</p>}
       {destination && <p className="mt-1 text-xs text-slate-600">From {originLabel} · {mode === 'car' ? 'Driving' : mode === 'bicycle' ? 'Cycling' : 'Walking'}</p>}
     </div>
     {!trip && !destination && <p className="text-sm text-slate-700">In-person appointments in the next 14 days appear here automatically. Add their destinations in Schedule.</p>}
     {trip && !destination && <p role="status" className="text-sm text-amber-900">Verify this appointment’s destination in Schedule to calculate its route automatically.</p>}
-    {destination && !origin && <p role="status" className="text-sm text-slate-700">Use my location on the map, or approve a starting location in Travel settings. The route will load automatically.</p>}
+    {destination && !origin && <p role="status" className="text-sm text-slate-700">Acquiring your current location automatically. Allow location access to calculate accurate travel timing; no saved location is substituted.</p>}
     {status === 'loading' && <p role="status" className="text-sm text-teal-900">Checking your route and traffic…</p>}
     {status === 'error' && <p role="status" className="text-sm text-amber-900">The route could not be loaded. Check your connection and retry.</p>}
     {navigationEnabled && navigation && <a href={navigation.toString()} target="_blank" rel="noopener noreferrer"
@@ -48,11 +52,13 @@ export function TripDetails({trip, destination, origin, originLabel, result, sta
         <p><strong>Travel</strong><br/>{Math.ceil(best.durationSeconds / 60)} minutes</p>
         <p><strong>Traffic delay</strong><br/>{Math.ceil(best.delaySeconds / 60)} minutes</p>
         <p><strong>Distance</strong><br/>{(best.distanceMeters / 1609.344).toFixed(1)} miles</p>
-        <p><strong>{result.basis === 'historical' && trip ? 'Planned arrival' : 'Arrival if leaving now'}</strong><br/>
-          {time(result.basis === 'historical' && trip ? new Date(trip.startTime.getTime() - trip.bufferMinutes * 60000) : new Date(now.getTime() + best.durationSeconds * 1000))}</p>
-        {trip && <p className="col-span-2"><strong>Leave by</strong><br/>{leaveBy(trip.startTime.toISOString(), best.durationSeconds, trip.bufferMinutes).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'})} · {trip.bufferMinutes} min early</p>}
+        <p><strong>{result.basis === 'historical' && trip ? 'Arrival if leaving at leave-by' : 'Arrival if leaving now'}</strong><br/>
+          {times&&time(times.arrival)}</p>
+        {trip&&<p><strong>Appointment starts</strong><br/>{time(trip.startTime)}</p>}
+        {trip&&result.basis==='live'&&<p><strong>Arrival if leaving at leave-by</strong><br/>{time(arrivalTarget(trip.startTime,trip.bufferMinutes))}</p>}
+        {trip && <p className="col-span-2"><strong>Leave by</strong><br/>{times?.departure&&time(times.departure)} · {trip.bufferMinutes} min early</p>}
       </div>
-      <p className="text-xs text-slate-600">{result.basis === 'historical' ? 'Traffic forecast for this appointment' : 'Current traffic estimate'}. Updates automatically while this screen is open.</p>
+      <p className="text-xs text-slate-600">{result.basis === 'historical' ? 'Traffic forecast for this appointment' : 'Current traffic estimate'}. Checked {time(new Date(result.checkedAt))}. Updates automatically while this screen is open.</p>
       {navigationEnabled && origin && destination && <div className="flex flex-wrap gap-2">
         <a target="_blank" rel="noopener noreferrer" href={mapsUrl('google', origin, destination, mode)} className="min-h-[44px] rounded-xl bg-teal-800 px-3 py-3 text-sm font-semibold text-white">Google Maps</a>
         <a target="_blank" rel="noopener noreferrer" href={mapsUrl('apple', origin, destination, mode)} className="min-h-[44px] rounded-xl border border-slate-300 px-3 py-3 text-sm font-semibold text-slate-800">Apple Maps</a>

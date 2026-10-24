@@ -23,6 +23,15 @@ test('record a short tour of the updated screens using fictional local records',
  await caption(page,'Tomorrow’s check-in starts fresh');await page.waitForTimeout(2500);
  await page.getByRole('button',{name:'Schedule',exact:true}).last().click();
  await caption(page,'Schedule: one calendar for your obligations');await page.waitForTimeout(4000);
+ const keySettings=page.getByLabel('Customize calendar key',{exact:true});await keySettings.locator('summary').click();
+ await keySettings.getByRole('button',{name:'Remove Court',exact:true}).click();
+ await keySettings.getByLabel('New category name',{exact:true}).fill('Family plans');await keySettings.getByRole('button',{name:'Add category',exact:true}).click();
+ await keySettings.locator('summary').click();
+ await caption(page,'Calendar key: choose categories for your life',page.getByLabel('Calendar color key'));await page.waitForTimeout(3500);
+ await more(page,'Settings & security');await page.locator('summary').filter({hasText:'Travel notifications & location settings'}).click();
+ const reminder=page.getByRole('slider',{name:/Remind me:/});await reminder.fill('120');
+ await caption(page,'Choose up to five hours before departure',reminder.locator('..'));await page.waitForTimeout(3500);
+ await reminder.fill('300');await page.waitForTimeout(1500);
  await more(page,'Medications');
  const taken=page.getByRole('button',{name:'Mark Taken',exact:true});
  await caption(page,'Medication logging stays at the top',taken);await page.waitForTimeout(2000);await taken.click();

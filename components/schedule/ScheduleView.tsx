@@ -8,6 +8,8 @@ import {useDayBridge} from '../../lib/storage/store';
 import {expandEventOccurrences,detectEventConflicts} from '../../lib/recurrence';
 import {formatTime,formatDate,getRelativeDayLabel,calendarHeading} from '../../lib/date-time';
 import {calendarDayKey,calendarMonthDays,calendarMove,calendarRange,calendarSameDay} from '../../lib/calendar';
+import {appointmentCategories,appointmentCategory} from '../../lib/appointment-categories';
+import {AppointmentCategorySettings} from './AppointmentCategorySettings';
 import type {EventCategory} from '../../lib/types';
 import {CheckInCard} from './CheckInCard';
 import {TravelPlanner} from '../travel/TravelPlanner';
@@ -21,19 +23,13 @@ interface ScheduleViewProps {
 type Occurrence=ReturnType<typeof expandEventOccurrences>[number];
 type CalendarMode='month'|'week';
 
-const categoryLabels:Record<EventCategory,string>={
- court:'Court',class:'Class / group',self_help:'Self-help meeting',drug_testing:'Drug test check-in',
- therapy:'Therapy',work:'Work',case_management:'Case management',personal:'Personal',other:'Other'
-};
-const categoryDot:Record<EventCategory,string>={
- court:'bg-amber-600',class:'bg-violet-600',self_help:'bg-emerald-700',
- drug_testing:'bg-rose-600',therapy:'bg-sky-600',work:'bg-indigo-600',
- case_management:'bg-amber-700',personal:'bg-teal-700',other:'bg-slate-600'
-};
 const weekLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate,focusEventId,focusRevision})=>{
- const {events,eventOccurrences,recordAttendance,deleteEvent}=useDayBridge();
+ const {events,eventOccurrences,recordAttendance,deleteEvent,profile}=useDayBridge();
+ const categories=appointmentCategories(profile),activeCategories=categories.filter(category=>!category.hidden);
+ const categoryLabel=(id:EventCategory)=>appointmentCategory(profile,id).label;
+ const categoryColor=(id:EventCategory)=>appointmentCategory(profile,id).color;
  const [view,setView]=useState<CalendarMode>('month');
  const [selectedDate,setSelectedDate]=useState(()=>new Date());
  useEffect(()=>{
@@ -126,7 +122,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
      <select value={selectedCategory} onChange={e=>setSelectedCategory(e.target.value as EventCategory|'all')}
       className="min-h-[44px] max-w-[72%] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900">
       <option value="all">Everything</option>
-      {(Object.keys(categoryLabels) as EventCategory[]).map(cat=><option key={cat} value={cat}>{categoryLabels[cat]}</option>)}
+      {categories.filter(cat=>!cat.hidden||events.some(event=>event.category===cat.id)).map(cat=><option key={cat.id} value={cat.id}>{cat.label}{cat.hidden?' (removed category)':''}</option>)}
      </select>
     </label>
    </div>
@@ -154,13 +150,13 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
        (isToday?' bg-teal-800 text-white':'')}>{day.getDate()}</span>
       {dayEvents.length>0&&<div className="flex w-full flex-col items-center gap-1 sm:items-stretch">
        <span className="flex items-center justify-center gap-0.5 sm:hidden" aria-hidden="true">
-        {dayEvents.slice(0,3).map((event,i)=><span key={event.id+'-'+i} title={categoryLabels[event.category]} className={'h-2 w-2 shrink-0 rounded-full '+categoryDot[event.category]}/>)}
+        {dayEvents.slice(0,3).map((event,i)=><span key={event.id+'-'+i} title={categoryLabel(event.category)} className="h-2 w-2 shrink-0 rounded-full" style={{backgroundColor:categoryColor(event.category)}}/>)}
        </span>
        <span className="text-[10px] font-bold text-slate-700 sm:hidden">{dayEvents.length}</span>
        <div className="hidden space-y-1 sm:block">
         {dayEvents.slice(0,view==='week'?4:2).map(event=><span key={event.id}
          className="block truncate rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-900">
-         <span aria-hidden="true" title={categoryLabels[event.category]} className={'mr-1 inline-block h-2 w-2 shrink-0 rounded-full '+categoryDot[event.category]}/>
+         <span aria-hidden="true" title={categoryLabel(event.category)} className="mr-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{backgroundColor:categoryColor(event.category)}}/>
          {formatTime(event.startTime)} {event.title}
         </span>)}
         {dayEvents.length>(view==='week'?4:2)&&<span className="block text-[10px] font-semibold text-slate-700">
@@ -172,11 +168,12 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
     })}
    </div>
    <div aria-label="Calendar color key" className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 text-[11px] text-slate-600">
-    {(Object.keys(categoryLabels) as EventCategory[]).map(category=>
-     <span key={category} className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className={'h-2 w-2 shrink-0 rounded-full '+categoryDot[category]}/>{categoryLabels[category]}
+    {activeCategories.map(category=>
+     <span key={category.id} className="inline-flex items-center gap-1.5">
+      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{backgroundColor:category.color}}/>{category.label}
      </span>)}
    </div>
+   <AppointmentCategorySettings/>
   </section>
 
   <section className="space-y-3" aria-label="Selected day schedule">
@@ -201,12 +198,12 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
    {selectedDayOccurrences.length?selectedDayOccurrences.map(occ=><button type="button" key={occ.id}
     onClick={()=>setSelectedOccurrence(occ)}
     className="flex min-h-[70px] w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-teal-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">
-    <span aria-hidden="true" className={'h-11 w-1 shrink-0 rounded '+categoryDot[occ.category]}/>
+    <span aria-hidden="true" className="h-11 w-1 shrink-0 rounded" style={{backgroundColor:categoryColor(occ.category)}}/>
     <span className="min-w-0 flex-1">
      <span className="block text-xs font-semibold text-teal-900">{formatTime(occ.startTime)} – {formatTime(occ.endTime)}</span>
      <strong className="block truncate text-sm text-slate-950">{occ.title}</strong>
      <span className="block truncate text-xs text-slate-600">
-      {categoryLabels[occ.category]}{occ.location?' · '+occ.location:''}
+      {categoryLabel(occ.category)}{occ.location?' · '+occ.location:''}
      </span>
     </span>
     {occ.checkInCompletedAt?<CheckCircle2 aria-label="Check-in done" className="h-5 w-5 shrink-0 text-emerald-700"/>:occ.attendanceStatus==='attended_self_reported'
@@ -228,7 +225,7 @@ export const ScheduleView:React.FC<ScheduleViewProps>=({onOpenQuickAdd,focusDate
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700">
-                  {categoryLabels[selectedOccurrence.category]}
+                  {categoryLabel(selectedOccurrence.category)}
                 </span>
                 <h3 className="font-bold text-lg text-slate-900">{selectedOccurrence.title}</h3>
               </div>

@@ -14,6 +14,7 @@ export function NotificationsHarness(){
  const {currentTab,navigate,target,notice}=useNotificationNavigation('fixture-account');
  const [hydrated,setHydrated]=useState(false);
  const event={id:'fixture-event',userId:'fixture-account',description:'',travelBufferMinutes:0,createdAt:'2026-10-23T00:00:00Z',updatedAt:'2026-10-23T00:00:00Z',title:'Exact appointment from notification',category:'personal',startTime:day+'T10:00:00',endTime:day+'T11:00:00',timezone:'America/New_York',venueType:'virtual',prepChecklist:[]} as CalendarEvent;
+ if(new URLSearchParams(window.location.search).get('gps')==='test')Object.assign(event,{venueType:'in_person',startTime:'2026-10-26T18:30:00',endTime:'2026-10-26T19:30:00',location:'Synthetic destination',destinationLat:34.6,destinationLon:-83.7});
  const task={id:'fixture-task',title:'Exact task from notification',priority:'high',completed:false,subtasks:[{id:'subtask',title:'Preparation detail',completed:false}]} as TaskItem;
  const medication={id:'fixture-medication',name:'Fixture medication',isActive:true,isPrn:false} as Medication;
  const bill={id:'fixture-bill',title:'Exact bill from notification',nextDueDate:day,amountCents:100,isPaid:false} as Bill;

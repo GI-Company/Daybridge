@@ -52,3 +52,12 @@ test('malicious stored push destinations are disabled without making network req
  let calls=0;const send=async()=>{calls++;return {statusCode:201,body:'',headers:{}};};
  await deliverNotification(db.admin,delivery,now,send);assert.equal(calls,0);assert.ok(db.tables.push_subscriptions.every(row=>row.disabled_at));
 });
+
+test('a device-bound travel notice never sends a different device its GPS-based timing',async()=>{
+ const {admin,tables}=database(),sent:string[]=[];
+ const send=async(subscription:{endpoint:string})=>{sent.push(subscription.endpoint);return {statusCode:201,body:'',headers:{}};};
+ await deliverNotification(admin,{userId:'owner',subscriptionId:'device-a',key:'gps:event:phone',kind:'leave_now',expires:now+120000,message:{kind:'leave_now',title:'Travel update',body:'Recent device position',url:'/?tab=locations'}},now,send);
+ assert.deepEqual(sent,['https://fcm.googleapis.com/a']);assert.equal(tables.notification_device_receipts.length,1);
+ await deliverNotification(admin,{userId:'someone-else',subscriptionId:'device-a',key:'gps:other',kind:'leave_now',expires:now+120000,message:{kind:'leave_now',title:'Travel update',body:'Recent device position',url:'/?tab=locations'}},now,send);
+ assert.equal(sent.length,1);
+});

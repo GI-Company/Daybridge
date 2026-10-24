@@ -59,7 +59,7 @@ export const SettingsView: React.FC = () => {
 
       <section className="rounded-3xl border border-teal-200 bg-teal-50 p-4">
         <h3 className="text-sm font-bold text-teal-950">Background reminders</h3>
-        <p className="mt-1 text-xs leading-5 text-teal-950">Check phone notification registration, your approved departure point, and offline data protection in one guided setup.</p>
+        <p className="mt-1 text-xs leading-5 text-teal-950">Check device notification registration and offline data protection. Location refreshes automatically while DayBridge is open.</p>
         <button type="button" onClick={()=>window.dispatchEvent(new Event('daybridge:open-background-setup'))}
          className="mt-3 min-h-[44px] rounded-xl bg-teal-800 px-4 py-2 text-sm font-semibold text-white">
          Review background setup
@@ -142,11 +142,12 @@ export const SettingsView: React.FC = () => {
              onChange={event=>updateProfile({notificationPreferences:{...profile.notificationPreferences,[key]:event.target.checked}})}/>
            </label>)}
           <label className="block text-sm text-slate-800">Appointment reminder lead time
-           <select className="ml-3 min-h-11 rounded-xl border border-slate-300 bg-white px-3" value={profile.reminderLeadMinutes}
+           <select aria-label="Appointment reminder lead time" className="ml-3 min-h-11 rounded-xl border border-slate-300 bg-white px-3" value={profile.reminderLeadMinutes}
             onChange={event=>updateProfile({reminderLeadMinutes:Number(event.target.value)})}>
-            {[0,5,10,15,30,60,120].map(minutes=><option key={minutes} value={minutes}>{minutes===0?'At start':minutes+' minutes before'}</option>)}
+            {Array.from({length:61},(_,index)=>index*5).map(minutes=><option key={minutes} value={minutes}>{minutes===0?'At start':minutes+' minutes before'}</option>)}
            </select>
           </label>
+          <p className="text-xs text-slate-600">Travel alerts use the same lead time before calculated departure while GPS is fresh. Adjust the slider in Travel & departure for up to five hours. Closed-app appointment reminders use the interval before appointment start.</p>
         </div>
       </section>
 

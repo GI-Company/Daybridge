@@ -6,7 +6,7 @@ import type {Mode, Point} from './types';
 export type ScheduledTrip = {
   id: string; eventId: string; title: string; address: string;
   startTime: Date; endTime: Date; destination: Point | null;
-  travelMode?: Mode; bufferMinutes: number;
+  travelMode?: Mode; bufferMinutes: number; timezone?: string;
 };
 const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -36,7 +36,7 @@ export function scheduledTrips(events: CalendarEvent[], occurrences: EventOccurr
       id: occurrence.id, eventId: event.id, title: occurrence.title,
       address: event.location?.trim() ?? '', startTime: occurrence.startTime, endTime: occurrence.endTime,
       destination: eventDestination(event, places), travelMode: event.travelMode,
-      bufferMinutes: Math.max(0, event.travelBufferMinutes || 0)
+      bufferMinutes: Math.max(0, event.travelBufferMinutes || 0), timezone:event.timezone
     }))
   ).sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 }

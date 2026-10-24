@@ -1,3 +1,4 @@
+import {arrivalTarget,travelReminderPhase,reminderLeadMinutes} from './timing';
 import 'server-only';
 import {createClient} from '@supabase/supabase-js';
 import * as webpush from 'web-push';
@@ -22,7 +23,7 @@ export function vapidReady(){
  webpush.setVapidDetails(process.env.VAPID_SUBJECT||'https://daybridge-swart.vercel.app',publicKey,privateKey);
 }
 type Plan={id:string;user_id:string;source_event_id:string;occurrence_start:string;timezone:string;destination_address:string;destination_lat:number;destination_lon:number;origin_lat:number|null;origin_lon:number|null;travel_mode:'car'|'pedestrian'|'bicycle';arrival_buffer_minutes:number;source_revision:string;last_travel_seconds:number|null;last_delay_seconds:number|null;last_checked_at:string|null;updated_at:string};
-type Prefs={user_id:string;traffic_notifications:boolean;lockscreen_private:boolean;saved_origin_lat:number|null;saved_origin_lon:number|null};
+type Prefs={origin_kind:'current'|'saved';user_id:string;traffic_notifications:boolean;lockscreen_private:boolean;saved_origin_lat:number|null;saved_origin_lon:number|null};
 type Snapshot={events?:CalendarEvent[];eventOccurrences?:EventOccurrence[];savedPlaces?:SavedPlace[];profile?:Partial<UserProfile>};
 function validSource(snapshot:Snapshot|undefined,plan:Plan){
  const event=snapshot?.events?.find(e=>e.id===plan.source_event_id);
@@ -34,7 +35,7 @@ function validSource(snapshot:Snapshot|undefined,plan:Plan){
 }
 /** Reconcile directly from the latest cloud calendar even while the installed app is closed. */
 async function syncPlans(admin:ReturnType<typeof adminClient>,now:number){
- const {data:preferences,error}=await admin.from('travel_preferences').select('*').eq('traffic_notifications',true).not('saved_origin_lat','is',null).not('saved_origin_lon','is',null);
+ const {data:preferences,error}=await admin.from('travel_preferences').select('*').eq('traffic_notifications',true).eq('origin_kind','saved').not('saved_origin_lat','is',null).not('saved_origin_lon','is',null);
  if(error)throw Error('Could not read travel settings');
  for(const pref of preferences||[]){
   const {data:snapshot,error:snapshotError}=await admin.from('private_snapshots').select('payload').eq('user_id',pref.user_id).maybeSingle();
@@ -54,7 +55,7 @@ async function syncPlans(admin:ReturnType<typeof adminClient>,now:number){
      destination_address:event.location,destination_lat:destination.lat,destination_lon:destination.lon,
      origin_lat:pref.saved_origin_lat,origin_lon:pref.saved_origin_lon,origin_label:pref.saved_origin_label,
      travel_mode:event.travelMode||pref.travel_mode,arrival_buffer_minutes:Math.max(pref.arrival_buffer_minutes,event.travelBufferMinutes||0),
-     source_revision:[event.id,start,event.location,destination.lat,destination.lon].join(':'),enabled:old&&!old.cancelled?old.enabled:true,cancelled:false,updated_at:new Date(now).toISOString()});
+     source_revision:[event.id,start,event.location,destination.lat,destination.lon].join(':'),enabled:old?Boolean(old.enabled&&!old.cancelled):true,cancelled:old?.cancelled??false,updated_at:new Date(now).toISOString()});
    }
   }
   if(rows.length){const {error:writeError}=await admin.from('travel_appointments').upsert(rows,{onConflict:'user_id,source_event_id,occurrence_start'});if(writeError)throw Error('Could not synchronize travel reminders');}
@@ -67,7 +68,7 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
  const key=[plan.id,plan.source_revision,kind,dedupeSlot].join(':');
  const title=update.lockscreenPrivate?'DayBridge travel update'
   :reason!=='routine'?'Possible late arrival from saved start'
-  :kind==='preparation'?'One-hour appointment traffic update'
+  :kind==='preparation'?'Upcoming departure reminder'
   :kind==='leave_now'?'Departure time reached'
   :kind==='traffic_change'?'Your travel ETA has changed':'Upcoming appointment';
  const body=update.lockscreenPrivate
@@ -91,12 +92,15 @@ export async function monitorTravel(){
  for(const item of plans??[]){
   const plan=item as Plan;const startMs=Date.parse(plan.occurrence_start);
   const [{data:prefs,error:prefError},{data:snapshot,error:snapshotError}]=await Promise.all([
-   admin.from('travel_preferences').select('user_id,traffic_notifications,lockscreen_private,saved_origin_lat,saved_origin_lon').eq('user_id',plan.user_id).maybeSingle(),
+   admin.from('travel_preferences').select('user_id,traffic_notifications,lockscreen_private,origin_kind,saved_origin_lat,saved_origin_lon').eq('user_id',plan.user_id).maybeSingle(),
    admin.from('private_snapshots').select('payload').eq('user_id',plan.user_id).maybeSingle()
   ]);
   if(prefError||snapshotError){failures++;continue;}
   const pref=prefs as Prefs|null;
   if(!pref?.traffic_notifications)continue;
+  // Current-location alerts are calculated by a fresh, device-bound foreground heartbeat.
+  // A closed PWA cannot refresh GPS: never substitute an old saved point for this mode.
+  if(pref.origin_kind!=='saved')continue;
   if(pref.saved_origin_lat===null||pref.saved_origin_lon===null||Math.abs(pref.saved_origin_lat-plan.origin_lat!)>0.00001||Math.abs(pref.saved_origin_lon-plan.origin_lon!)>0.00001)continue;
   const source=snapshot?.payload as Snapshot|undefined;
   if(!validSource(source,plan)){
@@ -107,7 +111,7 @@ export async function monitorTravel(){
   try{
    const remaining=startMs-now;
    const estimatedLeave=startMs-(plan.last_travel_seconds||0)*1000-plan.arrival_buffer_minutes*60000;
-   const interval=remaining<=3600000||now>=estimatedLeave-5*60000?60000:remaining<=4*3600000?5*60000:30*60000;
+   const interval=remaining<=3600000||now>=estimatedLeave-reminderLeadMinutes(source?.profile?.reminderLeadMinutes)*60000?60000:remaining<=4*3600000?5*60000:30*60000;
    if(plan.last_checked_at&&now-Date.parse(plan.last_checked_at)<interval)continue;
    // Compare alternative route choices automatically as the appointment approaches.
    // The background calculation always starts at the user-approved saved origin,
@@ -115,7 +119,7 @@ export async function monitorTravel(){
    const candidates=(await calculateRoute({
      origin:{lat:plan.origin_lat!,lon:plan.origin_lon!},
      destination:{lat:plan.destination_lat,lon:plan.destination_lon},
-     travelMode:plan.travel_mode,arriveAt:plan.occurrence_start
+     travelMode:plan.travel_mode,arriveAt:arrivalTarget(plan.occurrence_start,plan.arrival_buffer_minutes).toISOString()
    },{alternatives:remaining<=2*3600000?2:0})).routes;
    const ordered=[...candidates].sort((a,b)=>a.durationSeconds-b.durationSeconds);
    const best=ordered[0];if(!best)throw Error('No valid travel route');
@@ -126,6 +130,7 @@ export async function monitorTravel(){
      routeOptions:ordered.length
    });
    const leaveMs=impact.leaveByMs;
+   const phase=travelReminderPhase(startMs,best.durationSeconds,plan.arrival_buffer_minutes,source?.profile?.reminderLeadMinutes,now);
    await admin.from('travel_estimates').insert({
      user_id:plan.user_id,appointment_id:plan.id,travel_seconds:best.durationSeconds,
      traffic_delay_seconds:best.delaySeconds,historic_seconds:best.historicSeconds,
@@ -146,10 +151,9 @@ export async function monitorTravel(){
    let kind:'preliminary'|'preparation'|'leave_now'|'traffic_change'|null=null;
    let reason:'routine'|'late-risk'|'late-risk-change'='routine';
    if(remaining>0&&impact.appointmentAtRisk){kind='traffic_change';reason=impact.meaningfulChange?'late-risk-change':'late-risk';}
-   else if(remaining>0&&now>=leaveMs-5*60000)kind='leave_now';
+   else if(remaining>0&&phase==='leave_now')kind='leave_now';
    else if(remaining>0&&remaining<=4*3600000&&impact.meaningfulChange)kind='traffic_change';
-   else if(remaining>0&&remaining<=60*60000)kind='preparation';
-   else if(remaining>60*60000&&remaining<=24*3600000)kind='preliminary';
+   else if(remaining>0&&phase==='preparation')kind='preparation';
    if(kind){const result=await deliver(admin,plan,kind,now,update,reason);alerts+=result.accepted;failures+=result.failed;}
   }catch{ failures++; /* The next scheduled run can retry this appointment. */ }
  }

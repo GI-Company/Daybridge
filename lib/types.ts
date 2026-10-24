@@ -1,7 +1,9 @@
 // DayBridge Type Definitions
 
 export type VenueType = 'in_person' | 'virtual' | 'phone';
-export type EventCategory = 'court' | 'class' | 'self_help' | 'drug_testing' | 'therapy' | 'case_management' | 'work' | 'personal' | 'other';
+export type BuiltInEventCategory = 'court' | 'class' | 'self_help' | 'drug_testing' | 'therapy' | 'case_management' | 'work' | 'personal' | 'other';
+export type EventCategory=BuiltInEventCategory|`custom_${string}`;
+export interface AppointmentCategory {id:EventCategory;label:string;color:string;hidden?:boolean}
 export type AttendanceStatus = 'unconfirmed' | 'attended_self_reported' | 'not_attended_self_reported' | 'cancelled';
 
 export interface UserProfile {
@@ -15,6 +17,7 @@ export interface UserProfile {
   gasTargetCents: number;
   foodTargetCents: number;
   reminderLeadMinutes: number;
+  appointmentCategories?: AppointmentCategory[];
   notificationPreferences?: Partial<Record<'event'|'medication'|'bill'|'task'|'refill', boolean>>;
   createdAt: string;
   updatedAt: string;
