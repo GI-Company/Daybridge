@@ -45,7 +45,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
       <AutomaticLiveTravel/>
       <NotificationConnection/>
       <BackgroundReadiness userId={userId} suppressed={!!(target?.account||target?.event||target?.task||target?.medication||target?.bill)}/>
-      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950">
+      <div className={currentTab==='notes'?'daybridge-notes-viewport flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-50 text-slate-900 font-sans selection:bg-teal-100 selection:text-teal-950':'min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-950'}>
         {/* Sticky Header */}
         <Header
           onOpenQuickAdd={() => openQuickAdd()}
@@ -53,7 +53,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
           currentTab={currentTab}
         />
 
-        <div className="flex flex-1 min-w-0">
+        <div className={currentTab==='notes'?'flex min-h-0 min-w-0 flex-1':'flex flex-1 min-w-0'}>
         {/* Collapsible navigation */}
         <Navigation
           currentTab={currentTab}
@@ -61,7 +61,7 @@ function PrivateWorkspace({userId}:{userId:string}) {
         />
 
         {/* Main Content View Container */}
-        <main id="daybridge-active-panel" role="tabpanel" aria-label={currentTab.charAt(0).toUpperCase()+currentTab.slice(1)} tabIndex={0} className="flex-1 min-w-0 max-w-5xl w-full mx-auto px-4 pb-24 pt-5 sm:px-6 sm:py-8">
+        <main id="daybridge-active-panel" role="tabpanel" aria-label={currentTab.charAt(0).toUpperCase()+currentTab.slice(1)} tabIndex={0} className={currentTab==='notes'?'flex min-h-0 min-w-0 w-full max-w-5xl flex-1 flex-col overflow-hidden mx-auto px-3 pt-2 pb-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] sm:px-5 sm:pt-3 lg:pb-3':'flex-1 min-w-0 max-w-5xl w-full mx-auto px-4 pb-24 pt-5 sm:px-6 sm:py-8'}>
           <NotificationRecordStatus target={target}/>
           {notice&&<p role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{notice}</p>}
           {currentTab === 'today' && (
