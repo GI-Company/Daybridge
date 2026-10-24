@@ -46,6 +46,8 @@ export interface CalendarEvent {
   /** A randomized-testing check-in window, not a testing appointment. */
   checkInReminderMinutes?: 15;
   travelBufferMinutes: number;
+  /** Minutes before calculated departure for travel; for non-travel events, before start. */
+  reminderLeadMinutes?: number;
   destinationLat?:number;
   destinationLon?:number;
   travelMode?:'car'|'pedestrian'|'bicycle';
@@ -90,6 +92,8 @@ export interface TaskItem {
   notes?: string;
   priority: PriorityLevel;
   dueDate?: string; // ISO string
+  /** Minutes before this task's due time. */
+  reminderLeadMinutes?: number;
   completed: boolean;
   completedAt?: string;
   linkedEventId?: string;

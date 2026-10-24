@@ -21,6 +21,7 @@ import {
   MapPinned,
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
+import {reminderLeadMinutes,reminderLeadLabel} from '../../lib/travel/timing';
 import { parseDollarsToCents } from '../../lib/budget';
 import {AddBudgetAccount} from '../money/AddBudgetAccount';
 import {enrollTrafficAlerts} from '../../lib/travel/auto-reminder';
@@ -86,6 +87,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [eventLocationCandidates,setEventLocationCandidates]=useState<Array<{label:string;lat:number;lon:number}>>([]);
   const [checkingEventAddress,setCheckingEventAddress]=useState(false);
   const [eventTravelBuffer, setEventTravelBuffer] = useState('15');
+  const [eventLead,setEventLead]=useState<number>(reminderLeadMinutes(profile.reminderLeadMinutes));
   const [eventRepeat, setEventRepeat] = useState<'none'|'daily'|'weekly'>('none');
   const isCheckIn=activeType==='event'&&effectiveCategory==='drug_testing';
   const [eventContact, setEventContact] = useState('');
@@ -104,6 +106,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [taskTitle, setTaskTitle] = useState('');
   const [taskPriority, setTaskPriority] = useState<PriorityLevel>('medium');
   const [taskDueDate, setTaskDueDate] = useState(localDate());
+  const [taskLead,setTaskLead]=useState(0);
+  const [taskNotes,setTaskNotes]=useState('');
 
   // Money transaction form state
   const [txType, setTxType] = useState<'expense' | 'income'>('expense');
@@ -201,6 +205,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         rrule,
         checkInReminderMinutes: isCheckIn?15:undefined,
         travelBufferMinutes: !isCheckIn&&eventVenue==='in_person'?(parseInt(eventTravelBuffer, 10) || 0):0,
+        reminderLeadMinutes:eventLead,
         prepChecklist: [],
       });
       if(!isCheckIn&&matchedPlace&&eventVenue==='in_person'){
@@ -233,6 +238,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         title: taskTitle.trim(),
         priority: taskPriority,
         dueDate: taskDueDate ? `${taskDueDate}T12:00:00` : undefined,
+        reminderLeadMinutes:taskLead,
+        notes:taskNotes.trim(),
         isRecurring: false,
         subtasks: [],
       });
@@ -384,6 +391,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
                   <option value="weekly">Weekly on this day</option>
                 </select>
               </label>
+              {!isCheckIn&&<label className="block text-sm font-semibold text-slate-800">Remind me for this appointment: {reminderLeadLabel(eventLead)}
+                <input type="range" min="0" max="300" step="5" value={eventLead}
+                  onChange={e=>setEventLead(Number(e.target.value))} className="mt-2 block w-full accent-teal-800"
+                  aria-label="Minutes before this appointment's departure or start"/>
+                <span className="mt-1 block text-xs font-normal text-slate-600">For in-person appointments, this is before leave-by with travel and arrival buffer. Other appointments use the event start time.</span>
+              </label>}
               {!isCheckIn&&<>
               <p className="text-xs text-slate-600">Verify the destination below or choose a saved location. Current-location travel timing loads automatically after GPS permission. Appointment reminders continue when closed; open them for a fresh travel estimate.</p>
               {!!savedPlaces.length&&<label className="block text-sm font-medium text-slate-800">Choose a saved location (optional)
@@ -592,6 +605,17 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
               </div>
             </>
           )}
+
+          {activeType==='task'&&<div className="space-y-3">
+            <label className="block text-sm font-semibold text-slate-800">Remind me for this task: {taskLead===0?'At due time':taskLead+' minutes before due'}
+              <input type="range" min="0" max="300" step="5" value={taskLead} onChange={e=>setTaskLead(Number(e.target.value))}
+               className="mt-2 block w-full accent-teal-800" aria-label="Task reminder lead time"/>
+            </label>
+            <label className="block text-sm font-semibold text-slate-800">Task notes (optional)
+              <textarea value={taskNotes} onChange={e=>setTaskNotes(e.target.value)} rows={3} maxLength={4000}
+                placeholder="Anything to bring, prepare, or remember" className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm font-normal"/>
+            </label>
+          </div>}
 
           {/* TRANSACTION FORM */}
           {activeType === 'transaction' && (

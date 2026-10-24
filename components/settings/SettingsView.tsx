@@ -141,13 +141,7 @@ export const SettingsView: React.FC = () => {
             {label}<input type="checkbox" className="h-5 w-5 accent-teal-800" checked={profile.notificationPreferences?.[key]!==false}
              onChange={event=>updateProfile({notificationPreferences:{...profile.notificationPreferences,[key]:event.target.checked}})}/>
            </label>)}
-          <label className="block text-sm text-slate-800">Appointment reminder lead time
-           <select aria-label="Appointment reminder lead time" className="ml-3 min-h-11 rounded-xl border border-slate-300 bg-white px-3" value={profile.reminderLeadMinutes}
-            onChange={event=>updateProfile({reminderLeadMinutes:Number(event.target.value)})}>
-            {Array.from({length:61},(_,index)=>index*5).map(minutes=><option key={minutes} value={minutes}>{minutes===0?'At start':minutes+' minutes before'}</option>)}
-           </select>
-          </label>
-          <p className="text-xs text-slate-600">Travel alerts use the same lead time before calculated departure while GPS is fresh. Adjust the slider in Travel & departure for up to five hours. Closed-app appointment reminders use the interval before appointment start.</p>
+          <p className="text-xs text-slate-600">Set reminder timing for each appointment in Schedule and for each task when adding it.</p>
         </div>
       </section>
 

@@ -9,7 +9,6 @@ export type DueReminder={key:string;kind:ReminderKind;sourceId:string;due:number
 /** Rebuild from the latest synced records each pass; completed/cancelled items disappear before retries. */
 export function dueReminders(snapshot:ReminderSnapshot,userId:string,now:number):DueReminder[]{
  const profile=snapshot.profile||{},zone=safeTimezone(profile.timezone),today=zonedParts(now,zone).slice(0,10);
- const lead=reminderLeadMinutes(profile.reminderLeadMinutes)*60000;
  const enabled=profile.notificationPreferences||{};
  const reminders:DueReminder[]=[];
  const add=(kind:ReminderKind,sourceId:string,slot:string,due:number,expires:number,target:NotificationDestination,body?:string)=>{
@@ -29,13 +28,13 @@ export function dueReminders(snapshot:ReminderSnapshot,userId:string,now:number)
     add('event',event.id,instance.originalStart+':check-in:'+due,due,Math.min(instance.end,due+interval),{tab:'schedule',event:event.id,date:day});
     continue;
    }
-   add('event',event.id,String(instance.originalStart),instance.start-lead,Math.min(instance.end,instance.start+15*60000),{tab:'schedule',event:event.id,date:day},event.venueType==='in_person'?'Open DayBridge to refresh your current location and travel timing.':undefined);
+   add('event',event.id,String(instance.originalStart),instance.start-reminderLeadMinutes(event.reminderLeadMinutes??profile.reminderLeadMinutes)*60000,Math.min(instance.end,instance.start+15*60000),{tab:'schedule',event:event.id,date:day},event.venueType==='in_person'?'Open DayBridge to refresh your current location and travel timing.':undefined);
   }
  }
  for(const task of snapshot.tasks||[]){
   if(task.completed||!task.dueDate)continue;
   const due=wallTime(task.dueDate.length===10?task.dueDate+'T09:00:00':task.dueDate,zone);
-  add('task',task.id,String(due),due,due+30*60000,{tab:'tasks',task:task.id});
+  add('task',task.id,String(due),due-reminderLeadMinutes(task.reminderLeadMinutes??0)*60000,due+30*60000,{tab:'tasks',task:task.id});
  }
  for(const med of snapshot.medications||[]){
   if(!med.isActive)continue;
