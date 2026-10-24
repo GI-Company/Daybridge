@@ -15,6 +15,15 @@ export function SecureAppGate({children,backend}:{children:(id:string)=>React.Re
  const [password,setPassword]=useState('');
  const [busy,setBusy]=useState(false);
  const [message,setMessage]=useState('');
+ const [passkeyAvailable,setPasskeyAvailable]=useState(false);
+ useEffect(()=>{
+   let active=true;
+   if(!client||!user){setPasskeyAvailable(false);return;}
+   void client.auth.passkey.list().then(({data,error})=>{
+     if(active)setPasskeyAvailable(!error&&Array.isArray(data)&&data.length>0);
+   }).catch(()=>{if(active)setPasskeyAvailable(false);});
+   return()=>{active=false;};
+ },[client,user?.id]);
  useEffect(()=>{
    if(!client){setPending(false);return}
    let active=true;
@@ -48,10 +57,10 @@ export function SecureAppGate({children,backend}:{children:(id:string)=>React.Re
   if(!user.email)return false;
   const {data,error}=await client.auth.signInWithPassword({email:user.email,password});
   return !error&&data.user?.id===user.id;
- }} verifyPasskey={async()=>{
+ }} verifyPasskey={passkeyAvailable?async()=>{
   const {data,error}=await client.auth.signInWithPasskey();
   return !error&&data.user?.id===user.id;
- }}>{children(user.id)}</SessionLock>}</DeviceLockSettings>;
+ }:undefined}>{children(user.id)}</SessionLock>}</DeviceLockSettings>;
  const login=async(e:React.FormEvent)=>{
   e.preventDefault();
   const email=loginIdentifierToEmail(username);
