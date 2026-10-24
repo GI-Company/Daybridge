@@ -252,7 +252,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
                       : 'attended_self_reported',
                     '', nextEvent.startTime.toISOString(), nextEvent.endTime.toISOString()
                   );
-                }
+                }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-750 transition"
               >
                 {nextEvent.attendanceStatus === 'attended_self_reported'
