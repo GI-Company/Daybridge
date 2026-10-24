@@ -22,3 +22,12 @@ input,select,textarea { color:#0f172a; }
   }
 }
 button { touch-action:manipulation; }
+
+/* The sticky-note workspace owns its viewport; only the editor and booklet list scroll. */
+html:has(.daybridge-notes-viewport),
+body:has(.daybridge-notes-viewport) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
