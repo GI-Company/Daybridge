@@ -48,6 +48,9 @@ export function SecureAppGate({children,backend}:{children:(id:string)=>React.Re
   if(!user.email)return false;
   const {data,error}=await client.auth.signInWithPassword({email:user.email,password});
   return !error&&data.user?.id===user.id;
+ }} verifyPasskey={async()=>{
+  const {data,error}=await client.auth.signInWithPasskey();
+  return !error&&data.user?.id===user.id;
  }}>{children(user.id)}</SessionLock>}</DeviceLockSettings>;
  const login=async(e:React.FormEvent)=>{
   e.preventDefault();

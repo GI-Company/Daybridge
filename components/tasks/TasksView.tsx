@@ -50,7 +50,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Tasks & Preparation</h2>
           <p className="text-xs text-slate-600">
-            One-tap completion, court prep checklists, and daily priorities
+            Confirm completion, undo finished tasks, and manage daily priorities
           </p>
         </div>
         <button
@@ -98,7 +98,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId
             >
               <div className="flex items-center justify-between gap-3">
                 <div
-                  onClick={() => toggleTask(task.id)}
+                  onClick={() => {if(task.completed||window.confirm('Mark this task as done?'))toggleTask(task.id);}}
                   className="flex items-center gap-3 flex-1 cursor-pointer min-h-[44px]"
                 >
                   <div
@@ -156,7 +156,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId
                   )}
 
                   <button
-                    onClick={() => deleteTask(task.id)}
+                    onClick={() => {if(window.confirm('Delete this task? You can undo this from Settings.'))deleteTask(task.id);}}
                     className="p-2 text-slate-600 hover:text-rose-700 min-h-[44px] min-w-[44px] flex items-center justify-center"
                     aria-label="Delete task"
                   >
@@ -164,6 +164,8 @@ export const TasksView: React.FC<TasksViewProps> = ({ onOpenQuickAdd,focusTaskId
                   </button>
                 </div>
               </div>
+              {task.notes&&<div className="mt-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap break-words">{task.notes}<button type="button" onClick={()=>void navigator.clipboard.writeText(task.notes||'').catch(()=>window.alert('Clipboard is unavailable on this device.'))} className="ml-2 font-semibold text-teal-800 underline">Copy</button></div>}
+              {task.completed&&<button type="button" className="mt-2 text-xs font-semibold text-teal-800 underline" onClick={()=>{if(window.confirm('Undo completion of this task?'))toggleTask(task.id);}}>Undo completion</button>}
 
               {/* Subtasks */}
               {expandedTaskId === task.id && task.subtasks && task.subtasks.length > 0 && (

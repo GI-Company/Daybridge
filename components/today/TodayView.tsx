@@ -479,7 +479,7 @@ export const TodayView: React.FC<TodayViewProps> = ({ onNavigate, onOpenQuickAdd
             {urgentTasks.map((task) => (
               <div
                 key={task.id}
-                onClick={() => toggleTask(task.id)}
+                onClick={() => {if(task.completed||window.confirm('Mark this task as done?'))toggleTask(task.id);}}
                 className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-750 transition cursor-pointer min-h-[48px]"
               >
                 <div
