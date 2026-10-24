@@ -1,8 +1,9 @@
 'use client';
-import React,{useRef,useState} from 'react';
-import {BookOpen,ChevronLeft,ChevronRight,Copy,NotebookPen,Plus,Trash2} from 'lucide-react';
+import React,{useEffect,useRef,useState} from 'react';
+import {BookOpen,ChevronLeft,ChevronRight,ChevronsLeft,ChevronsUp,Copy,GripHorizontal,NotebookPen,Plus,Trash2} from 'lucide-react';
 import {useDayBridge} from '../../lib/storage/store';
 import type {NoteColor} from '../../lib/types';
+import {classifyBookletSwipe} from '../../lib/notes/page-gesture';
 
 const palette:{id:NoteColor;label:string;background:string;edge:string}[]=[
  {id:'yellow',label:'Sunshine',background:'#fff2a8',edge:'#e4c866'},
@@ -19,21 +20,69 @@ export function NotesView(){
  const [pageIndex,setPageIndex]=useState(0);
  const [folding,setFolding]=useState(false);
  const [copyStatus,setCopyStatus]=useState('');
- const touch=useRef<{x:number;y:number}|null>(null);
+ const gesture=useRef<{pointerId:number;x:number;y:number}|null>(null);
+ const [drag,setDrag]=useState({x:0,y:0});
+ const flipTimeout=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const flipping=useRef(false);
+ useEffect(()=>()=>{if(flipTimeout.current!==null)clearTimeout(flipTimeout.current);},[]);
  const book=noteBooklets.find(item=>item.id===selectedId);
  const currentIndex=book?Math.min(pageIndex,book.pages.length-1):0;
  const page=book?.pages[currentIndex];
  const swatch=styleFor(book?.color||'yellow');
- const open=(id:string)=>{setSelectedId(id);setPageIndex(0);setCopyStatus('');};
+ const stopAnimation=()=>{
+   if(flipTimeout.current!==null)clearTimeout(flipTimeout.current);
+   flipTimeout.current=null;
+   flipping.current=false;
+   gesture.current=null;
+   setDrag({x:0,y:0});
+   setFolding(false);
+ };
+ const open=(id:string)=>{stopAnimation();setSelectedId(id);setPageIndex(0);setCopyStatus('');};
+ const close=()=>{stopAnimation();setSelectedId(null);};
  const create=()=>open(addNoteBooklet());
+ const firstPage=()=>{
+   if(currentIndex===0||flipping.current)return;
+   setPageIndex(0);
+   setCopyStatus('');
+ };
  const flip=(direction:1|-1)=>{
-   if(!book||folding||(direction===-1&&currentIndex===0))return;
-   setFolding(true);
-   window.setTimeout(()=>{
+   if(!book||flipping.current||(direction===-1&&currentIndex===0))return;
+   flipping.current=true;
+   const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+   if(!reduceMotion)setFolding(true);
+   const advance=()=>{
      if(direction===1&&currentIndex===book.pages.length-1)addNotePage(book.id);
      setPageIndex(current=>Math.max(0,current+direction));
+     setCopyStatus('');
      setFolding(false);
-   },230);
+     flipping.current=false;
+     flipTimeout.current=null;
+   };
+   if(reduceMotion)advance();
+   else flipTimeout.current=window.setTimeout(advance,230);
+ };
+ const pointerDown=(event:React.PointerEvent<HTMLDivElement>)=>{
+   if(!event.isPrimary||flipping.current)return;
+   gesture.current={pointerId:event.pointerId,x:event.clientX,y:event.clientY};
+   event.currentTarget.setPointerCapture(event.pointerId);
+ };
+ const pointerMove=(event:React.PointerEvent<HTMLDivElement>)=>{
+   const start=gesture.current;
+   if(!start||start.pointerId!==event.pointerId)return;
+   const dx=event.clientX-start.x,dy=event.clientY-start.y;
+   setDrag({x:Math.max(-48,Math.min(48,dx*.25)),y:Math.max(-30,Math.min(30,dy*.25))});
+ };
+ const pointerEnd=(event:React.PointerEvent<HTMLDivElement>,cancelled=false)=>{
+   const start=gesture.current;
+   if(!start||start.pointerId!==event.pointerId)return;
+   gesture.current=null;
+   setDrag({x:0,y:0});
+   if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+   if(cancelled)return;
+   const action=classifyBookletSwipe(event.clientX-start.x,event.clientY-start.y);
+   if(action==='first')firstPage();
+   else if(action==='next')flip(1);
+   else if(action==='previous')flip(-1);
  };
  const copy=async()=>{
    if(!page)return;
@@ -63,8 +112,8 @@ export function NotesView(){
    </div>}
   </> : <>
    <div className="flex items-center justify-between gap-2">
-    <button type="button" onClick={()=>setSelectedId(null)} className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-teal-900"><ChevronLeft className="h-4 w-4"/>All booklets</button>
-    <button type="button" onClick={()=>{if(window.confirm('Delete this entire booklet and its pages? You can undo the change from Settings.')){deleteNoteBooklet(book.id);setSelectedId(null);}}}
+    <button type="button" onClick={close} className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-teal-900"><ChevronLeft className="h-4 w-4"/>All booklets</button>
+    <button type="button" onClick={()=>{if(window.confirm('Delete this entire booklet and its pages? You can undo the change from Settings.')){deleteNoteBooklet(book.id);close();}}}
      aria-label="Delete booklet" className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-rose-800"><Trash2 className="h-4 w-4"/>Delete</button>
    </div>
    <div className="grid gap-3 sm:grid-cols-2">
@@ -90,21 +139,36 @@ export function NotesView(){
      style={{backgroundColor:swatch.background,transformOrigin:'top center',
       transform:folding?'perspective(900px) rotateX(76deg) translateY(-50px)':'perspective(900px) rotateX(0deg)',
       opacity:folding ? 0.78 : 1,transition:'transform 230ms ease-in, opacity 230ms ease-in'}}
-     onTouchStart={e=>{const point=e.touches[0];touch.current={x:point.clientX,y:point.clientY};}}
-     onTouchEnd={e=>{const start=touch.current;touch.current=null;const point=e.changedTouches[0];if(!start||!point)return;
-       const dx=point.clientX-start.x,dy=point.clientY-start.y;
-       if(Math.abs(dx)<85&&dy< -75)flip(1);else if(Math.abs(dx)<85&&dy>90)flip(-1);}}>
+>
      <span aria-hidden="true" className="pointer-events-none absolute right-0 top-0 h-12 w-12 bg-white/60 shadow-inner"
        style={{clipPath:'polygon(0 0, 100% 100%, 100% 0)'}}/>
      <div className="relative flex items-center justify-between border-b border-black/10 pb-3">
       <strong className="max-w-[80%] truncate text-base text-slate-950">{book.title||'Untitled booklet'}</strong>
-      <span className="text-xs font-semibold text-slate-700">{currentIndex+1}/{book.pages.length}</span>
+      <div className="flex items-center gap-2">
+        <span aria-live="polite" className="text-xs font-semibold text-slate-700">{currentIndex+1}/{book.pages.length}</span>
+        <button type="button" onClick={firstPage} disabled={currentIndex===0||folding}
+         className="flex min-h-10 items-center gap-1 rounded-lg border border-black/15 bg-white/65 px-2 text-xs font-semibold text-slate-800 disabled:opacity-40"
+         aria-label="Go to first sticky note page"><ChevronsLeft className="h-4 w-4"/>First page</button>
+      </div>
      </div>
      <textarea aria-label="Write on this sticky page" placeholder="Write a thought, appointment detail, or reminder…" value={page?.content||''}
        onChange={e=>{if(page)updateNotePage(book.id,page.id,e.target.value);}} maxLength={30000}
-       className="relative mt-3 min-h-[290px] w-full resize-y bg-transparent p-1 text-base leading-8 text-slate-950 outline-none placeholder:text-slate-600/65"
+       className="relative mt-3 block h-[min(46dvh,380px)] min-h-[240px] w-full resize-none overflow-y-auto overscroll-contain bg-transparent p-1 text-base leading-8 text-slate-950 outline-none placeholder:text-slate-600/65"
        style={{backgroundImage:'repeating-linear-gradient(transparent, transparent 31px,rgba(0,0,0,.10) 32px)',backgroundAttachment:'local'}}/>
-     <p className="mt-2 text-center text-xs text-slate-600">Swipe up to fold this page and turn to the next</p>
+     <div role="group" aria-label="Sticky booklet swipe area"
+       onPointerDown={pointerDown} onPointerMove={pointerMove}
+       onPointerUp={event=>pointerEnd(event)} onPointerCancel={event=>pointerEnd(event,true)}
+       onLostPointerCapture={()=>{gesture.current=null;setDrag({x:0,y:0});}}
+       className="mt-3 flex min-h-[80px] cursor-grab flex-col items-center justify-center rounded-xl border border-black/15 bg-white/40 px-3 py-2 text-center select-none active:cursor-grabbing"
+       style={{touchAction:'none',overscrollBehavior:'contain'}}>
+       <div className="pointer-events-none flex flex-col items-center gap-1"
+         style={{transform:`translate3d(${drag.x}px,${drag.y}px,0)`,transition:gesture.current?'none':'transform 160ms ease-out'}}>
+         <GripHorizontal className="h-5 w-5 text-slate-700" aria-hidden="true"/>
+         <span className="flex items-center gap-1 text-xs font-bold text-slate-900"><ChevronsUp className="h-4 w-4"/>Swipe here to turn pages</span>
+         <span className="text-[11px] text-slate-700">↑ / ← Next · ↓ / → Previous · long → First page</span>
+       </div>
+     </div>
+     <p className="mt-2 text-center text-xs text-slate-700">Write and scroll in the note above. Swipes work only on the page-turn strip.</p>
     </div>
    </div>
    <div className="flex flex-wrap items-center justify-between gap-2 pt-5">
