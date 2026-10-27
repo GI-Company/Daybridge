@@ -4,6 +4,7 @@ import {MapPinned,LocateFixed,Save} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
 import {defaults,mapsUrl,type Point,type TravelPrefs} from '../../lib/travel/types';
 import {RouteMap} from './RouteMap';
+import {GeorgiaTrafficAdvisory} from './GeorgiaTrafficAdvisory';
 import {useDayBridge} from '../../lib/storage/store';
 import {arrivalBuffer,arrivalTarget,travelTimes} from '../../lib/travel/timing';
 import {eventDestination} from '../../lib/travel/scheduled-trips';
@@ -104,6 +105,7 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   {routeState?.status==='error'&&<p role="status" className="text-xs text-amber-900">Travel timing is unavailable. Check your connection and refresh traffic.</p>}
   {estimate&&selected&&origin&&destination&&<div className="space-y-3">
    <RouteMap origin={origin} destination={destination} route={selected}/>
+   <GeorgiaTrafficAdvisory incidents={selected.incidents}/>
    <div role="tablist" aria-label="Available routes" className="flex gap-2 overflow-x-auto">
     {estimate.routes.map((r,i)=><button key={i} type="button" role="tab" aria-selected={choice===i} onClick={()=>setChoice(i)} className={'shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold '+(choice===i?'bg-teal-800 text-white':'bg-white text-slate-900')}>{i===0?'Fastest':'Alternative '+i}: {Math.ceil(r.durationSeconds/60)} min</button>)}
    </div>

@@ -62,7 +62,7 @@ async function syncPlans(admin:ReturnType<typeof adminClient>,now:number){
  }
 }
 type TravelUpdate={travelSeconds:number;delaySeconds:number;leaveByMs:number;lockscreenPrivate:boolean;
- impact:TravelImpactResult;routeCount:number;silent:boolean};
+ impact:TravelImpactResult;routeCount:number;silent:boolean;fullClosureNearby:boolean};
 async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'preliminary'|'preparation'|'leave_now'|'traffic_change',time:number,update:TravelUpdate,reason:'routine'|'late-risk'|'late-risk-change'='routine'){
  const dedupeSlot=reason==='late-risk'?'late-risk':reason==='late-risk-change'?'risk-'+Math.floor(time/(15*60000)):kind==='traffic_change'?Math.floor(time/(15*60000)):'once';
  const key=[plan.id,plan.source_revision,kind,dedupeSlot].join(':');
@@ -73,7 +73,8 @@ async function deliver(admin:ReturnType<typeof adminClient>,plan:Plan,kind:'prel
   :kind==='traffic_change'?'Your travel ETA has changed':'Upcoming appointment';
  const body=update.lockscreenPrivate
   ?'Open DayBridge to review your route and departure time.'
-  :summarizeTrafficUpdate(update.impact,update.travelSeconds,update.delaySeconds,update.routeCount,plan.timezone);
+  :summarizeTrafficUpdate(update.impact,update.travelSeconds,update.delaySeconds,update.routeCount,plan.timezone)
+    +(update.fullClosureNearby?' Georgia 511 reports a closure near this route. Verify the road and direction before departure.':'');
  // The event ID and date are opaque app records, not street locations or directions.
  const date=zonedParts(Date.parse(plan.occurrence_start),safeTimezone(plan.timezone)).slice(0,10);
  const url=notificationURL({tab:'locations',event:plan.source_event_id,date,account:plan.user_id});
@@ -140,7 +141,7 @@ export async function monitorTravel(){
    const update:TravelUpdate={
      travelSeconds:best.durationSeconds,delaySeconds:best.delaySeconds,
      leaveByMs:leaveMs,lockscreenPrivate:pref.lockscreen_private,
-     impact,routeCount:ordered.length,silent:inQuietHours(now,safeTimezone(source?.profile?.timezone),source?.profile?.quietHoursStart,source?.profile?.quietHoursEnd)&&!impact.appointmentAtRisk&&now<leaveMs-5*60000
+     impact,routeCount:ordered.length,fullClosureNearby:Boolean(best.incidents?.some(event=>event.fullClosure)),silent:inQuietHours(now,safeTimezone(source?.profile?.timezone),source?.profile?.quietHoursStart,source?.profile?.quietHoursEnd)&&!impact.appointmentAtRisk&&now<leaveMs-5*60000
    };
    await admin.from('travel_appointments').update({
      last_travel_seconds:best.durationSeconds,last_delay_seconds:best.delaySeconds,

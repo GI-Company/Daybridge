@@ -1,3 +1,22 @@
+# Georgia 511 traffic reports (October 27, 2026)
+
+Set server-only `GEORGIA_511_API_KEY` in the Vercel production environment. Route requests fetch
+official 511GA traffic events with a process-local 3-minute cache and concurrent-call coalescing
+using the documented `/api/v2/get/event?key=...` endpoint. Errors or rate limits do not break
+TomTom routing; serverless instances do not share a cache, so this is not a global 511GA quota
+guarantee. Do not add the key to any `NEXT_PUBLIC_` variable or commit it.
+
+For current driving routes, DayBridge identifies reports within approximately 750m of the
+TomTom route polyline, displays the reported roadway/direction, and draws approximate incident
+markers on the appointment map. The original TomTom ETA, route geometry, and alternative
+selection are unchanged. The background worker attaches a nearby-full-closure note to existing
+non-private appointment notifications; Georgia 511 reports do not independently trigger
+push notifications. Only documented primary and secondary event coordinates are examined, so
+some long construction zones may be missed. Proximity does not establish that the event
+affects the same carriageway or travel direction. Future historic forecasts deliberately
+do not show current incidents. No schema migration is required. Test the feed with a real
+Georgia driving route and confirm provider acceptance after redeploying.
+
 # Automatic current-location release — October 24, 2026
 
 This release requires no schema migration and preserves all existing records. The current-location foreground watch starts automatically after permission, expires after two minutes without an accurate update, and clears on hide/lock. `/api/travel/live-check` authenticates the user, checks origin/rate limits and push-device ownership, uses the latest cloud calendar, respects per-occurrence opt-outs, and sends GPS-based notices only to the reporting device. No raw fix is persisted. The service worker rejects expired push payloads.

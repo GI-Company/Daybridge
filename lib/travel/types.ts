@@ -1,8 +1,9 @@
+import type {GeorgiaIncident} from './georgia511-matching';
 export type Point={lat:number;lon:number};
 export type Mode='car'|'pedestrian'|'bicycle';
 export interface TravelPrefs {navigation_enabled:boolean;traffic_notifications:boolean;origin_kind:'current'|'saved';saved_origin_label:string|null;saved_origin_lat:number|null;saved_origin_lon:number|null;arrival_buffer_minutes:number;lockscreen_private:boolean;travel_mode:Mode}
 export const defaults:TravelPrefs={navigation_enabled:true,traffic_notifications:true,origin_kind:'current',saved_origin_label:null,saved_origin_lat:null,saved_origin_lon:null,arrival_buffer_minutes:15,lockscreen_private:true,travel_mode:'car'};
-export type Route={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Point[];departureTime?:string;arrivalTime?:string;instructions?:string[]};
+export type Route={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Point[];departureTime?:string;arrivalTime?:string;instructions?:string[];incidents?:GeorgiaIncident[]};
 export type RouteResult={basis:'live'|'historical';routes:Route[];checkedAt:string};
 export function leaveBy(start:string,routeSeconds:number,bufferMinutes:number){return new Date(Date.parse(start)-routeSeconds*1000-bufferMinutes*60000);}
 export function mapsUrl(provider:'google'|'apple',origin:Point,dest:Point,mode:Mode){const url=new URL(provider==='google'?'https://www.google.com/maps/dir/':'https://maps.apple.com/');if(provider==='google'){url.searchParams.set('api','1');url.searchParams.set('origin',origin.lat+','+origin.lon);url.searchParams.set('destination',dest.lat+','+dest.lon);url.searchParams.set('travelmode',mode==='car'?'driving':mode==='bicycle'?'bicycling':'walking');}else{url.searchParams.set('saddr',origin.lat+','+origin.lon);url.searchParams.set('daddr',dest.lat+','+dest.lon);url.searchParams.set('dirflg',mode==='car'?'d':mode==='pedestrian'?'w':'r');}return url.toString();}

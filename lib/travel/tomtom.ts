@@ -1,6 +1,8 @@
 import 'server-only';
 import { z } from 'zod';
 import {normalizeTomTomRoutePoints} from './geometry.ts';
+import {getGeorgiaIncidentsNearRoute} from './georgia511';
+import type {GeorgiaIncident} from './georgia511-matching';
 
 export const coordinateSchema = z.object({
  lat:z.number().finite().min(-90).max(90),
@@ -15,7 +17,7 @@ export const routeInput=z.object({
 });
 export type Coordinates=z.infer<typeof coordinateSchema>;
 export type RouteInput=z.infer<typeof routeInput>;
-export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[];departureTime?:string;arrivalTime?:string;instructions?:string[]};
+export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[];departureTime?:string;arrivalTime?:string;instructions?:string[];incidents?:GeorgiaIncident[]};
 export type RouteResult={basis:'live'|'historical';routes:RouteOption[];checkedAt:string};
 const cache=new Map<string,{expires:number,value:RouteResult}>();
 export function tomTomKey():string {
@@ -65,7 +67,12 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
   instructions:(r.guidance?.instructions??[]).map(i=>i.message??'').filter(Boolean).slice(0,100)
  })).filter(r=>r.durationSeconds>0&&r.points.length>=2).sort((a,b)=>a.durationSeconds-b.durationSeconds);
  if(!routes.length)throw new Error('No usable route found');
- const value:RouteResult={basis:future?'historical':'live',routes,checkedAt:new Date().toISOString()};
+ // Georgia 511 adds current reported disruptions; TomTom remains the source of routing/ETA.
+ // Do not attach today's road reports to a historical future departure estimate.
+ const annotated=valid.travelMode==='car'&&!future
+  ? await Promise.all(routes.map(async route=>({...route,incidents:await getGeorgiaIncidentsNearRoute(route.points)})))
+  : routes;
+ const value:RouteResult={basis:future?'historical':'live',routes:annotated,checkedAt:new Date().toISOString()};
  if(cache.size>200)cache.clear();
  cache.set(key,{expires:Date.now()+75_000,value});
  return value;

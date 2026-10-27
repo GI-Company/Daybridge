@@ -3,6 +3,7 @@
 import {arrivalTarget,travelTimes} from '../../lib/travel/timing';
 import {safeTimezone} from '../../lib/notifications/time';
 import {Navigation} from 'lucide-react';
+import {GeorgiaTrafficAdvisory} from './GeorgiaTrafficAdvisory';
 import type {MapPlace} from '../../lib/travel/map-data';
 import type {ScheduledTrip} from '../../lib/travel/scheduled-trips';
 import {mapsUrl, type Mode, type Point, type RouteResult} from '../../lib/travel/types';
@@ -58,6 +59,7 @@ export function TripDetails({trip, destination, origin, originLabel, result, sta
         {trip&&result.basis==='live'&&<p><strong>Arrival if leaving at leave-by</strong><br/>{time(arrivalTarget(trip.startTime,trip.bufferMinutes))}</p>}
         {trip && <p className="col-span-2"><strong>Leave by</strong><br/>{times?.departure&&time(times.departure)} · {trip.bufferMinutes} min early</p>}
       </div>
+      <GeorgiaTrafficAdvisory incidents={best.incidents}/>
       <p className="text-xs text-slate-600">{result.basis === 'historical' ? 'Traffic forecast for this appointment' : 'Current traffic estimate'}. Checked {time(new Date(result.checkedAt))}. Updates automatically while this screen is open.</p>
       {navigationEnabled && origin && destination && <div className="flex flex-wrap gap-2">
         <a target="_blank" rel="noopener noreferrer" href={mapsUrl('google', origin, destination, mode)} className="min-h-[44px] rounded-xl bg-teal-800 px-3 py-3 text-sm font-semibold text-white">Google Maps</a>
