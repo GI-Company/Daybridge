@@ -101,19 +101,20 @@ export function TravelPlanner({eventId,title,startTime,location}:{eventId:string
   <p className="text-xs text-slate-600">{prefs.origin_kind==='current'?(deviceLocation.status==='current'?'Using your current device location.':deviceLocation.status==='denied'?'Location permission is denied. Enable it in device or browser settings.':'Acquiring an accurate current location automatically…'):'Explicit planning forecast from your saved location.'}</p>
   <button type="button" disabled={!place||!automaticOrigin||routeState?.status==='loading'} onClick={refresh} className="flex w-full items-center justify-center gap-2 rounded-xl border border-teal-300 bg-white p-3 text-sm font-bold text-teal-900 disabled:opacity-50"><LocateFixed className="h-4 w-4"/>Refresh traffic and alternatives</button>
   {routeState?.status==='loading'&&<p role="status" className="text-xs text-slate-600">Refreshing traffic from your selected starting location…</p>}
-  {routeState?.status==='error'&&<p role="status" className="text-xs text-amber-900">Travel timing is unavailable. Check your connection and refresh traffic.</p>}
+  {routeState?.status==='error'&&<p role="status" className="text-xs text-amber-900">{routeState.message||'Travel timing is unavailable. Check your connection and refresh traffic.'}</p>}
   {estimate&&selected&&origin&&destination&&<div className="space-y-3">
+   {estimate.trafficAvailable===false&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Live traffic unavailable. ETA and leave-by are historical-speed estimates; verify closures and delays before travel.</p>}
    <RouteMap origin={origin} destination={destination} route={selected}/>
    <div role="tablist" aria-label="Available routes" className="flex gap-2 overflow-x-auto">
     {estimate.routes.map((r,i)=><button key={i} type="button" role="tab" aria-selected={choice===i} onClick={()=>setChoice(i)} className={'shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold '+(choice===i?'bg-teal-800 text-white':'bg-white text-slate-900')}>{i===0?'Fastest':'Alternative '+i}: {Math.ceil(r.durationSeconds/60)} min</button>)}
    </div>
    <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-800">
     <div><strong>{estimate.basis==='historical'?'Arrival if leaving at leave-by':'Arrival if leaving now'}</strong><div>{times&&time(times.arrival)}</div></div>
-    <div><strong>Traffic delay</strong><div>{Math.ceil(selected.delaySeconds/60)} min</div></div>
+    <div><strong>Traffic delay</strong><div>{estimate.trafficAvailable===false?'Unavailable':Math.ceil(selected.delaySeconds/60)+' min'}</div></div>
     <div><strong>Recommended leave-by</strong><div>{times?.departure&&time(times.departure)} · {buffer} min early</div></div>
     <div><strong>Appointment starts</strong><div>{time(new Date(at))}</div></div>
     {estimate.basis==='live'&&<div><strong>Arrival if leaving at leave-by</strong><div>{time(arrivalTarget(at,buffer))}</div></div>}
-    <div><strong>Travel basis</strong><div>{estimate.basis==='historical'?'Historic forecast':'Current traffic'}</div></div>
+    <div><strong>Travel basis</strong><div>{estimate.trafficAvailable===false?'Historical-speed fallback':estimate.basis==='historical'?'Historic forecast':'Current traffic'}</div></div>
    </div>
    {prefs.navigation_enabled&&<div className="flex flex-wrap gap-2">
     <a href={mapsUrl('google',origin,destination,mode)} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-teal-800 px-4 py-2 text-xs font-bold text-white">Open Google Maps</a>

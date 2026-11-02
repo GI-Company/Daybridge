@@ -16,7 +16,12 @@ export const routeInput=z.object({
 export type Coordinates=z.infer<typeof coordinateSchema>;
 export type RouteInput=z.infer<typeof routeInput>;
 export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[];departureTime?:string;arrivalTime?:string;instructions?:string[]};
-export type RouteResult={basis:'live'|'historical';routes:RouteOption[];checkedAt:string};
+export type RouteResult={basis:'live'|'historical'|'estimated';routes:RouteOption[];checkedAt:string;trafficAvailable?:boolean};
+export class TomTomRoutingError extends Error {
+ constructor(readonly status:number|null,readonly category:'http'|'network'|'timeout'|'response'='http') {
+  super('TomTom route request failed');
+ }
+}
 const cache=new Map<string,{expires:number,value:RouteResult}>();
 export function tomTomKey():string {
  const key=process.env.tom_tom?.trim() || process.env.TOMTOM_API_KEY?.trim();
@@ -32,9 +37,9 @@ export async function geocode(address:string){
  const data=await res.json() as {results?:Array<{position?:{lat:number;lon:number};address?:{freeformAddress?:string}}>} ;
  return (data.results??[]).filter(x=>x.position).map(x=>({lat:x.position!.lat,lon:x.position!.lon,label:x.address?.freeformAddress??address}));
 }
-export async function calculateRoute(input:RouteInput,options:{alternatives?:number}={}):Promise<RouteResult>{
+export async function calculateRoute(input:RouteInput,options:{alternatives?:number;allowTrafficFallback?:boolean}={}):Promise<RouteResult>{
  const valid=routeInput.parse(input);
- const key=JSON.stringify({origin:valid.origin,destination:valid.destination,mode:valid.travelMode,arriveAt:valid.arriveAt?.slice(0,16),alternatives:options.alternatives??2});
+ const key=JSON.stringify({origin:valid.origin,destination:valid.destination,mode:valid.travelMode,arriveAt:valid.arriveAt?.slice(0,16),alternatives:options.alternatives??2,allowTrafficFallback:options.allowTrafficFallback===true});
  const old=cache.get(key);if(old&&old.expires>Date.now())return old.value;
  const fmt=(p:Coordinates)=>p.lat.toFixed(6)+','+p.lon.toFixed(6);
  const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+fmt(valid.origin)+':'+fmt(valid.destination)+'/json');
@@ -48,13 +53,39 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
  const future=valid.arriveAt && new Date(valid.arriveAt).getTime()>Date.now()+4*60*60_000;
  if(future)url.searchParams.set('arriveAt',valid.arriveAt!);
  else url.searchParams.set('departAt','now');
- const res=await fetch(url.toString(),{cache:'no-store',signal:AbortSignal.timeout(9000)});
- if(!res.ok)throw new Error('Routing currently unavailable ('+res.status+')');
- const data=await res.json() as {routes?:Array<{
+ // Traffic-free fallback applies only to foreground map requests; scheduled
+ // notifications must not silently replace real traffic with historical speeds.
+ async function requestRoute(target:URL):Promise<Response>{
+  try{
+   const response=await fetch(target.toString(),{cache:'no-store',signal:AbortSignal.timeout(9000)});
+   if(!response.ok)throw new TomTomRoutingError(response.status);
+   return response;
+  }catch(error){
+   if(error instanceof TomTomRoutingError)throw error;
+   const timeout=error instanceof Error&&(error.name==='TimeoutError'||error.name==='AbortError');
+   throw new TomTomRoutingError(null,timeout?'timeout':'network');
+  }
+ }
+ let res:Response,trafficAvailable=true;
+ try{res=await requestRoute(url)}
+ catch(error){
+  const retryable=error instanceof TomTomRoutingError &&
+   (error.category==='timeout'||error.category==='network'||(error.status!==null&&error.status>=500));
+  if(!options.allowTrafficFallback||!retryable)throw error;
+  const alternate=new URL(url);
+  alternate.searchParams.set('traffic','false');
+  alternate.searchParams.set('computeTravelTimeFor','none');
+  alternate.searchParams.set('maxAlternatives','0');
+  res=await requestRoute(alternate);
+  trafficAvailable=false;
+ }
+ let data: {routes?:Array<{
   summary?:{travelTimeInSeconds?:number;trafficDelayInSeconds?:number;lengthInMeters?:number;historicTrafficTravelTimeInSeconds?:number;departureTime?:string;arrivalTime?:string};
   guidance?:{instructions?:Array<{message?:string}>};
   legs?:Array<{points?:Array<{latitude?:number;longitude?:number;lat?:number;lon?:number}>}>
  }>};
+ try{data=await res.json() as typeof data}
+ catch{throw new TomTomRoutingError(res.status,'response')}
  const routes=(data.routes??[]).map(r=>({
   durationSeconds:Math.max(0,Math.round(r.summary?.travelTimeInSeconds??0)),
   delaySeconds:Math.max(0,Math.round(r.summary?.trafficDelayInSeconds??0)),
@@ -64,8 +95,8 @@ export async function calculateRoute(input:RouteInput,options:{alternatives?:num
   departureTime:r.summary?.departureTime,arrivalTime:r.summary?.arrivalTime,
   instructions:(r.guidance?.instructions??[]).map(i=>i.message??'').filter(Boolean).slice(0,100)
  })).filter(r=>r.durationSeconds>0&&r.points.length>=2).sort((a,b)=>a.durationSeconds-b.durationSeconds);
- if(!routes.length)throw new Error('No usable route found');
- const value:RouteResult={basis:future?'historical':'live',routes,checkedAt:new Date().toISOString()};
+ if(!routes.length)throw new TomTomRoutingError(200,'response');
+ const value:RouteResult={basis:future?'historical':trafficAvailable?'live':'estimated',trafficAvailable,routes,checkedAt:new Date().toISOString()};
  if(cache.size>200)cache.clear();
  cache.set(key,{expires:Date.now()+75_000,value});
  return value;

@@ -5,7 +5,7 @@ import {useTravelRequest} from './use-travel-request';
 import type {Mode, Point, RouteResult} from './types';
 
 type Target = {id: string; point: Point | null; mode: Mode; arriveAt?: string};
-type State = {context: string; status: 'loading' | 'ready' | 'error'; result?: RouteResult; from?: Point};
+type State = {context: string; status: 'loading' | 'ready' | 'error'; result?: RouteResult; from?: Point; message?: string};
 
 /** Calendar and place selection initiate routing; no separate trip form. */
 export function useAutomaticRoute(target: Target | null, origin: Point | null) {
@@ -33,13 +33,17 @@ export function useAutomaticRoute(target: Target | null, origin: Point | null) {
       try {
         const response = await fetch('/api/travel/route', {method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({origin, destination: target.point, travelMode: target.mode, arriveAt: target.arriveAt}), signal: request.signal});
-        if (!response.ok) throw new Error('Route unavailable');
+        if (!response.ok){
+          const body=await response.json().catch(()=>null) as {error?:unknown}|null;
+          throw new Error(typeof body?.error==='string'?body.error:'Route unavailable');
+        }
         const result = await response.json() as RouteResult;
         if (!result.routes?.length) throw new Error('No routes');
         if (!cancelled && request.current()) setState({context, status: 'ready', from: origin,
           result: {...result, routes: [...result.routes].sort((a, b) => a.durationSeconds - b.durationSeconds)}});
-      } catch {
-        if (!cancelled && request.current()) setState({context, status: 'error'});
+      } catch (error) {
+        if (!cancelled && request.current()) setState({context,status:'error',
+          message:error instanceof Error?error.message:'Route unavailable'});
       }
     })();
     return () => {cancelled = true;};

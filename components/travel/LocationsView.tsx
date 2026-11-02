@@ -195,7 +195,7 @@ export function LocationsContent({savedPlaces,addSavedPlace,updateSavedPlace,del
    onViewChange={setSearchCenter}
   />
   <TripDetails trip={activeTrip} destination={selected} origin={routeFrom||automaticOrigin} originLabel={originLabel}
-   result={route} status={routeState?.status} mode={mode} now={now} index={alt} onChoose={setAlt} onRefresh={refresh}
+   result={route} status={routeState?.status} errorMessage={routeState?.message} mode={mode} now={now} index={alt} onChoose={setAlt} onRefresh={refresh}
    navigationEnabled={preferences.navigation_enabled} onOpenSchedule={onOpenSchedule?openSchedule:undefined}/>
   {(manual||trips.length>1)&&<div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3" aria-label="Calendar destinations">
    {manual&&<button type="button" onClick={()=>{setDestinationId('');setTripId(null)}} className="min-h-[44px] text-sm font-semibold text-teal-900 underline">Back to calendar trip</button>}

@@ -9,13 +9,13 @@ import {mapsUrl, type Mode, type Point, type RouteResult} from '../../lib/travel
 
 type Props = {
   trip: ScheduledTrip | null; destination: MapPlace | null; origin: Point | null; originLabel: string;
-  result: RouteResult | null; status?: 'loading' | 'ready' | 'error'; mode: Mode; now: Date;
+  result: RouteResult | null; status?: 'loading' | 'ready' | 'error'; errorMessage?:string; mode: Mode; now: Date;
   index: number; onChoose: (index: number) => void; onRefresh: () => void;
   onOpenSchedule?: () => void; navigationEnabled: boolean;
 };
 
 export function TripDetails({trip, destination, origin, originLabel, result, status, mode, now,
-  index, onChoose, onRefresh, onOpenSchedule, navigationEnabled}: Props) {
+  index, onChoose, onRefresh, onOpenSchedule, navigationEnabled, errorMessage}: Props) {
   const best = result?.routes[index] ?? result?.routes[0];
   const navigation = destination ? new URL('https://www.google.com/maps/dir/') : null;
   if (navigation && destination) {
@@ -36,12 +36,13 @@ export function TripDetails({trip, destination, origin, originLabel, result, sta
     {trip && !destination && <p role="status" className="text-sm text-amber-900">Verify this appointment’s destination in Schedule to calculate its route automatically.</p>}
     {destination && !origin && <p role="status" className="text-sm text-slate-700">Acquiring your current location automatically. Allow location access to calculate accurate travel timing; no saved location is substituted.</p>}
     {status === 'loading' && <p role="status" className="text-sm text-teal-900">Checking your route and traffic…</p>}
-    {status === 'error' && <p role="status" className="text-sm text-amber-900">The route could not be loaded. Check your connection and retry.</p>}
+    {status === 'error' && <p role="status" className="text-sm text-amber-900">{errorMessage||'The route could not be loaded. Check your connection and retry.'}</p>}
     {navigationEnabled && navigation && <a href={navigation.toString()} target="_blank" rel="noopener noreferrer"
       className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-teal-300 p-3 text-sm font-semibold text-teal-900">
       <Navigation aria-hidden="true" className="h-4 w-4"/>Open navigation to {destination!.label}
     </a>}
     {best && result && <>
+      {result.trafficAvailable===false&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Live traffic unavailable. This is a historical-speed route estimate; check current closures and delays in your navigation app.</p>}
       <div className="flex flex-wrap gap-2" role="group" aria-label="Route alternatives">
         {result.routes.map((route, i) => <button type="button" key={i} aria-pressed={i === index} onClick={() => onChoose(i)}
           className={'min-h-[44px] rounded-xl border px-3 py-2 text-sm font-semibold ' + (i === index ? 'border-teal-800 bg-teal-800 text-white' : 'border-slate-300 text-slate-800')}>
@@ -50,7 +51,7 @@ export function TripDetails({trip, destination, origin, originLabel, result, sta
       </div>
       <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-800">
         <p><strong>Travel</strong><br/>{Math.ceil(best.durationSeconds / 60)} minutes</p>
-        <p><strong>Traffic delay</strong><br/>{Math.ceil(best.delaySeconds / 60)} minutes</p>
+        <p><strong>Traffic delay</strong><br/>{result.trafficAvailable===false?'Not available':Math.ceil(best.delaySeconds / 60)+' minutes'}</p>
         <p><strong>Distance</strong><br/>{(best.distanceMeters / 1609.344).toFixed(1)} miles</p>
         <p><strong>{result.basis === 'historical' && trip ? 'Arrival if leaving at leave-by' : 'Arrival if leaving now'}</strong><br/>
           {times&&time(times.arrival)}</p>
@@ -58,7 +59,7 @@ export function TripDetails({trip, destination, origin, originLabel, result, sta
         {trip&&result.basis==='live'&&<p><strong>Arrival if leaving at leave-by</strong><br/>{time(arrivalTarget(trip.startTime,trip.bufferMinutes))}</p>}
         {trip && <p className="col-span-2"><strong>Leave by</strong><br/>{times?.departure&&time(times.departure)} · {trip.bufferMinutes} min early</p>}
       </div>
-      <p className="text-xs text-slate-600">{result.basis === 'historical' ? 'Traffic forecast for this appointment' : 'Current traffic estimate'}. Checked {time(new Date(result.checkedAt))}. Updates automatically while this screen is open.</p>
+      <p className="text-xs text-slate-600">{result.trafficAvailable===false?'Estimated route without live traffic':result.basis === 'historical' ? 'Traffic forecast for this appointment' : 'Current traffic estimate'}. Checked {time(new Date(result.checkedAt))}. Updates automatically while this screen is open.</p>
       {navigationEnabled && origin && destination && <div className="flex flex-wrap gap-2">
         <a target="_blank" rel="noopener noreferrer" href={mapsUrl('google', origin, destination, mode)} className="min-h-[44px] rounded-xl bg-teal-800 px-3 py-3 text-sm font-semibold text-white">Google Maps</a>
         <a target="_blank" rel="noopener noreferrer" href={mapsUrl('apple', origin, destination, mode)} className="min-h-[44px] rounded-xl border border-slate-300 px-3 py-3 text-sm font-semibold text-slate-800">Apple Maps</a>
