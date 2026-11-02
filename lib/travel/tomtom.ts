@@ -24,7 +24,7 @@ export class TomTomRoutingError extends Error {
 }
 const cache=new Map<string,{expires:number,value:RouteResult}>();
 export function tomTomKey():string {
- const key=process.env.tom_tom?.trim() || process.env.TOMTOM_API_KEY?.trim();
+ const key=process.env.all_tom?.trim() || process.env.tom_tom?.trim() || process.env.TOMTOM_API_KEY?.trim();
  if(!key) throw new Error('TomTom server key not configured');
  return key;
 }

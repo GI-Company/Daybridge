@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 // @ts-expect-error Node 24 runtime API; project type declarations target Node 20.
 import {registerHooks} from 'node:module';
 registerHooks({resolve(specifier:string,context:unknown,next:(specifier:string,context:unknown)=>unknown){return specifier==='server-only'?{url:'data:text/javascript,export{}',shortCircuit:true}:next(specifier,context);}});
-const {calculateRoute}=await import('../lib/travel/tomtom.ts');
+const {calculateRoute,tomTomKey}=await import('../lib/travel/tomtom.ts');
 test('routing passes the early-arrival target and retains provider departure and arrival times',async()=>{
  const prior=globalThis.fetch,priorKey=process.env.TOMTOM_API_KEY;process.env.TOMTOM_API_KEY='synthetic-unit-key';
  const target=new Date(Date.now()+2*86400000).toISOString();let requested:URL|undefined;
@@ -54,4 +54,21 @@ test('bad TomTom routing credentials never trigger traffic-free fallback',async(
     {allowTrafficFallback:true}),error=>error instanceof Error && 'status' in error && error.status===403);
   assert.equal(calls,1);
  }finally{globalThis.fetch=prior;if(priorKey===undefined)delete process.env.TOMTOM_API_KEY;else process.env.TOMTOM_API_KEY=priorKey;}
+});
+
+test('new all_tom production key takes precedence without changing map-display credentials',()=>{
+ const previous={all_tom:process.env.all_tom,tom_tom:process.env.tom_tom,TOMTOM_API_KEY:process.env.TOMTOM_API_KEY};
+ try{
+  process.env.all_tom='synthetic-full-access-key';
+  process.env.tom_tom='synthetic-legacy-key';
+  process.env.TOMTOM_API_KEY='synthetic-fallback-key';
+  assert.equal(tomTomKey(),'synthetic-full-access-key');
+  process.env.all_tom='  ';
+  assert.equal(tomTomKey(),'synthetic-legacy-key');
+ }finally{
+  for(const [name,value] of Object.entries(previous)){
+   if(value===undefined)delete process.env[name];
+   else process.env[name]=value;
+  }
+ }
 });
