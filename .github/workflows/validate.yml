@@ -22,9 +22,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run security:scan
-      - run: npm audit --audit-level=moderate
       - run: npm test
       - run: npm run test:db
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser:production
       - run: npm run build
+      - run: npm audit --audit-level=moderate
