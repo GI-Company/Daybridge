@@ -4,7 +4,7 @@ import {serverSupabase} from '../supabase/server';
 
 import {courtStaffAuthEmail} from '../auth/court-staff';
 
-export type Court = {id:string;circuit_id:string;court_name:string;login_slug:string;seat_limit:number;enabled:boolean;is_demo:boolean;subscription_plan:string;subscription_status:string};
+export type Court = {id:string;circuit_id:string;court_name:string;login_slug:string;seat_limit:number;enabled:boolean;is_demo:boolean;admin_mfa_required:boolean;subscription_plan:string;subscription_status:string};
 export type CourtParticipant = {user_id:string;court_id:string;username:string;status:'active'|'suspended'|'removed';created_at:string};
 
 export function serviceClient():SupabaseClient {
@@ -24,10 +24,10 @@ export async function requireCourtAdmin(courtId:string) {
   const {data:{user},error}=await browserSession.auth.getUser();
   if(error||!user)throw new CourtAccessError(401,'Sign in as a court administrator');
 
-  // MFA is mandatory for court-staff administrative operations.
+  // Staff identity and court membership remain mandatory even for a
+  // demonstration court where the owner has switched off MFA.
   const {data:assurance,error:mfaError}=await browserSession.auth.mfa.getAuthenticatorAssuranceLevel();
-  if(mfaError||assurance?.currentLevel!=='aal2')
-    throw new CourtAccessError(403,'Complete administrator two-factor verification');
+  if(mfaError)throw new CourtAccessError(403,'Unable to verify administrator session');
 
   const service=serviceClient();
   const {data:membership,error:membershipError}=await service.from('daybridge_court_staff')
@@ -36,7 +36,7 @@ export async function requireCourtAdmin(courtId:string) {
   if(!membership)throw new CourtAccessError(403,'You are not assigned to this court');
 
   const {data:court,error:courtError}=await service.from('daybridge_courts')
-    .select('id,circuit_id,court_name,login_slug,seat_limit,enabled,is_demo,subscription_plan,subscription_status').eq('id',courtId).single();
+    .select('id,circuit_id,court_name,login_slug,seat_limit,enabled,is_demo,admin_mfa_required,subscription_plan,subscription_status').eq('id',courtId).single();
   if(courtError||!court||!court.enabled)
     throw new CourtAccessError(403,'Court unavailable');
 
@@ -46,5 +46,12 @@ export async function requireCourtAdmin(courtId:string) {
   const expected=circuit ? courtStaffAuthEmail(localPart,circuit.state_code,circuit.login_slug,court.login_slug):null;
   if(circuitError||!expected||user.email?.toLowerCase()!==expected)
     throw new CourtAccessError(403,'Administrator identity does not match the selected court');
+
+  // AAL1 is accepted only when the owner explicitly disabled MFA on a
+  // demonstration court. All non-demo courts always require AAL2.
+  const demoWithoutMfa=court.is_demo===true && court.admin_mfa_required===false;
+  if(assurance?.currentLevel!=='aal2'&&!(demoWithoutMfa&&assurance?.currentLevel==='aal1'))
+    throw new CourtAccessError(403,'Complete administrator two-factor verification');
+
   return {service,userId:user.id,court:court as Court,role:membership.role as string};
 }
