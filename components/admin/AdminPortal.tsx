@@ -66,6 +66,13 @@ export function AdminPortal(){
     return()=>{mounted=false;subscription.unsubscribe();};
   },[client]);
 
+  useEffect(()=>{
+    if(session==='signedout'){
+      setPortal(null);
+      setCredentials(null);
+    }
+  },[session]);
+
   const loadParticipants=useCallback(async()=>{
     if(!courtId)return;
     setMessage('');
@@ -241,7 +248,7 @@ export function AdminPortal(){
         </div>
       </section>}
 
-      {credentials&&<section role="status" className="mt-5 rounded-2xl border-2 border-teal-500 bg-white p-5">
+      {session==='signedin'&&credentials&&<section role="status" className="mt-5 rounded-2xl border-2 border-teal-500 bg-white p-5">
         <h2 className="font-extrabold text-teal-900">Temporary credentials — displayed once</h2>
         <p className="mt-2 text-sm text-slate-700">Share privately with the participant. Do not email, screenshot, or retain this password in a shared document.</p>
         <p className="mt-3 text-sm">Username: <strong className="font-mono">{credentials.username}</strong></p>
