@@ -38,7 +38,7 @@ export async function GET(request:Request){
     if(error)return fail('Unable to load court accounts',503);
     const participants=(data||[]) as {user_id:string;username:string;status:string;created_at:string}[];
     return NextResponse.json({
-      court:{id:court.id,name:court.court_name,is_demo:court.is_demo,seat_limit:court.seat_limit},
+      court:{id:court.id,name:court.court_name,is_demo:court.is_demo,seat_limit:court.seat_limit,subscription_plan:court.subscription_plan,subscription_status:court.subscription_status},
       participants,
       occupied_seats:participants.filter(p=>p.status!=='removed').length
     },{headers});
@@ -50,7 +50,9 @@ export async function POST(request:Request){
     const parsed=createInput.safeParse(await readPrivateJSON(request));
     if(!parsed.success)return fail('Enter a valid court and a 3–32 character username');
     const {court_id,username}=parsed.data;
-    const {service,userId}=await requireCourtAdmin(court_id);
+    const {service,userId,court}=await requireCourtAdmin(court_id);
+    if(!['pilot','active'].includes(court.subscription_status))
+      return fail('New accounts are unavailable for this court subscription',403);
     const email=usernameToAuthEmail(username);
     if(!email)return fail('Invalid participant username');
     // One-time secret is shown once in the secured admin response; never logged or stored here.

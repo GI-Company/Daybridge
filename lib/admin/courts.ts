@@ -2,7 +2,9 @@ import 'server-only';
 import {createClient, type SupabaseClient} from '@supabase/supabase-js';
 import {serverSupabase} from '../supabase/server';
 
-export type Court = {id:string;circuit_id:string;court_name:string;seat_limit:number;enabled:boolean;is_demo:boolean};
+import {courtStaffAuthEmail} from '../auth/court-staff';
+
+export type Court = {id:string;circuit_id:string;court_name:string;login_slug:string;seat_limit:number;enabled:boolean;is_demo:boolean;subscription_plan:string;subscription_status:string};
 export type CourtParticipant = {user_id:string;court_id:string;username:string;status:'active'|'suspended'|'removed';created_at:string};
 
 export function serviceClient():SupabaseClient {
@@ -34,9 +36,15 @@ export async function requireCourtAdmin(courtId:string) {
   if(!membership)throw new CourtAccessError(403,'You are not assigned to this court');
 
   const {data:court,error:courtError}=await service.from('daybridge_courts')
-    .select('id,circuit_id,court_name,seat_limit,enabled,is_demo').eq('id',courtId).single();
+    .select('id,circuit_id,court_name,login_slug,seat_limit,enabled,is_demo,subscription_plan,subscription_status').eq('id',courtId).single();
   if(courtError||!court||!court.enabled)
     throw new CourtAccessError(403,'Court unavailable');
 
+  const {data:circuit,error:circuitError}=await service.from('daybridge_judicial_circuits')
+    .select('state_code,login_slug').eq('id',court.circuit_id).single();
+  const localPart=user.email?.toLowerCase().split('@')[0]||'';
+  const expected=circuit ? courtStaffAuthEmail(localPart,circuit.state_code,circuit.login_slug,court.login_slug):null;
+  if(circuitError||!expected||user.email?.toLowerCase()!==expected)
+    throw new CourtAccessError(403,'Administrator identity does not match the selected court');
   return {service,userId:user.id,court:court as Court,role:membership.role as string};
 }

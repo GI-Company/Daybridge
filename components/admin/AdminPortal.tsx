@@ -2,11 +2,11 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {ArrowLeft,KeyRound,LockKeyhole,Plus,ShieldCheck,UserRound,Users,LogOut} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
-import {loginIdentifierToEmail} from '../../lib/auth/username';
+import {resolveCourtStaffLogin,courtStaffAuthEmail} from '../../lib/auth/court-staff';
 
-type ListedCourt={id:string;state_code:string;state_name:string;circuit_id:string;circuit_name:string;court_name:string};
+type ListedCourt={id:string;state_code:string;state_name:string;circuit_id:string;circuit_name:string;circuit_slug:string;court_name:string;court_slug:string};
 type CourtAccount={user_id:string;username:string;status:'active'|'suspended'|'removed';created_at:string};
-type PortalData={court:{id:string;name:string;is_demo:boolean;seat_limit:number};occupied_seats:number;participants:CourtAccount[]};
+type PortalData={court:{id:string;name:string;is_demo:boolean;seat_limit:number;subscription_plan:string;subscription_status:string};occupied_seats:number;participants:CourtAccount[]};
 type ApiError={error?:string};
 type TotpEnrollment={id:string;secret:string};
 
@@ -42,6 +42,9 @@ export function AdminPortal(){
   ).values()).sort((a,b)=>a.name.localeCompare(b.name));
   const availableCourts=courts.filter(c=>c.circuit_id===circuitId)
     .sort((a,b)=>a.court_name.localeCompare(b.court_name));
+  const selectedCourt=courts.find(c=>c.id===courtId);
+  const proposedEmail=selectedCourt ? resolveCourtStaffLogin(identifier,selectedCourt):null;
+  const domain=selectedCourt ? courtStaffAuthEmail('username',selectedCourt.state_code,selectedCourt.circuit_slug,selectedCourt.court_slug)?.split('@')[1]:null;
 
   useEffect(()=>{
     let mounted=true;
@@ -102,8 +105,8 @@ export function AdminPortal(){
   const login=async(event:React.FormEvent)=>{
     event.preventDefault();if(!client)return;
     setBusy(true);setMessage('');
-    const email=loginIdentifierToEmail(identifier);
-    if(!email){setMessage('Enter a valid administrator username or email.');setBusy(false);return;}
+    const email=selectedCourt ? resolveCourtStaffLogin(identifier,selectedCourt):null;
+    if(!email){setMessage('Enter the username assigned to this court; the full identity must match your state, circuit and court.');setBusy(false);return;}
     try{
       const {error}=await client.auth.signInWithPassword({email,password});
       if(error)setMessage('Username or password not recognized.');
@@ -228,10 +231,12 @@ export function AdminPortal(){
       {session==='loading'&&<p role="status" className="mt-6 text-sm">Checking administrator session…</p>}
       {session==='signedout'&&<section className="mt-5 max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 className="flex items-center gap-2 text-xl font-extrabold"><KeyRound className="h-5 w-5 text-teal-800"/>Court staff sign in</h2>
-        <p className="mt-2 text-sm text-slate-600">Authorized case managers and coordinators only. New staff must be assigned to a court by Global Intent Company.</p>
+        <p className="mt-2 text-sm text-slate-600">Authorized staff only. Select the state, judicial circuit and court associated with your assigned login.</p>
         <form onSubmit={e=>void login(e)} className="mt-5 space-y-4">
-          <label className="block text-sm font-semibold">Username or email
-            <input className={field} required autoCapitalize="none" autoComplete="username" value={identifier} onChange={e=>setIdentifier(e.target.value)}/>
+          <label className="block text-sm font-semibold">Staff username or full assigned court identity
+            <input className={field} required autoCapitalize="none" autoComplete="username" spellCheck={false} placeholder="admin" value={identifier} onChange={e=>setIdentifier(e.target.value)}/>
+            {domain&&<span className="mt-1 block text-xs font-normal text-slate-600">Court login suffix: @{domain}</span>}
+            {proposedEmail&&<span className="mt-1 block break-all text-xs font-normal text-teal-800">Supabase sign-in: {proposedEmail}</span>}
           </label>
           <label className="block text-sm font-semibold">Password
             <input className={field} type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/>
@@ -266,13 +271,13 @@ export function AdminPortal(){
             <label className="flex-1 text-sm font-semibold">Participant username
               <input className={field} required autoCapitalize="none" spellCheck={false} minLength={3} maxLength={32} pattern="[a-z][a-z0-9_-]{2,31}" placeholder="enotah-p001" value={username} onChange={e=>setUsername(e.target.value.toLowerCase())}/>
             </label>
-            <button className={primary} disabled={busy||portal.occupied_seats>=portal.court.seat_limit}>Create account</button>
+            <button className={primary} disabled={busy||portal.occupied_seats>=portal.court.seat_limit||!['pilot','active'].includes(portal.court.subscription_status)}>Create account</button>
           </form>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
           <h2 className="flex items-center gap-2 text-lg font-extrabold"><Users className="h-5 w-5 text-teal-800"/>{portal.court.name} accounts</h2>
-          <p className="mt-1 text-sm text-slate-600">Account administration only. This dashboard cannot read private schedules, medications, notes, finances, or attendance.</p>
+          <p className="mt-1 text-sm text-slate-600">Account administration only. This dashboard cannot read private schedules, medications, notes, finances, or attendance. Subscription: {portal.court.subscription_plan} ({portal.court.subscription_status}).</p>
           <div className="mt-5 divide-y divide-slate-100">
             {!portal.participants.length&&<p className="py-6 text-sm text-slate-600">No accounts assigned to this court yet.</p>}
             {portal.participants.map(p=><div key={p.user_id} className="flex flex-wrap items-center gap-3 py-4">
