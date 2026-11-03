@@ -38,7 +38,7 @@ export async function GET(request:Request){
     if(error)return fail('Unable to load court accounts',503);
     const participants=(data||[]) as {user_id:string;username:string;status:string;created_at:string}[];
     return NextResponse.json({
-      court:{id:court.id,name:court.circuit_name,state:court.state_name,seat_limit:court.seat_limit},
+      court:{id:court.id,name:court.court_name,is_demo:court.is_demo,seat_limit:court.seat_limit},
       participants,
       occupied_seats:participants.filter(p=>p.status!=='removed').length
     },{headers});
