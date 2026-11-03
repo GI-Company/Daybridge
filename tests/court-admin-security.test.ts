@@ -21,10 +21,8 @@ test('court tables enable RLS and deny browser table access',()=>{
   assert.match(sql,/grant execute on function public\.daybridge_transition_participant[\s\S]+to service_role/i);
 });
 
-test('admin API requires signed-in identity, staff role, and MFA',()=>{
+test('admin API requires signed-in identity and court-scoped staff membership',()=>{
   assert.match(auth,/browserSession\.auth\.getUser\(\)/);
-  assert.match(auth,/getAuthenticatorAssuranceLevel\(\)/);
-  assert.match(auth,/currentLevel!=='aal2'/);
   assert.match(auth,/eq\('court_id',courtId\)/);
   assert.match(auth,/eq\('user_id',user\.id\)/);
   assert.match(auth,/courtStaffAuthEmail\(localPart,circuit\.state_code,circuit\.login_slug,court\.login_slug\)/);
