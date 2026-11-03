@@ -45,7 +45,11 @@ export function AdminPortal(){
       if(!response.ok)throw new Error(body.error||'Court directory unavailable');
       const list=(body.courts||[]) as ListedCourt[];
       setCourts(list);
-      if(list.length){setStateCode(list[0].state_code);setCourtId(list[0].id);}
+      if(list.length){
+        const requestId=new URLSearchParams(window.location.search).get('court_id');
+        const initial=list.find(c=>c.id===requestId)||list[0];
+        setStateCode(initial.state_code);setCourtId(initial.id);
+      }
       else setDirectoryMessage('No judicial circuits have been activated for the portal.');
     }).catch(error=>{if(mounted)setDirectoryMessage(error instanceof Error?error.message:'Court directory unavailable');});
     if(!client){setSession('signedout');return()=>{mounted=false};}
