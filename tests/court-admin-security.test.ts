@@ -40,7 +40,7 @@ test('three-tier court hierarchy has unique parent keys and sample seed',()=>{
   assert.match(sql,/unique \(circuit_id, login_slug\)/);
   assert.match(sql,/unique \(circuit_id, court_name\)/);
   assert.match(sql,/values \('ZZ','Sample State'\)/);
-  assert.match(sql,/values \('ZZ','Sample Judicial Circuit'\)/);
+  assert.match(sql,/values \('ZZ','Sample Judicial Circuit','samplecircuit'\)/);
   assert.match(sql,/select c\.id, 'Sample Court','samplecourt',25,true,true,true/);
   assert.match(page,/name="state"/);
   assert.match(page,/name="judicial-circuit"/);
