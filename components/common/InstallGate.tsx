@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import {AdminPortalEntry} from '../admin/AdminPortalEntry';
 import {
   ArrowRight, CalendarDays, CheckCircle2, Clock3, Download,
   FileText, LockKeyhole, MapPinned, Pill, ShieldCheck, Smartphone,
@@ -276,6 +277,16 @@ export function InstallGate({ children }: { children: React.ReactNode }) {
         </p>
       </section>
 
+      <section id="daybridge-court-admin" aria-labelledby="daybridge-admin-title" className="border-t border-slate-200 bg-[#edf7f5] px-5 py-12 sm:px-8">
+        <div className="mx-auto max-w-6xl rounded-3xl border border-teal-200 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[.16em] text-teal-800">For authorized court staff</p>
+          <h2 id="daybridge-admin-title" className="mt-2 text-2xl font-extrabold text-slate-950">DayBridge Admin Portal</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+            Choose your state and judicial circuit, then sign in using your assigned staff account. Manage participant invitations, access and court seats without viewing personal records.
+          </p>
+          <AdminPortalEntry/>
+        </div>
+      </section>
       <footer className="border-t border-slate-200 bg-white px-5 py-6 text-center text-xs text-slate-600">
         DayBridge — Developed by Global Intent Company. Private access by invitation during early testing.
       </footer>
