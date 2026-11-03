@@ -5,6 +5,8 @@ import {Fingerprint,KeyRound,ShieldCheck} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
 import {SessionLock} from './SessionLock';
 import {DeviceLockSettings} from './DeviceLockSettings';
+import {ManagedAccountGate} from './ManagedAccountGate';
+import {FirstUsePasswordChange} from './FirstUsePasswordChange';
 import {loginIdentifierToEmail} from '../../lib/auth/username';
 
 export function SecureAppGate({children,backend}:{children:(id:string)=>React.ReactNode;backend?:SupabaseClient|null}){
@@ -53,7 +55,8 @@ export function SecureAppGate({children,backend}:{children:(id:string)=>React.Re
  },[client]);
  if(!client)return <main className="min-h-screen flex items-center justify-center bg-slate-50 p-5"><section className="max-w-md rounded-2xl border border-amber-300 bg-white p-6"><h1 className="font-bold text-slate-900">Private backend not configured</h1><p className="mt-2 text-sm text-slate-700">Configure the public Supabase project URL and publishable key in Vercel. No personal records are available until sign-in is configured.</p></section></main>;
  if(pending)return <main role="status" className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-700">Checking your private session…</main>;
- if(user)return <DeviceLockSettings key={user.id} userId={user.id}>{idleMilliseconds=><SessionLock key={user.id} idleMilliseconds={idleMilliseconds} userId={user.id} verify={async password=>{
+ if(user){
+ const workspace=<DeviceLockSettings key={user.id} userId={user.id}>{idleMilliseconds=><SessionLock key={user.id} idleMilliseconds={idleMilliseconds} userId={user.id} verify={async password=>{
   if(!user.email)return false;
   const {data,error}=await client.auth.signInWithPassword({email:user.email,password});
   return !error&&data.user?.id===user.id;
@@ -61,6 +64,11 @@ export function SecureAppGate({children,backend}:{children:(id:string)=>React.Re
   const {data,error}=await client.auth.signInWithPasskey();
   return !error&&data.user?.id===user.id;
  }:undefined}>{children(user.id)}</SessionLock>}</DeviceLockSettings>;
+ const screened=user.app_metadata?.daybridge_must_change_password===true
+  ? <FirstUsePasswordChange client={client}/>:workspace;
+ return user.app_metadata?.daybridge_managed===true
+  ? <ManagedAccountGate>{screened}</ManagedAccountGate>:screened;
+ }
  const login=async(e:React.FormEvent)=>{
   e.preventDefault();
   const email=loginIdentifierToEmail(username);
