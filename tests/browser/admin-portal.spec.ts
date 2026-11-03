@@ -27,6 +27,11 @@ async function fixture(page:Page){
  await page.goto('/map-test-internal?admin=test');await expect(page.getByRole('region',{name:'Selected court'})).toContainText('DayBridge STAR Court Test');
  return {participants,counts:()=>({creates,changes})};
 }
+async function accountAction(page:Page,name:string,username='participant001'){
+ const menu=page.getByLabel('Actions for '+username,{exact:true});
+ if(await menu.isVisible())await menu.click();
+ await page.getByRole('button',{name,exact:true}).click();
+}
 test('dashboard renders backend counts and supports account creation, search, credential handoff and activity',async({page},testInfo)=>{
  if(testInfo.project.name==='desktop')await page.setViewportSize({width:1672,height:950});
  const state=await fixture(page);await expect(page.getByText('Assigned seats',{exact:true})).toBeVisible();
@@ -46,14 +51,14 @@ test('dashboard renders backend counts and supports account creation, search, cr
 });
 test('participant actions require confirmation and update seats, status, credentials and audit',async({page})=>{
  const state=await fixture(page);
- await page.getByRole('button',{name:'Suspend participant001',exact:true}).click();
+ await accountAction(page,'Suspend participant001');
  const confirm=page.getByRole('dialog');await expect(confirm).toContainText('keeps the assigned seat');await confirm.getByRole('button',{name:'Cancel',exact:true}).click();expect(state.counts().changes).toBe(0);
- await page.getByRole('button',{name:'Suspend participant001',exact:true}).click();await confirm.getByRole('button',{name:'Confirm suspend account',exact:true}).click();await expect(page.getByRole('button',{name:'Restore participant001',exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Restore participant001',exact:true}).click();await confirm.getByRole('button',{name:'Confirm restore account',exact:true}).click();
- await page.getByRole('button',{name:'Reset password for participant001',exact:true}).click();await confirm.getByRole('button',{name:'Confirm reset password',exact:true}).click();
+ await accountAction(page,'Suspend participant001');await confirm.getByRole('button',{name:'Confirm suspend account',exact:true}).click();if(await page.getByRole('table').count())await expect(page.getByRole('row').filter({hasText:'participant001'})).toContainText('Suspended');else await expect(page.getByRole('article',{name:'Participant participant001',exact:true})).toContainText('Suspended');
+ await accountAction(page,'Restore participant001');await confirm.getByRole('button',{name:'Confirm restore account',exact:true}).click();
+ await accountAction(page,'Reset password for participant001');await confirm.getByRole('button',{name:'Confirm reset password',exact:true}).click();
  const credential=page.getByRole('status',{name:'Temporary credentials'});await expect(credential).toContainText('Temporary password issued');await credential.getByRole('button',{name:'Show temporary password'}).click();await expect(credential).toContainText('FictionalResetValue_456');
  await page.getByRole('navigation',{name:'Admin portal'}).getByRole('button',{name:'Participants',exact:true}).click();await expect(credential).toHaveCount(0);
- await page.getByRole('button',{name:'Remove participant001',exact:true}).click();await expect(confirm).toContainText('does not delete personal records');await confirm.getByRole('button',{name:'Confirm remove from court',exact:true}).click();
+ await accountAction(page,'Remove participant001');await expect(confirm).toContainText('does not delete personal records');await confirm.getByRole('button',{name:'Confirm remove from court',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Participants (2)'})).toBeVisible();await page.getByLabel('Participant status',{exact:true}).selectOption('removed');await expect(page.locator('tbody')).toContainText('participant001');expect(state.participants).toHaveLength(3);expect(state.counts().changes).toBe(4);
 });
 test('an expired session clears credentials and ignores a delayed privileged response',async({page})=>{
@@ -72,4 +77,16 @@ test('duplicate usernames show a real error without success credentials and secr
  const state=await fixture(page);await page.getByLabel('Participant username',{exact:false}).fill('participant001');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByText('Username is unavailable',{exact:true})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);expect(state.participants).toHaveLength(3);
  await page.getByLabel('Participant username',{exact:false}).fill('participant004');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByRole('status',{name:'Temporary credentials'})).toBeVisible();
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('synthetic-admin-auth',{detail:null})));await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);
+});
+
+test('narrow participant cards expose keyboard-accessible actions, clear filters and fit the viewport',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await fixture(page);
+ const cards=page.getByLabel('Participant cards',{exact:true});await expect(cards).toBeVisible();await expect(cards.getByRole('article')).toHaveCount(3);
+ await expect(page.getByRole('table')).toHaveCount(0);
+ const menu=page.getByLabel('Actions for participant001',{exact:true}),actions=page.getByRole('group',{name:'Account actions for participant001',exact:true});
+ await menu.focus();await menu.press('Enter');await expect(actions).toBeVisible();await page.keyboard.press('Escape');await expect(actions).toBeHidden();await expect(menu).toBeFocused();
+ await menu.click();await page.getByRole('heading',{name:'Participants (3)',exact:true}).click();await expect(actions).toBeHidden();
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await page.getByLabel('Search participants',{exact:true}).fill('no-match');await expect(page.getByText('No matching participants',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect(cards.getByRole('article')).toHaveCount(3);
+ await accountAction(page,'Remove participant001');await expect(page.getByRole('dialog')).toContainText('participant001');await page.getByRole('button',{name:'Cancel',exact:true}).click();await expect(menu).toBeFocused();
 });

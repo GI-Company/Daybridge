@@ -31,3 +31,12 @@ body:has(.daybridge-notes-viewport) {
   overflow: hidden;
   overscroll-behavior: none;
 }
+
+/* Keep the portal's controls consistent without changing participant app styles. */
+.daybridge-admin button { font-size:13px; line-height:20px; font-weight:600; }
+.daybridge-admin input, .daybridge-admin select { font-size:13px; line-height:20px; font-weight:400; }
+@media (max-width:767px) {
+  .daybridge-admin button { font-size:14px; }
+  /* A 16px field avoids focus zoom on iOS. */
+  .daybridge-admin input, .daybridge-admin select { font-size:16px; }
+}
