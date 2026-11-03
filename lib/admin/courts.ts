@@ -2,7 +2,7 @@ import 'server-only';
 import {createClient, type SupabaseClient} from '@supabase/supabase-js';
 import {serverSupabase} from '../supabase/server';
 
-export type Court = {id:string;state_code:string;state_name:string;circuit_name:string;seat_limit:number;enabled:boolean};
+export type Court = {id:string;circuit_id:string;court_name:string;seat_limit:number;enabled:boolean;is_demo:boolean};
 export type CourtParticipant = {user_id:string;court_id:string;username:string;status:'active'|'suspended'|'removed';created_at:string};
 
 export function serviceClient():SupabaseClient {
@@ -34,7 +34,7 @@ export async function requireCourtAdmin(courtId:string) {
   if(!membership)throw new CourtAccessError(403,'You are not assigned to this court');
 
   const {data:court,error:courtError}=await service.from('daybridge_courts')
-    .select('id,state_code,state_name,circuit_name,seat_limit,enabled').eq('id',courtId).single();
+    .select('id,circuit_id,court_name,seat_limit,enabled,is_demo').eq('id',courtId).single();
   if(courtError||!court||!court.enabled)
     throw new CourtAccessError(403,'Court unavailable');
 
