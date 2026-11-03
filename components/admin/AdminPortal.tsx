@@ -4,9 +4,9 @@ import {ArrowLeft,KeyRound,LockKeyhole,Plus,ShieldCheck,UserRound,Users,LogOut} 
 import {createClient} from '../../lib/supabase/client';
 import {loginIdentifierToEmail} from '../../lib/auth/username';
 
-type ListedCourt={id:string;state_code:string;state_name:string;circuit_name:string};
+type ListedCourt={id:string;state_code:string;state_name:string;circuit_id:string;circuit_name:string;court_name:string};
 type CourtAccount={user_id:string;username:string;status:'active'|'suspended'|'removed';created_at:string};
-type PortalData={court:{id:string;name:string;state:string;seat_limit:number};occupied_seats:number;participants:CourtAccount[]};
+type PortalData={court:{id:string;name:string;is_demo:boolean;seat_limit:number};occupied_seats:number;participants:CourtAccount[]};
 type ApiError={error?:string};
 type TotpEnrollment={id:string;secret:string};
 
@@ -18,6 +18,7 @@ export function AdminPortal(){
   const client=useMemo(()=>createClient(),[]);
   const [courts,setCourts]=useState<ListedCourt[]>([]);
   const [stateCode,setStateCode]=useState('');
+  const [circuitId,setCircuitId]=useState('');
   const [courtId,setCourtId]=useState('');
   const [session,setSession]=useState<'loading'|'signedout'|'signedin'>('loading');
   const [identifier,setIdentifier]=useState('');
@@ -35,7 +36,12 @@ export function AdminPortal(){
 
   const states=Array.from(new Map(courts.map(c=>[c.state_code,c.state_name])).entries())
     .map(([code,name])=>({code,name})).sort((a,b)=>a.name.localeCompare(b.name));
-  const circuits=courts.filter(c=>c.state_code===stateCode);
+  const circuits=Array.from(new Map(
+    courts.filter(c=>c.state_code===stateCode)
+      .map(c=>[c.circuit_id,{id:c.circuit_id,name:c.circuit_name}] as const)
+  ).values()).sort((a,b)=>a.name.localeCompare(b.name));
+  const availableCourts=courts.filter(c=>c.circuit_id===circuitId)
+    .sort((a,b)=>a.court_name.localeCompare(b.court_name));
 
   useEffect(()=>{
     let mounted=true;
@@ -48,9 +54,9 @@ export function AdminPortal(){
       if(list.length){
         const requestId=new URLSearchParams(window.location.search).get('court_id');
         const initial=list.find(c=>c.id===requestId)||list[0];
-        setStateCode(initial.state_code);setCourtId(initial.id);
+        setStateCode(initial.state_code);setCircuitId(initial.circuit_id);setCourtId(initial.id);
       }
-      else setDirectoryMessage('No judicial circuits have been activated for the portal.');
+      else setDirectoryMessage('No courts have been activated for the portal.');
     }).catch(error=>{if(mounted)setDirectoryMessage(error instanceof Error?error.message:'Court directory unavailable');});
     if(!client){setSession('signedout');return()=>{mounted=false};}
     void client.auth.getUser().then(({data})=>{
@@ -181,22 +187,38 @@ export function AdminPortal(){
         </div>
       </header>
 
-      <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-        <h2 className="text-lg font-bold">Select your court</h2>
-        <p className="mt-1 text-sm text-slate-600">Choose the state and judicial circuit assigned to your staff account. Selection never grants access by itself.</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <section aria-labelledby="daybridge-court-select-heading" className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+        <h2 id="daybridge-court-select-heading" className="text-lg font-bold">Select your court</h2>
+        <p className="mt-1 text-sm text-slate-600">Choose your state, then judicial circuit, then court. Your staff permissions are verified separately after sign-in.</p>
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
           <label className="text-sm font-semibold">State
-            <select className={field} value={stateCode} onChange={e=>{
-              const state=e.target.value;setStateCode(state);setCourtId(courts.find(c=>c.state_code===state)?.id||'');setPortal(null);setCredentials(null);
+            <select name="state" className={field} value={stateCode} onChange={e=>{
+              const state=e.target.value;
+              const next=courts.find(c=>c.state_code===state);
+              setStateCode(state);setCircuitId(next?.circuit_id||'');setCourtId(next?.id||'');
+              setPortal(null);setCredentials(null);
             }} disabled={!states.length}>
-              {!states.length&&<option value="">Not yet configured</option>}
+              {!states.length&&<option value="">Not configured</option>}
               {states.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}
             </select>
           </label>
           <label className="text-sm font-semibold">Judicial circuit
-            <select className={field} value={courtId} onChange={e=>{setCourtId(e.target.value);setPortal(null);setCredentials(null);}} disabled={!circuits.length}>
-              {!circuits.length&&<option value="">No available circuits</option>}
-              {circuits.map(c=><option key={c.id} value={c.id}>{c.circuit_name}</option>)}
+            <select name="judicial-circuit" className={field} value={circuitId} onChange={e=>{
+              const circuit=e.target.value;
+              const next=courts.find(c=>c.circuit_id===circuit);
+              setCircuitId(circuit);setCourtId(next?.id||'');
+              setPortal(null);setCredentials(null);
+            }} disabled={!circuits.length}>
+              {!circuits.length&&<option value="">Choose a state</option>}
+              {circuits.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-semibold">Court
+            <select name="court" className={field} value={courtId} onChange={e=>{
+              setCourtId(e.target.value);setPortal(null);setCredentials(null);
+            }} disabled={!availableCourts.length}>
+              {!availableCourts.length&&<option value="">Choose a judicial circuit</option>}
+              {availableCourts.map(c=><option key={c.id} value={c.id}>{c.court_name}</option>)}
             </select>
           </label>
         </div>
@@ -238,7 +260,7 @@ export function AdminPortal(){
           <div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-600">Available</p><p className="mt-1 text-3xl font-bold">{Math.max(0,portal.court.seat_limit-portal.occupied_seats)}</p></div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-6">
-          <h2 className="flex items-center gap-2 text-lg font-extrabold"><Plus className="h-5 w-5 text-teal-800"/>Create participant account</h2>
+          <h2 className="flex items-center gap-2 text-lg font-extrabold"><Plus className="h-5 w-5 text-teal-800"/>Create {portal.court.is_demo?'sample':'participant'} account</h2>
           <p className="mt-2 text-sm text-slate-600">A strong temporary password is generated for you and shown only once. Give it to the participant privately; they must choose a new password at first sign-in. Usernames must be unique across DayBridge.</p>
           <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={e=>void createParticipant(e)}>
             <label className="flex-1 text-sm font-semibold">Participant username
@@ -249,7 +271,7 @@ export function AdminPortal(){
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
-          <h2 className="flex items-center gap-2 text-lg font-extrabold"><Users className="h-5 w-5 text-teal-800"/>Participant accounts</h2>
+          <h2 className="flex items-center gap-2 text-lg font-extrabold"><Users className="h-5 w-5 text-teal-800"/>{portal.court.name} accounts</h2>
           <p className="mt-1 text-sm text-slate-600">Account administration only. This dashboard cannot read private schedules, medications, notes, finances, or attendance.</p>
           <div className="mt-5 divide-y divide-slate-100">
             {!portal.participants.length&&<p className="py-6 text-sm text-slate-600">No accounts assigned to this court yet.</p>}
