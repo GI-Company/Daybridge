@@ -276,19 +276,13 @@ export function InstallGate({ children }: { children: React.ReactNode }) {
         </p>
       </section>
 
-      <nav aria-label="Court staff" className="border-t border-slate-200 bg-[#edf7f5] px-5 py-8 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 rounded-2xl border border-teal-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-          <div>
-            <h2 className="text-lg font-extrabold text-slate-950">For court administrators</h2>
-            <p className="mt-1 text-sm text-slate-700">Authorized program staff can manage sponsored participant accounts in the DayBridge Admin Portal.</p>
-          </div>
-          <a href="/admin" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-3 text-sm font-bold text-white hover:bg-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
-            Admin Portal <ArrowRight aria-hidden="true" className="h-4 w-4"/>
-          </a>
-        </div>
-      </nav>
       <footer className="border-t border-slate-200 bg-white px-5 py-6 text-center text-xs text-slate-600">
-        DayBridge — Developed by Global Intent Company. Private access by invitation during early testing.
+        <nav aria-label="Court staff access" className="mx-auto mb-4 flex max-w-6xl justify-center">
+          <a href="/admin" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-teal-200 px-4 py-2 text-sm font-semibold text-teal-900 transition hover:bg-teal-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+            Court Admin Portal <ArrowRight aria-hidden="true" className="h-4 w-4"/>
+          </a>
+        </nav>
+        <p>DayBridge — Developed by Global Intent Company. Private access by invitation during early testing.</p>
       </footer>
     </main>
   );
