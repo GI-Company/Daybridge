@@ -1,0 +1,75 @@
+import {test,expect,type Page} from '@playwright/test';
+const court='da730f6c-165a-4af2-b135-4fc06993e46b',second='a724d697-7304-4763-aa96-09f62c2a5824';
+const directory=[{id:court,state_code:'GA',state_name:'Georgia',circuit_id:'synthetic-enotah',circuit_name:'Enotah Judicial Circuit',circuit_slug:'enotah',court_name:'DayBridge STAR Court Test',court_slug:'starcourt'},{id:second,state_code:'GA',state_name:'Georgia',circuit_id:'synthetic-enotah',circuit_name:'Enotah Judicial Circuit',circuit_slug:'enotah',court_name:'Other Test Court',court_slug:'other'}];
+async function fixture(page:Page){
+ const participants=[{user_id:'synthetic-one',username:'participant001',status:'active',created_at:'2026-11-01T14:24:00Z',created_by_label:'You'},{user_id:'synthetic-two',username:'participant002',status:'active',created_at:'2026-11-01T13:00:00Z',created_by_label:'Court staff'},{user_id:'synthetic-three',username:'participant003',status:'suspended',created_at:'2026-11-01T12:00:00Z',created_by_label:'You'}];
+ const activity:Array<{id:string;action:string;username:string;actor_label:string;created_at:string}>=[];
+ let creates=0,changes=0;
+ await page.route('**/api/admin/courts',route=>route.fulfill({json:{courts:directory}}));
+ await page.route('**/api/admin/activity?*',route=>route.fulfill({json:{entries:activity,nextCursor:null}}));
+ await page.route('**/api/admin/participants**',async route=>{
+  const request=route.request();
+  if(request.method()==='GET'){
+   if(new URL(request.url()).searchParams.get('court_id')!==court)return route.fulfill({status:403,json:{error:'You are not assigned to this court'}});
+   return route.fulfill({json:{court:{id:court,name:'DayBridge STAR Court Test',is_demo:true,seat_limit:25,subscription_plan:'pilot',subscription_status:'pilot'},participants,occupied_seats:participants.filter(p=>p.status!=='removed').length,administrator:{username:'manager',role:'coordinator'}}});
+  }
+  const input=request.postDataJSON();
+  if(request.method()==='POST'){
+   creates++;if(participants.some(p=>p.username===input.username))return route.fulfill({status:409,json:{error:'Username is unavailable'}});
+   participants.push({user_id:'synthetic-new',username:input.username,status:'active',created_at:'2026-11-03T12:00:00Z',created_by_label:'You'});activity.unshift({id:'audit-created',action:'participant_created',username:input.username,actor_label:'You',created_at:'2026-11-03T12:00:00Z'});
+   return route.fulfill({status:201,json:{username:input.username,temporaryPassword:'FictionalOneTimeValue_123'}});
+  }
+  changes++;const account=participants.find(p=>p.user_id===input.user_id)!;
+  if(input.action!=='reset')account.status=input.action==='restore'?'active':input.action==='remove'?'removed':'suspended';
+  activity.unshift({id:'audit-'+changes,action:'participant_'+(input.action==='reset'?'password_reset':input.action),username:account.username,actor_label:'You',created_at:'2026-11-03T13:00:00Z'});
+  return route.fulfill({json:input.action==='reset'?{temporaryPassword:'FictionalResetValue_456'}:{status:account.status}});
+ });
+ await page.goto('/map-test-internal?admin=test');await expect(page.getByRole('region',{name:'Selected court'})).toContainText('DayBridge STAR Court Test');
+ return {participants,counts:()=>({creates,changes})};
+}
+test('dashboard renders backend counts and supports account creation, search, credential handoff and activity',async({page},testInfo)=>{
+ if(testInfo.project.name==='desktop')await page.setViewportSize({width:1672,height:950});
+ const state=await fixture(page);await expect(page.getByText('Assigned seats',{exact:true})).toBeVisible();
+ await page.screenshot({path:'/tmp/daybridge-admin-'+testInfo.project.name+'.png',fullPage:true});
+ await expect(page.getByRole('heading',{name:'Participants (3)'})).toBeVisible();
+ await page.getByLabel('Participant username',{exact:false}).fill('participant004');
+ await expect(page.getByLabel('Internal Auth alias (preview)')).toHaveValue('participant004@accounts.daybridge.example.com');
+ await page.getByRole('button',{name:'Create account',exact:true}).click();
+ const credentials=page.getByRole('status',{name:'Temporary credentials'});await expect(credentials).toContainText('Account created successfully');
+ await credentials.getByRole('button',{name:'Show temporary password'}).click();await expect(credentials).toContainText('FictionalOneTimeValue_123');
+ await expect(page.getByRole('heading',{name:'Participants (4)'})).toBeVisible();expect(state.counts().creates).toBe(1);
+ await page.getByLabel('Search participants',{exact:true}).fill('participant004');await expect(page.locator('tbody tr')).toHaveCount(1);
+ await credentials.getByRole('button',{name:'Dismiss credentials'}).click();await expect(credentials).toHaveCount(0);
+ await page.getByRole('navigation',{name:'Admin portal'}).getByRole('button',{name:'Activity',exact:true}).click();
+ await expect(page.getByText('Account created',{exact:false})).toBeVisible();await expect(page.getByText('participant004',{exact:false})).toBeVisible();
+ await page.getByRole('navigation',{name:'Admin portal'}).getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Court & subscription'})).toBeVisible();await expect(page.getByRole('heading',{name:'Change password'})).toBeVisible();
+});
+test('participant actions require confirmation and update seats, status, credentials and audit',async({page})=>{
+ const state=await fixture(page);
+ await page.getByRole('button',{name:'Suspend participant001',exact:true}).click();
+ const confirm=page.getByRole('dialog');await expect(confirm).toContainText('keeps the assigned seat');await confirm.getByRole('button',{name:'Cancel',exact:true}).click();expect(state.counts().changes).toBe(0);
+ await page.getByRole('button',{name:'Suspend participant001',exact:true}).click();await confirm.getByRole('button',{name:'Confirm suspend account',exact:true}).click();await expect(page.getByRole('button',{name:'Restore participant001',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Restore participant001',exact:true}).click();await confirm.getByRole('button',{name:'Confirm restore account',exact:true}).click();
+ await page.getByRole('button',{name:'Reset password for participant001',exact:true}).click();await confirm.getByRole('button',{name:'Confirm reset password',exact:true}).click();
+ const credential=page.getByRole('status',{name:'Temporary credentials'});await expect(credential).toContainText('Temporary password issued');await credential.getByRole('button',{name:'Show temporary password'}).click();await expect(credential).toContainText('FictionalResetValue_456');
+ await page.getByRole('navigation',{name:'Admin portal'}).getByRole('button',{name:'Participants',exact:true}).click();await expect(credential).toHaveCount(0);
+ await page.getByRole('button',{name:'Remove participant001',exact:true}).click();await expect(confirm).toContainText('does not delete personal records');await confirm.getByRole('button',{name:'Confirm remove from court',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Participants (2)'})).toBeVisible();await page.getByLabel('Participant status',{exact:true}).selectOption('removed');await expect(page.locator('tbody')).toContainText('participant001');expect(state.participants).toHaveLength(3);expect(state.counts().changes).toBe(4);
+});
+test('an expired session clears credentials and ignores a delayed privileged response',async({page})=>{
+ await fixture(page);await page.getByLabel('Participant username',{exact:false}).fill('participant004');
+ let release:()=>void=()=>{};let received:()=>void=()=>{};const wait=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{received=resolve;});
+ await page.route('**/api/admin/participants',async route=>{received();await wait;await route.fulfill({status:201,json:{username:'participant004',temporaryPassword:'FictionalDelayedValue'}});});
+ await page.getByRole('button',{name:'Create account',exact:true}).click();await started;
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('synthetic-admin-auth',{detail:null})));release();
+ await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);await expect(page.getByText('FictionalDelayedValue')).toHaveCount(0);await expect(page.locator('tbody')).toHaveCount(0);
+});
+test('switching to an unauthorized court clears the previous court and shows denial',async({page})=>{
+ await fixture(page);await page.getByRole('button',{name:'Change court',exact:true}).click();await page.getByRole('combobox',{name:'Court',exact:true}).selectOption(second);await expect(page.getByRole('alert').filter({hasText:'You are not assigned'})).toContainText('You are not assigned to this court');await expect(page.locator('tbody')).toHaveCount(0);await expect(page.getByLabel('Participant username',{exact:false})).toHaveCount(0);
+});
+
+test('duplicate usernames show a real error without success credentials and secrets clear on session end',async({page})=>{
+ const state=await fixture(page);await page.getByLabel('Participant username',{exact:false}).fill('participant001');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByText('Username is unavailable',{exact:true})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);expect(state.participants).toHaveLength(3);
+ await page.getByLabel('Participant username',{exact:false}).fill('participant004');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByRole('status',{name:'Temporary credentials'})).toBeVisible();
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('synthetic-admin-auth',{detail:null})));await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);
+});

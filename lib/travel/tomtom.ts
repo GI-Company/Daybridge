@@ -18,8 +18,11 @@ export type RouteInput=z.infer<typeof routeInput>;
 export type RouteOption={durationSeconds:number;delaySeconds:number;distanceMeters:number;historicSeconds:number|null;points:Coordinates[];departureTime?:string;arrivalTime?:string;instructions?:string[]};
 export type RouteResult={basis:'live'|'historical'|'estimated';routes:RouteOption[];checkedAt:string;trafficAvailable?:boolean};
 export class TomTomRoutingError extends Error {
- constructor(readonly status:number|null,readonly category:'http'|'network'|'timeout'|'response'='http') {
+ readonly status:number|null;
+ readonly category:'http'|'network'|'timeout'|'response';
+ constructor(status:number|null,category:'http'|'network'|'timeout'|'response'='http') {
   super('TomTom route request failed');
+  this.status=status;this.category=category;
  }
 }
 const cache=new Map<string,{expires:number,value:RouteResult}>();

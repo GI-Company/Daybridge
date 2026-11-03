@@ -41,5 +41,5 @@ export async function requireCourtAdmin(courtId:string) {
   const expected=circuit ? courtStaffAuthEmail(localPart,circuit.state_code,circuit.login_slug,court.login_slug):null;
   if(circuitError||!expected||user.email?.toLowerCase()!==expected)
     throw new CourtAccessError(403,'Administrator identity does not match the selected court');
-  return {service,userId:user.id,court:court as Court,role:membership.role as string};
+  return {service,userId:user.id,court:court as Court,role:membership.role as string,administratorUsername:localPart};
 }

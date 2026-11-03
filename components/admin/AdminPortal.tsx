@@ -1,263 +1,122 @@
 'use client';
-import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {ArrowLeft,KeyRound,LockKeyhole,Plus,ShieldCheck,UserRound,Users,LogOut} from 'lucide-react';
+import Link from 'next/link';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import type {SupabaseClient} from '@supabase/supabase-js';
+import {Activity,Building2,ChevronDown,ClipboardList,KeyRound,LayoutDashboard,LockKeyhole,LogOut,Plus,RefreshCw,Settings,ShieldCheck,UserRound,Users} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
 import {resolveCourtStaffLogin,courtStaffAuthEmail} from '../../lib/auth/court-staff';
+import {auditActionLabels,type AuditEntry,type AuditPage,type CourtAccount,type ListedCourt,type PortalData,type PortalTab} from '../../lib/admin/portal-types';
+import {CreateAccountPanel,CredentialCard,ParticipantsTable,SeatCards,SignInGuide,field,panel,primary,secondary,type AccountAction,type Credentials} from './PortalPanels';
+import {ChangePasswordCard} from '../common/ChangePasswordCard';
+const navigation=[{id:'overview',label:'Overview',Icon:LayoutDashboard},{id:'participants',label:'Participants',Icon:Users},{id:'create',label:'Create Account',Icon:Plus},{id:'resets',label:'Credential Resets',Icon:RefreshCw},{id:'activity',label:'Activity',Icon:Activity},{id:'settings',label:'Settings',Icon:Settings}] as const;
+const descriptions:Record<PortalTab,string>={overview:'Manage participant accounts and access for your court.',participants:'Search and manage the accounts assigned to your court.',create:'Create secure DayBridge credentials for a new participant.',resets:'Issue temporary credentials after verifying participant identity.',activity:'Review account administration events for your court.',settings:'Review your court, subscription, and administrator access.'};
+const actionTitles:Record<AccountAction,string>={reset:'Reset password',suspend:'Suspend account',restore:'Restore account',remove:'Remove from court'};
+const actionDetails:Record<AccountAction,string>={reset:'The old password will stop working. A new temporary password will be displayed once, and the participant must change it at their next sign-in. Verify their identity before continuing.',suspend:'This disables new sign-ins and keeps the assigned seat. Personal records remain intact. Existing tokens may remain valid until expiry.',restore:'This enables sign-in again. Restoring a removed account requires an available licensed seat.',remove:'This disables new sign-ins and frees the licensed seat. It does not delete personal records. You can restore the court assignment later if a seat is available.'};
 
-type ListedCourt={id:string;state_code:string;state_name:string;circuit_id:string;circuit_name:string;circuit_slug:string;court_name:string;court_slug:string};
-type CourtAccount={user_id:string;username:string;status:'active'|'suspended'|'removed';created_at:string};
-type PortalData={court:{id:string;name:string;is_demo:boolean;seat_limit:number;subscription_plan:string;subscription_status:string};occupied_seats:number;participants:CourtAccount[]};
-type ApiError={error?:string};
+function ActionDialog({account,action,busy,onCancel,onConfirm}:{account:CourtAccount;action:AccountAction;busy:boolean;onCancel:()=>void;onConfirm:()=>void}){
+ const dialog=useRef<HTMLDialogElement>(null);
+ useEffect(()=>{const element=dialog.current;element?.showModal();return()=>{element?.close();};},[]);
+ return <dialog ref={dialog} aria-labelledby="action-title" onCancel={event=>{event.preventDefault();if(!busy)onCancel();}} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/50"><h2 id="action-title" className="text-xl font-extrabold">{actionTitles[action]}</h2><p className="mt-2 break-all font-semibold text-teal-800">{account.username}</p><p className="mt-3 text-sm leading-6 text-slate-600">{actionDetails[action]}</p><div className="mt-6 flex justify-end gap-2"><button type="button" autoFocus disabled={busy} className={secondary} onClick={onCancel}>Cancel</button><button type="button" disabled={busy} className={primary} onClick={onConfirm}>{busy?'Working…':'Confirm '+actionTitles[action].toLowerCase()}</button></div></dialog>;
+}
 
-const field='mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100';
-const primary='rounded-xl bg-teal-800 px-5 py-3 font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50';
-const secondary='rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50';
-
-export function AdminPortal(){
-  const client=useMemo(()=>createClient(),[]);
-  const [courts,setCourts]=useState<ListedCourt[]>([]);
-  const [stateCode,setStateCode]=useState('');
-  const [circuitId,setCircuitId]=useState('');
-  const [courtId,setCourtId]=useState('');
-  const [session,setSession]=useState<'loading'|'signedout'|'signedin'>('loading');
-  const [identifier,setIdentifier]=useState('');
-  const [password,setPassword]=useState('');
-  const [username,setUsername]=useState('');
-  const [portal,setPortal]=useState<PortalData|null>(null);
-  const [credentials,setCredentials]=useState<{username:string;temporaryPassword:string}|null>(null);
-  const [message,setMessage]=useState('');
-  const [busy,setBusy]=useState(false);
-  const [directoryMessage,setDirectoryMessage]=useState('');
-
-  const states=Array.from(new Map(courts.map(c=>[c.state_code,c.state_name])).entries())
-    .map(([code,name])=>({code,name})).sort((a,b)=>a.name.localeCompare(b.name));
-  const circuits=Array.from(new Map(
-    courts.filter(c=>c.state_code===stateCode)
-      .map(c=>[c.circuit_id,{id:c.circuit_id,name:c.circuit_name}] as const)
-  ).values()).sort((a,b)=>a.name.localeCompare(b.name));
-  const availableCourts=courts.filter(c=>c.circuit_id===circuitId)
-    .sort((a,b)=>a.court_name.localeCompare(b.court_name));
-  const selectedCourt=courts.find(c=>c.id===courtId);
-  const proposedEmail=selectedCourt ? resolveCourtStaffLogin(identifier,selectedCourt):null;
-  const domain=selectedCourt ? courtStaffAuthEmail('username',selectedCourt.state_code,selectedCourt.circuit_slug,selectedCourt.court_slug)?.split('@')[1]:null;
-
-  useEffect(()=>{
-    let mounted=true;
-    fetch('/api/admin/courts',{cache:'no-store'}).then(async response=>{
-      const body=await response.json();
-      if(!mounted)return;
-      if(!response.ok)throw new Error(body.error||'Court directory unavailable');
-      const list=(body.courts||[]) as ListedCourt[];
-      setCourts(list);
-      if(list.length){
-        const requestId=new URLSearchParams(window.location.search).get('court_id');
-        const initial=list.find(c=>c.id===requestId)||list[0];
-        setStateCode(initial.state_code);setCircuitId(initial.circuit_id);setCourtId(initial.id);
-      }
-      else setDirectoryMessage('No courts have been activated for the portal.');
-    }).catch(error=>{if(mounted)setDirectoryMessage(error instanceof Error?error.message:'Court directory unavailable');});
-    if(!client){setSession('signedout');return()=>{mounted=false};}
-    void client.auth.getUser().then(({data})=>{
-      if(mounted)setSession(data.user?'signedin':'signedout');
-    }).catch(()=>{if(mounted)setSession('signedout');});
-    const {data:{subscription}}=client.auth.onAuthStateChange((_event,authSession)=>{
-      if(mounted)setSession(authSession?.user?'signedin':'signedout');
-    });
-    return()=>{mounted=false;subscription.unsubscribe();};
-  },[client]);
-
-  useEffect(()=>{
-    if(session==='signedout'){
-      setPortal(null);
-      setCredentials(null);
-    }
-  },[session]);
-
-  const loadParticipants=useCallback(async()=>{
-    if(!courtId)return;
-    setMessage('');
-    setPortal(null);
-    try{
-      const response=await fetch('/api/admin/participants?court_id='+encodeURIComponent(courtId),{cache:'no-store'});
-      const data=await response.json();
-      if(!response.ok)throw new Error((data as ApiError).error||'Court access denied');
-      setPortal(data as PortalData);
-    }catch(error){setMessage(error instanceof Error?error.message:'Court access unavailable');}
-  },[courtId]);
-
-  useEffect(()=>{
-    if(session==='signedin')void loadParticipants();
-  },[session,loadParticipants]);
-
-  const login=async(event:React.FormEvent)=>{
-    event.preventDefault();if(!client)return;
-    setBusy(true);setMessage('');
-    const email=selectedCourt ? resolveCourtStaffLogin(identifier,selectedCourt):null;
-    if(!email){setMessage('Enter the username assigned to this court; the full identity must match your state, circuit and court.');setBusy(false);return;}
-    try{
-      const {error}=await client.auth.signInWithPassword({email,password});
-      if(error)setMessage('Username or password not recognized.');
-      else setSession('signedin');
-    }catch{setMessage('Authentication is temporarily unavailable.');}
-    finally{setPassword('');setBusy(false);}
-  };
-
-  const createParticipant=async(event:React.FormEvent)=>{
-    event.preventDefault();if(!courtId||!username)return;
-    setBusy(true);setMessage('');setCredentials(null);
-    try{
-      const response=await fetch('/api/admin/participants',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({court_id:courtId,username:username.trim().toLowerCase()})
-      });
-      const body=await response.json();
-      if(!response.ok)throw new Error(body.error||'Could not create account');
-      setCredentials({username:body.username,temporaryPassword:body.temporaryPassword});
-      setUsername('');await loadParticipants();
-    }catch(e){setMessage(e instanceof Error?e.message:'Could not create account');}
-    finally{setBusy(false);}
-  };
-
-  const changeParticipant=async(account:CourtAccount,action:'suspend'|'restore'|'remove'|'reset')=>{
-    if(action==='remove'&&!window.confirm('Remove this account from the court subscription? This disables sign-in and frees the seat, but does not erase the participant’s personal records.'))return;
-    if(action==='reset'&&!window.confirm('Issue a new temporary password? The old password will stop working.'))return;
-    setBusy(true);setMessage('');setCredentials(null);
-    try{
-      const response=await fetch('/api/admin/participants',{
-        method:'PATCH',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({court_id:courtId,user_id:account.user_id,action})
-      });
-      const body=await response.json();
-      if(!response.ok)throw new Error(body.error||'Account update failed');
-      if(action==='reset')setCredentials({username:account.username,temporaryPassword:body.temporaryPassword});
-      await loadParticipants();
-    }catch(e){setMessage(e instanceof Error?e.message:'Account update failed');}
-    finally{setBusy(false);}
-  };
-
-  const logout=async()=>{
-    if(client)await client.auth.signOut();
-    setSession('signedout');setMessage('');setPortal(null);setCredentials(null);
-  };
-
-  return <main className="min-h-screen bg-[#f6faf9] px-4 py-8 text-slate-900 sm:px-8">
-    <div className="mx-auto max-w-5xl">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="rounded-2xl bg-teal-800 p-3 text-white"><ShieldCheck className="h-6 w-6"/></span>
-          <div><h1 className="text-2xl font-extrabold">DayBridge Admin Portal</h1>
-          <p className="text-sm text-slate-600">Court-sponsored participant access</p></div>
-        </div>
-        <div className="flex items-center gap-3">
-          {session==='signedin'&&<button className={secondary} type="button" onClick={()=>void logout()}><LogOut className="mr-2 inline h-4 w-4"/>Sign out</button>}
-          <a href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-teal-900 hover:underline"><ArrowLeft className="h-4 w-4"/>DayBridge home</a>
-        </div>
-      </header>
-
-      <section aria-labelledby="daybridge-court-select-heading" className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-        <h2 id="daybridge-court-select-heading" className="text-lg font-bold">Select your court</h2>
-        <p className="mt-1 text-sm text-slate-600">Choose your state, then judicial circuit, then court. Your staff permissions are verified separately after sign-in.</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <label className="text-sm font-semibold">State
-            <select name="state" className={field} value={stateCode} onChange={e=>{
-              const state=e.target.value;
-              const next=courts.find(c=>c.state_code===state);
-              setStateCode(state);setCircuitId(next?.circuit_id||'');setCourtId(next?.id||'');
-              setPortal(null);setCredentials(null);
-            }} disabled={!states.length}>
-              {!states.length&&<option value="">Not configured</option>}
-              {states.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-semibold">Judicial circuit
-            <select name="judicial-circuit" className={field} value={circuitId} onChange={e=>{
-              const circuit=e.target.value;
-              const next=courts.find(c=>c.circuit_id===circuit);
-              setCircuitId(circuit);setCourtId(next?.id||'');
-              setPortal(null);setCredentials(null);
-            }} disabled={!circuits.length}>
-              {!circuits.length&&<option value="">Choose a state</option>}
-              {circuits.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-semibold">Court
-            <select name="court" className={field} value={courtId} onChange={e=>{
-              setCourtId(e.target.value);setPortal(null);setCredentials(null);
-            }} disabled={!availableCourts.length}>
-              {!availableCourts.length&&<option value="">Choose a judicial circuit</option>}
-              {availableCourts.map(c=><option key={c.id} value={c.id}>{c.court_name}</option>)}
-            </select>
-          </label>
-        </div>
-        {directoryMessage&&<p role="status" className="mt-3 text-sm text-amber-800">{directoryMessage}</p>}
-      </section>
-
-      {session==='loading'&&<p role="status" className="mt-6 text-sm">Checking administrator session…</p>}
-      {session==='signedout'&&<section className="mt-5 max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h2 className="flex items-center gap-2 text-xl font-extrabold"><KeyRound className="h-5 w-5 text-teal-800"/>Court staff sign in</h2>
-        <p className="mt-2 text-sm text-slate-600">Authorized staff only. Select the state, judicial circuit and court associated with your assigned login.</p>
-        <form onSubmit={e=>void login(e)} className="mt-5 space-y-4">
-          <label className="block text-sm font-semibold">Staff username or full assigned court identity
-            <input className={field} required autoCapitalize="none" autoComplete="username" spellCheck={false} placeholder="admin" value={identifier} onChange={e=>setIdentifier(e.target.value)}/>
-            {domain&&<span className="mt-1 block text-xs font-normal text-slate-600">Court login suffix: @{domain}</span>}
-            {proposedEmail&&<span className="mt-1 block break-all text-xs font-normal text-teal-800">Supabase sign-in: {proposedEmail}</span>}
-          </label>
-          <label className="block text-sm font-semibold">Password
-            <input className={field} type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/>
-          </label>
-          <button type="submit" disabled={busy||!courtId||!client} className={primary+' w-full'}><LockKeyhole className="mr-2 inline h-4 w-4"/>Sign in securely</button>
-        </form>
-      </section>}
-
-      {session==='signedin'&&portal&&<section className="mt-5 space-y-5">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-600">Licensed seats</p><p className="mt-1 text-3xl font-bold">{portal.court.seat_limit}</p></div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-600">Assigned seats</p><p className="mt-1 text-3xl font-bold">{portal.occupied_seats}</p></div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-600">Available</p><p className="mt-1 text-3xl font-bold">{Math.max(0,portal.court.seat_limit-portal.occupied_seats)}</p></div>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-6">
-          <h2 className="flex items-center gap-2 text-lg font-extrabold"><Plus className="h-5 w-5 text-teal-800"/>Create {portal.court.is_demo?'sample':'participant'} account</h2>
-          <p className="mt-2 text-sm text-slate-600">A strong temporary password is generated for you and shown only once. Give it to the participant privately; they must choose a new password at first sign-in. Usernames must be unique across DayBridge.</p>
-          <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={e=>void createParticipant(e)}>
-            <label className="flex-1 text-sm font-semibold">Participant username
-              <input className={field} required autoCapitalize="none" spellCheck={false} minLength={3} maxLength={32} pattern="[a-z][a-z0-9_-]{2,31}" placeholder="enotah-p001" value={username} onChange={e=>setUsername(e.target.value.toLowerCase())}/>
-            </label>
-            <button className={primary} disabled={busy||portal.occupied_seats>=portal.court.seat_limit||!['pilot','active'].includes(portal.court.subscription_status)}>Create account</button>
-          </form>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6">
-          <h2 className="flex items-center gap-2 text-lg font-extrabold"><Users className="h-5 w-5 text-teal-800"/>{portal.court.name} accounts</h2>
-          <p className="mt-1 text-sm text-slate-600">Account administration only. This dashboard cannot read private schedules, medications, notes, finances, or attendance. Subscription: {portal.court.subscription_plan} ({portal.court.subscription_status}).</p>
-          <div className="mt-5 divide-y divide-slate-100">
-            {!portal.participants.length&&<p className="py-6 text-sm text-slate-600">No accounts assigned to this court yet.</p>}
-            {portal.participants.map(p=><div key={p.user_id} className="flex flex-wrap items-center gap-3 py-4">
-              <span className="rounded-xl bg-slate-100 p-3 text-slate-600"><UserRound className="h-4 w-4"/></span>
-              <div className="min-w-0 flex-1"><p className="break-all text-sm font-bold">{p.username}</p><p className="text-xs capitalize text-slate-600">{p.status}</p></div>
-              <div className="flex flex-wrap gap-2">
-                {p.status==='active'&&<>
-                  <button disabled={busy} className={secondary+' text-xs'} onClick={()=>void changeParticipant(p,'reset')}>Reset password</button>
-                  <button disabled={busy} className={secondary+' text-xs'} onClick={()=>void changeParticipant(p,'suspend')}>Suspend</button>
-                </>}
-                {p.status!=='active'&&<button disabled={busy} className={secondary+' text-xs'} onClick={()=>void changeParticipant(p,'restore')}>Restore</button>}
-                {p.status!=='removed'&&<button disabled={busy} className={secondary+' text-xs'} onClick={()=>void changeParticipant(p,'remove')}>Remove from court</button>}
-              </div>
-            </div>)}
-          </div>
-          <p className="mt-4 text-xs leading-5 text-slate-600">Removing a court seat disables new sign-ins but does not permanently delete the person's data. Existing sessions may remain valid until token expiration; offline devices cannot be remotely wiped.</p>
-        </div>
-      </section>}
-
-      {session==='signedin'&&credentials&&<section role="status" className="mt-5 rounded-2xl border-2 border-teal-500 bg-white p-5">
-        <h2 className="font-extrabold text-teal-900">Temporary credentials — displayed once</h2>
-        <p className="mt-2 text-sm text-slate-700">Share privately with the participant. Do not email, screenshot, or retain this password in a shared document.</p>
-        <p className="mt-3 text-sm">Username: <strong className="font-mono">{credentials.username}</strong></p>
-        <p className="mt-2 break-all text-sm">Temporary password: <strong className="font-mono">{credentials.temporaryPassword}</strong></p>
-        <button type="button" className={secondary+' mt-4'} onClick={()=>setCredentials(null)}>Dismiss credentials</button>
-      </section>}
-
-      {message&&<p role="alert" className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{message}</p>}
-      <footer className="mt-8 border-t border-slate-200 pt-5 text-xs text-slate-600">DayBridge is a participant-owned personal organizer. Court staff manage access only; participants retain responsibility for their private records. This portal is not a court case-management system.</footer>
-    </div>
-  </main>;
+/** Backend injection is used only by the isolated browser harness; production always uses Supabase. */
+export function AdminPortal({backend}:{backend?:SupabaseClient}){
+ const client=useMemo(()=>backend??createClient(),[backend]);
+ const [courts,setCourts]=useState<ListedCourt[]>([]),[stateCode,setStateCode]=useState(''),[circuitId,setCircuitId]=useState(''),[courtId,setCourtId]=useState('');
+ const [session,setSession]=useState<'loading'|'signedout'|'signedin'>('loading');
+ const [identifier,setIdentifier]=useState(''),[password,setPassword]=useState(''),[username,setUsername]=useState('');
+ const [portal,setPortal]=useState<PortalData|null>(null),[credentials,setCredentials]=useState<Credentials|null>(null);
+ const [message,setMessage]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[directoryMessage,setDirectoryMessage]=useState('');
+ const [tab,setTab]=useState<PortalTab>('overview'),[chooseCourt,setChooseCourt]=useState(false),[resetId,setResetId]=useState('');
+ const [pending,setPending]=useState<{account:CourtAccount;action:AccountAction}|null>(null);
+ const [entries,setEntries]=useState<AuditEntry[]>([]),[nextCursor,setNextCursor]=useState<AuditPage['nextCursor']>(null),[activityLoading,setActivityLoading]=useState(false),[activityLoaded,setActivityLoaded]=useState(false),[activityError,setActivityError]=useState('');
+ const scope=useRef(0),identity=useRef(''),loadSequence=useRef(0),activitySequence=useRef(0);
+ const states=Array.from(new Map(courts.map(c=>[c.state_code,c.state_name])).entries()).map(([code,name])=>({code,name})).sort((a,b)=>a.name.localeCompare(b.name));
+ const circuits=Array.from(new Map(courts.filter(c=>c.state_code===stateCode).map(c=>[c.circuit_id,{id:c.circuit_id,name:c.circuit_name}] as const)).values()).sort((a,b)=>a.name.localeCompare(b.name));
+ const availableCourts=courts.filter(c=>c.circuit_id===circuitId).sort((a,b)=>a.court_name.localeCompare(b.court_name));
+ const selectedCourt=courts.find(c=>c.id===courtId);
+ const domain=selectedCourt?courtStaffAuthEmail('username',selectedCourt.state_code,selectedCourt.circuit_slug,selectedCourt.court_slug)?.split('@')[1]:null;
+ const proposedEmail=selectedCourt?resolveCourtStaffLogin(identifier,selectedCourt):null;
+ const clearScope=useCallback(()=>{scope.current++;setPortal(null);setCredentials(null);setPending(null);setEntries([]);setNextCursor(null);setActivityLoaded(false);setActivityError('');setResetId('');setNotice('');setMessage('');setBusy(false);setLoading(false);setActivityLoading(false);},[]);
+ const loadDirectory=useCallback(async(signal?:AbortSignal)=>{
+  setDirectoryMessage('');
+  try{const response=await fetch('/api/admin/courts',{cache:'no-store',signal});const data=await response.json();if(!response.ok)throw Error(data.error||'Court directory unavailable');const list=data.courts as ListedCourt[];setCourts(list);return list;}
+  catch(error){if(!signal?.aborted)setDirectoryMessage(error instanceof Error?error.message:'Court directory unavailable');return null;}
+ },[]);
+ useEffect(()=>{
+  let mounted=true;const controller=new AbortController();
+  void loadDirectory(controller.signal).then(list=>{if(!mounted||!list)return;if(!list.length){setDirectoryMessage('No courts have been activated for this portal.');return;}const requested=new URLSearchParams(location.search).get('court_id');const initial=list.find(c=>c.id===requested)||list[0];setStateCode(initial.state_code);setCircuitId(initial.circuit_id);setCourtId(initial.id);});
+  const setIdentity=(id:string)=>{if(!mounted)return;if(identity.current!==id){identity.current=id;clearScope();}setSession(id?'signedin':'signedout');};
+  if(!client){setSession('signedout');return()=>{mounted=false;controller.abort();};}
+  let authEvent=false;
+  void client.auth.getUser().then(({data})=>{if(!authEvent)setIdentity(data.user?.id||'');}).catch(()=>{if(!authEvent)setIdentity('');});
+  const {data:{subscription}}=client.auth.onAuthStateChange((_event,authSession)=>{authEvent=true;setIdentity(authSession?.user?.id||'');});
+  return()=>{mounted=false;scope.current++;controller.abort();subscription.unsubscribe();};
+ },[client,clearScope,loadDirectory]);
+ useEffect(()=>{if(session==='signedout'){setPortal(null);setCredentials(null);}},[session]);
+ useEffect(()=>{if(!credentials)return;const timer=window.setTimeout(()=>setCredentials(null),5*60_000);return()=>window.clearTimeout(timer);},[credentials]);
+ const loadParticipants=useCallback(async()=>{
+  if(!courtId||!identity.current)return;const epoch=scope.current,sequence=++loadSequence.current;setLoading(true);setMessage('');
+  try{const response=await fetch('/api/admin/participants?court_id='+encodeURIComponent(courtId),{cache:'no-store'});const data=await response.json();if(scope.current!==epoch||sequence!==loadSequence.current)return;if(!response.ok){setPortal(null);throw Error(data.error||'Court access denied');}setPortal(data as PortalData);}
+  catch(error){if(scope.current===epoch&&sequence===loadSequence.current)setMessage(error instanceof Error?error.message:'Court access unavailable');}
+  finally{if(scope.current===epoch&&sequence===loadSequence.current)setLoading(false);}
+ },[courtId]);
+ useEffect(()=>{if(session==='signedin')void loadParticipants();},[session,loadParticipants]);
+ const loadActivity=useCallback(async(cursor?:AuditPage['nextCursor'])=>{
+  if(!courtId||!identity.current)return;const epoch=scope.current,sequence=++activitySequence.current;setActivityLoading(true);setActivityError('');
+  const params=new URLSearchParams({court_id:courtId});if(cursor){params.set('before',cursor.time);params.set('before_id',cursor.id);}
+  try{const response=await fetch('/api/admin/activity?'+params,{cache:'no-store'});const data=await response.json();if(scope.current!==epoch||sequence!==activitySequence.current)return;if(!response.ok)throw Error(data.error||'Activity unavailable');const result=data as AuditPage;setEntries(previous=>cursor?Array.from(new Map([...previous,...result.entries].map(e=>[e.id,e])).values()):result.entries);setNextCursor(result.nextCursor);setActivityLoaded(true);}
+  catch(error){if(scope.current===epoch&&sequence===activitySequence.current)setActivityError(error instanceof Error?error.message:'Activity unavailable');}
+  finally{if(scope.current===epoch&&sequence===activitySequence.current)setActivityLoading(false);}
+ },[courtId]);
+ useEffect(()=>{if(portal&&tab==='activity'&&!activityLoaded&&!activityLoading&&!activityError)void loadActivity();},[portal,tab,activityLoaded,activityLoading,activityError,loadActivity]);
+ function navigate(next:PortalTab){setTab(next);setNotice('');if(next!=='overview'&&next!=='create'&&next!=='resets')setCredentials(null);}
+ function selectCourt(next:ListedCourt|undefined){clearScope();setCourtId(next?.id||'');setCircuitId(next?.circuit_id||'');setStateCode(next?.state_code||'');setUsername('');}
+ const login=async(event:React.FormEvent)=>{
+  event.preventDefault();if(!client)return;const email=selectedCourt?resolveCourtStaffLogin(identifier,selectedCourt):null;
+  if(!email){setMessage('Enter the username assigned to this court. The full identity must match your state, circuit and court.');return;}
+  setBusy(true);setMessage('');try{const {data,error}=await client.auth.signInWithPassword({email,password});if(error)setMessage('Username or password not recognized.');else if(data.user){if(identity.current!==data.user.id){identity.current=data.user.id;clearScope();}setSession('signedin');}}catch{setMessage('Authentication is temporarily unavailable.');}finally{setPassword('');setBusy(false);}
+ };
+ const createParticipant=async(event:React.FormEvent)=>{
+  event.preventDefault();if(busy||!courtId||!username.trim())return;const epoch=scope.current;setBusy(true);setMessage('');setCredentials(null);
+  try{const response=await fetch('/api/admin/participants',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({court_id:courtId,username:username.trim().toLowerCase()})});const data=await response.json();if(scope.current!==epoch)return;if(!response.ok)throw Error(data.error||'Could not create account');setCredentials({username:data.username,temporaryPassword:data.temporaryPassword,kind:'created'});setUsername('');setActivityLoaded(false);await loadParticipants();}
+  catch(error){if(scope.current===epoch)setMessage(error instanceof Error?error.message:'Could not create account');}finally{if(scope.current===epoch)setBusy(false);}
+ };
+ const changeParticipant=async()=>{
+  if(!pending||busy)return;const {account,action}=pending,epoch=scope.current;setBusy(true);setMessage('');setCredentials(null);
+  try{const response=await fetch('/api/admin/participants',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({court_id:courtId,user_id:account.user_id,action})});const data=await response.json();if(scope.current!==epoch)return;if(!response.ok)throw Error(data.error||'Account update failed');if(action==='reset'){setCredentials({username:account.username,temporaryPassword:data.temporaryPassword,kind:'reset'});setTab('resets');setResetId(account.user_id);}else setNotice(account.username+': '+actionTitles[action]+' completed.');setPending(null);setActivityLoaded(false);await loadParticipants();}
+  catch(error){if(scope.current===epoch){setPending(null);setMessage(error instanceof Error?error.message:'Account update failed');}}finally{if(scope.current===epoch)setBusy(false);}
+ };
+ const logout=async()=>{if(busy)return;setBusy(true);try{const result=await client?.auth.signOut();if(result?.error)throw result.error;identity.current='';clearScope();setSession('signedout');setPassword('');}catch{setMessage('Sign-out failed. Check your connection and retry.');}finally{setBusy(false);}};
+ const courtPicker=<section className={panel+' p-5'} aria-labelledby="daybridge-court-select-heading"><div className="flex items-center justify-between gap-3"><h2 id="daybridge-court-select-heading" className="font-bold">Select your court</h2>{portal&&<button className={secondary} onClick={()=>setChooseCourt(false)}>Close</button>}</div><p className="mt-1 text-sm text-slate-600">Choose your state, judicial circuit, and court. Staff permissions are verified separately.</p><div className="mt-4 grid gap-4 sm:grid-cols-3">
+  <label className="text-sm font-semibold">State<select aria-label="State" name="state" className={field} value={stateCode} disabled={busy||!states.length} onChange={e=>selectCourt(courts.find(c=>c.state_code===e.target.value))}>{!states.length&&<option value="">Not configured</option>}{states.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select></label>
+  <label className="text-sm font-semibold">Judicial circuit<select aria-label="Judicial circuit" name="judicial-circuit" className={field} value={circuitId} disabled={busy||!circuits.length} onChange={e=>selectCourt(courts.find(c=>c.circuit_id===e.target.value))}>{!circuits.length&&<option value="">Choose a state</option>}{circuits.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+  <label className="text-sm font-semibold">Court<select aria-label="Court" name="court" className={field} value={courtId} disabled={busy||!availableCourts.length} onChange={e=>selectCourt(courts.find(c=>c.id===e.target.value))}>{!availableCourts.length&&<option value="">Choose a judicial circuit</option>}{availableCourts.map(c=><option key={c.id} value={c.id}>{c.court_name}</option>)}</select></label>
+ </div>{directoryMessage&&<p role="alert" className="mt-3 text-sm text-amber-900">{directoryMessage}</p>}<button className={secondary+' mt-3'} disabled={busy} onClick={()=>void loadDirectory()}>Refresh court directory</button></section>;
+ const createPanel=portal?<CreateAccountPanel username={username} setUsername={setUsername} busy={busy||loading} portal={portal} credentials={credentials} onDismiss={()=>setCredentials(null)} onSubmit={event=>void createParticipant(event)}/>:null;
+ const courtContext=portal?<section aria-label="Selected court" className="flex flex-wrap items-center gap-4 rounded-xl border border-[#cfe1e6] bg-gradient-to-r from-teal-50 to-slate-50 px-5 py-4"><Building2 className="h-9 w-9 shrink-0 text-teal-800" aria-hidden="true"/><dl className="grid flex-1 gap-4 text-sm sm:grid-cols-3"><div><dt className="text-slate-500">State</dt><dd className="mt-1 font-bold">{selectedCourt?.state_name}</dd></div><div className="sm:border-l sm:border-teal-200 sm:pl-5"><dt className="text-slate-500">Judicial Circuit</dt><dd className="mt-1 font-bold">{selectedCourt?.circuit_name}</dd></div><div className="sm:border-l sm:border-teal-200 sm:pl-5"><dt className="text-slate-500">Court</dt><dd className="mt-1 font-bold">{portal.court.name}</dd></div></dl><button className={secondary} disabled={busy} onClick={()=>setChooseCourt(v=>!v)}>Change court</button></section>:null;
+ return <div className="min-h-screen bg-[#f8fbfc] text-slate-950">
+  <a href="#admin-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-3">Skip to portal content</a>
+  <header className="relative flex min-h-[76px] flex-wrap items-center justify-between gap-3 border-b border-teal-100 bg-[linear-gradient(115deg,#f0f9fa_0%,#ddf5f2_55%,#f3fafb_100%)] px-4 py-3 sm:px-7"><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-teal-800 text-white shadow-sm"><ShieldCheck aria-hidden="true" className="h-8 w-8"/></span><div><h1 className="text-lg font-extrabold tracking-tight text-teal-950 sm:text-2xl">DayBridge Admin Portal</h1><p className="text-xs text-slate-600 sm:text-sm">Court-sponsored participant access</p></div></div><div className="flex items-center gap-4">{portal&&<span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-bold capitalize text-teal-800">{portal.court.subscription_status}</span>}{session==='signedin'&&<details className="group"><summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold"><UserRound aria-hidden="true" className="h-9 w-9 rounded-full bg-white/70 p-2 text-teal-950"/><span className="hidden sm:inline">{portal?.administrator.role==='case_manager'?'Case Manager':'Court Administrator'}</span><ChevronDown aria-hidden="true" className="h-4 w-4"/></summary><div className="absolute right-4 z-30 mt-1 min-w-52 rounded-xl border border-slate-200 bg-white p-3 shadow-lg"><p className="mb-2 text-xs text-slate-500">{portal?.administrator.username||'Signed-in account'}</p><button className={secondary+' w-full'} disabled={busy} onClick={()=>void logout()}><LogOut className="h-4 w-4" aria-hidden="true"/>Sign out</button></div></details>}<Link href="/" className="text-xs font-semibold text-teal-900 underline">DayBridge home</Link></div></header>
+  <div className="lg:flex"><aside className="shrink-0 border-b border-slate-200 bg-white/70 lg:min-h-[calc(100vh-76px)] lg:w-56 lg:border-b-0 lg:border-r"><nav aria-label="Admin portal" className="flex gap-1 overflow-x-auto p-3 lg:sticky lg:top-0 lg:flex-col lg:gap-2 lg:py-6">{navigation.map(({id,label,Icon})=><button key={id} type="button" disabled={!portal} onClick={()=>navigate(id)} aria-current={tab===id?'page':undefined} className={'flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition disabled:opacity-50 '+(tab===id?'bg-teal-100 text-teal-950':'text-slate-700 hover:bg-teal-50')}><Icon aria-hidden="true" className="h-5 w-5 shrink-0"/>{label}</button>)}</nav></aside>
+   <main id="admin-content" className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-7"><div className="mx-auto max-w-[1560px]"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-extrabold tracking-tight">{navigation.find(n=>n.id===tab)?.label}</h2><p className="mt-1 text-sm text-slate-600">{descriptions[tab]}</p></div>{portal&&<button className={secondary} disabled={loading||busy} onClick={()=>{void loadParticipants();if(tab==='activity')void loadActivity();}}><RefreshCw className={'h-4 w-4 '+(loading?'animate-spin':'')} aria-hidden="true"/>{loading?'Refreshing…':'Refresh'}</button>}</div>
+    {(!portal||chooseCourt)&&courtPicker}
+    {message&&<div role="alert" className="my-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p>{message}</p>{session==='signedin'&&<button className={secondary} disabled={busy||loading} onClick={()=>void loadParticipants()}>Retry access</button>}</div>}{notice&&<p role="status" className="my-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950">{notice}</p>}
+    {session==='loading'&&<p role="status" className="py-8 text-sm text-slate-600">Checking administrator session…</p>}
+    {session==='signedout'&&<section className={panel+' mx-auto mt-5 max-w-lg p-6 sm:p-8'}><h2 className="flex items-center gap-2 text-xl font-extrabold"><KeyRound className="h-5 w-5 text-teal-700" aria-hidden="true"/>Court staff sign in</h2><p className="mt-2 text-sm leading-6 text-slate-600">Authorized staff only. Select the court associated with your assigned login.</p><form onSubmit={event=>void login(event)} className="mt-5 space-y-4"><label className="block text-sm font-semibold">Staff username or full assigned court identity<input className={field} required autoCapitalize="none" autoComplete="username" spellCheck={false} placeholder="admin" value={identifier} onChange={e=>setIdentifier(e.target.value)}/>{domain&&<span className="mt-1 block break-all text-xs font-normal text-slate-500">Court login suffix: @{domain}</span>}{proposedEmail&&<span className="mt-1 block break-all text-xs font-normal text-teal-800">Supabase sign-in: {proposedEmail}</span>}</label><label className="block text-sm font-semibold">Password<input className={field} type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label><button className={primary+' w-full'} disabled={busy||!courtId||!client}><LockKeyhole className="h-4 w-4" aria-hidden="true"/>{busy?'Signing in…':'Sign in securely'}</button></form></section>}
+    {session==='signedin'&&loading&&!portal&&<p role="status" className="py-8 text-sm text-slate-600">Loading court accounts…</p>}
+    {session==='signedin'&&portal&&<div className="space-y-5">
+     {tab!=='overview'&&tab!=='create'&&courtContext}
+     {tab==='overview'&&<><div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"><div className="min-w-0 space-y-5">{courtContext}<SeatCards portal={portal}/>{createPanel}</div><SignInGuide/></div><ParticipantsTable portal={portal} busy={busy||loading} onAction={(account,action)=>setPending({account,action})}/></>}
+     {tab==='participants'&&<><SeatCards portal={portal}/><div className="flex justify-end"><button className={primary} onClick={()=>navigate('create')}><Plus className="h-4 w-4" aria-hidden="true"/>Create account</button></div><ParticipantsTable portal={portal} busy={busy||loading} onAction={(account,action)=>setPending({account,action})}/></>}
+     {tab==='create'&&<div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"><div className="space-y-5">{courtContext}<SeatCards portal={portal}/>{createPanel}</div><SignInGuide/></div>}
+     {tab==='resets'&&<><section className={panel+' max-w-3xl p-5'}><h3 className="text-lg font-bold">Issue a temporary password</h3><p className="mt-2 text-sm leading-6 text-slate-600">Verify the participant’s identity using your approved process. Their new password is displayed once. Suspended or removed accounts must be restored first.</p><form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={event=>{event.preventDefault();const account=portal.participants.find(p=>p.user_id===resetId&&p.status==='active');if(account)setPending({account,action:'reset'});}}><label className="min-w-52 flex-1 text-sm font-semibold">Participant<select className={field} required value={resetId} onChange={e=>setResetId(e.target.value)}><option value="">Choose an active account</option>{portal.participants.filter(p=>p.status==='active').map(p=><option key={p.user_id} value={p.user_id}>{p.username}</option>)}</select></label><button className={primary} disabled={busy||loading||!resetId}><RefreshCw className="h-4 w-4" aria-hidden="true"/>Reset password</button></form></section>{credentials&&<div className="max-w-3xl"><CredentialCard key={credentials.temporaryPassword} credentials={credentials} onDismiss={()=>setCredentials(null)}/></div>}<p className="text-sm text-slate-600">All credential resets are recorded in <button onClick={()=>navigate('activity')} className="font-semibold text-teal-800 underline">Activity</button>.</p></>}
+     {tab==='activity'&&<section className={panel+' p-5'}><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-bold">Court activity</h3><button className={secondary} disabled={activityLoading} onClick={()=>void loadActivity()}>Refresh activity</button></div><p className="mt-2 text-sm text-slate-600">Account administration only. Passwords and private participant records are never included.</p>{activityError&&<p role="alert" className="mt-3 text-sm text-amber-900">{activityError}</p>}<ol className="mt-4 divide-y divide-slate-100">{entries.map(entry=><li key={entry.id} className="flex items-start gap-3 py-4"><span className="rounded-xl bg-teal-50 p-2 text-teal-700"><ClipboardList className="h-5 w-5" aria-hidden="true"/></span><div className="flex-1"><p className="text-sm font-semibold">{auditActionLabels[entry.action]||'Account updated'}{entry.username&&<span className="font-normal"> · {entry.username}</span>}</p><p className="mt-1 text-xs text-slate-500">{entry.actor_label} · <time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time></p></div></li>)}</ol>{activityLoading&&<p role="status" className="py-5 text-sm text-slate-500">Loading activity…</p>}{activityLoaded&&!entries.length&&!activityLoading&&<p className="py-10 text-center text-sm text-slate-500">No account activity for this court yet.</p>}{nextCursor&&<button className={secondary+' mt-3'} disabled={activityLoading} onClick={()=>void loadActivity(nextCursor)}>Load older activity</button>}</section>}
+     {tab==='settings'&&<div className="grid items-start gap-5 xl:grid-cols-2"><section className={panel+' space-y-4 p-5'}><h3 className="text-lg font-bold">Court & subscription</h3><dl className="divide-y divide-slate-100 text-sm">{[['Court',portal.court.name],['Plan',portal.court.subscription_plan],['Subscription',portal.court.subscription_status],['Licensed seats',String(portal.court.seat_limit)],['Assigned seats',String(portal.occupied_seats)],['Signed in as',portal.administrator.username],['Staff role',portal.administrator.role==='case_manager'?'Case manager':'Court administrator']].map(([label,value])=><div key={label} className="flex flex-wrap justify-between gap-2 py-3"><dt className="text-slate-500">{label}</dt><dd className="font-semibold capitalize">{value}</dd></div>)}</dl><p className="text-xs leading-5 text-slate-500">The program owner manages court registration, staff permissions, and licensing. This portal manages participant access only.</p><div className="flex flex-wrap gap-2"><button className={secondary} onClick={()=>setChooseCourt(true)}>Select another court</button><button className={secondary} disabled={busy} onClick={()=>void logout()}><LogOut className="h-4 w-4" aria-hidden="true"/>Sign out</button></div></section><ChangePasswordCard/></div>}
+    </div>}
+    {session==='signedin'&&!portal&&!loading&&<button className={secondary+' mt-4'} disabled={busy} onClick={()=>void logout()}>Sign out of this account</button>}
+    <footer className="mt-8 border-t border-slate-200 py-5 text-xs leading-5 text-slate-500">DayBridge is a participant-owned personal organizer. Court staff manage access only and cannot read private schedules, medications, notes, finances, or attendance.</footer>
+   </div></main>
+  </div>{pending&&portal&&session==='signedin'&&<ActionDialog account={pending.account} action={pending.action} busy={busy} onCancel={()=>setPending(null)} onConfirm={()=>void changeParticipant()}/>}
+ </div>;
 }

@@ -31,15 +31,16 @@ export async function GET(request:Request){
   try{
     const id=new URL(request.url).searchParams.get('court_id');
     if(!courtId.safeParse(id).success)return fail('Choose a valid court');
-    const {service,court}=await requireCourtAdmin(id!);
+    const {service,court,userId,role,administratorUsername}=await requireCourtAdmin(id!);
     const {data,error}=await service.from('daybridge_court_participants')
-      .select('user_id,username,status,created_at')
+      .select('user_id,username,status,created_at,created_by')
       .eq('court_id',court.id).order('created_at',{ascending:false});
     if(error)return fail('Unable to load court accounts',503);
-    const participants=(data||[]) as {user_id:string;username:string;status:string;created_at:string}[];
+    const participants=(data||[]) as {user_id:string;username:string;status:string;created_at:string;created_by:string}[];
     return NextResponse.json({
       court:{id:court.id,name:court.court_name,is_demo:court.is_demo,seat_limit:court.seat_limit,subscription_plan:court.subscription_plan,subscription_status:court.subscription_status},
-      participants,
+      administrator:{username:administratorUsername,role},
+      participants:participants.map(({created_by,...participant})=>({...participant,created_by_label:created_by===userId?'You':'Court staff'})),
       occupied_seats:participants.filter(p=>p.status!=='removed').length
     },{headers});
   }catch(e){return errorResponse(e);}

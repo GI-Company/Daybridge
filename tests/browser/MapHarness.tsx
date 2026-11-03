@@ -6,6 +6,7 @@ import type {Route} from '../../lib/travel/types';
 import {useTravelRequest} from '../../lib/travel/use-travel-request';
 import {NotificationsHarness} from './NotificationsHarness';
 import {StorageHarness,LockHarness,AuthHarness,UpdateHarness} from './SecurityHarness';
+import {AdminHarness} from './AdminHarness';
 import {PolishHarness} from './PolishHarness';
 import {CheckInHarness} from './CheckInHarness';
 import {CalendarMapHarness} from './CalendarMapHarness';
@@ -36,6 +37,7 @@ export default function MapHarness() {
   if(!ready)return <main>Loading test harness…</main>;
   if (typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('notifications')==='test')return <NotificationsHarness/>;
   if(typeof window!=='undefined'){const security=new URLSearchParams(window.location.search).get('security');if(security==='storage')return <StorageHarness/>;if(security==='lock')return <LockHarness/>;if(security==='auth')return <AuthHarness/>;if(security==='update')return <UpdateHarness/>;}
+  if(new URLSearchParams(window.location.search).get('admin')==='test')return <AdminHarness/>;
   if(new URLSearchParams(window.location.search).get('polish')==='test')return <PolishHarness/>;
   if(new URLSearchParams(window.location.search).get('checkin')==='test')return <CheckInHarness/>;
   if (calendar) return <main className="mx-auto max-w-4xl p-3"><CalendarMapHarness/></main>;
