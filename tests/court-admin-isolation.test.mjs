@@ -18,34 +18,45 @@ test('court hierarchy enforces database tenancy and seat limits',async()=>{
  const {db}=await isolatedDatabase();
  try {
   const sample=(await db.query(
-   "select c.id,c.court_name,j.id as circuit_id,j.name as circuit,s.name as state,c.seat_limit,c.is_demo from public.daybridge_courts c join public.daybridge_judicial_circuits j on j.id=c.circuit_id join public.daybridge_states s on s.code=j.state_code where c.court_name='Sample Court' and s.code='ZZ'"
+   "select c.id,c.court_name,c.login_slug as court_slug,j.id as circuit_id,j.name as circuit,j.login_slug as circuit_slug,s.name as state,c.seat_limit,c.is_demo from public.daybridge_courts c join public.daybridge_judicial_circuits j on j.id=c.circuit_id join public.daybridge_states s on s.code=j.state_code where c.court_name='Sample Court' and s.code='ZZ'"
   )).rows;
   assert.equal(sample.length,1);
   assert.equal(sample[0].state,'Sample State');
   assert.equal(sample[0].circuit,'Sample Judicial Circuit');
   assert.equal(sample[0].is_demo,true);
   assert.equal(sample[0].seat_limit,25);
+  assert.equal(sample[0].circuit_slug,'samplecircuit');
+  assert.equal(sample[0].court_slug,'samplecourt');
 
   const courtOne=sample[0].id;
   const circuit=sample[0].circuit_id;
   const courtTwo=(await db.query(
-   "insert into public.daybridge_courts(circuit_id,court_name,seat_limit,listed) values($1,'Another Sample Court',25,true) returning id",[circuit]
+   "insert into public.daybridge_courts(circuit_id,court_name,login_slug,seat_limit,listed) values($1,'Another Sample Court','anothercourt',25,true) returning id",[circuit]
   )).rows[0].id;
   const otherCircuit=(await db.query(
-   "insert into public.daybridge_judicial_circuits(state_code,name) values('ZZ','Second Sample Circuit') returning id"
+   "insert into public.daybridge_judicial_circuits(state_code,name,login_slug) values('ZZ','Second Sample Circuit','secondcircuit') returning id"
   )).rows[0].id;
   const courtThree=(await db.query(
-   "insert into public.daybridge_courts(circuit_id,court_name,seat_limit,listed) values($1,'Sample Court',25,true) returning id",[otherCircuit]
+   "insert into public.daybridge_courts(circuit_id,court_name,login_slug,seat_limit,listed) values($1,'Sample Court','samplecourt',25,true) returning id",[otherCircuit]
   )).rows[0].id;
 
   assert.notEqual(courtOne,courtTwo);
   assert.notEqual(courtOne,courtThree);
   await denial(()=>db.query(
-   "insert into public.daybridge_courts(circuit_id,court_name,seat_limit) values($1,'Sample Court',25)",[circuit]));
+   "insert into public.daybridge_courts(circuit_id,court_name,login_slug,seat_limit) values($1,'Sample Court','samplecourt',25)",[circuit]));
+  await db.exec("alter table auth.users add column email text; alter table auth.users add column email_confirmed_at timestamptz");
   for(const id of ids)await db.query('insert into auth.users(id) values($1)',[id]);
-  await db.query(
-   "insert into public.daybridge_court_staff(court_id,user_id,role) values ($1,$3,'case_manager'),($2,$4,'coordinator')",
-   [courtOne,courtTwo,staffOne,staffTwo]);
+  await db.query("update auth.users set email='admin@zz.samplecircuit.samplecourt',email_confirmed_at=now() where id=$1",[staffOne]);
+  await db.query("update auth.users set email='coordinator@zz.samplecircuit.anothercourt',email_confirmed_at=now() where id=$1",[staffTwo]);
+  await asRole(db,'authenticated',staffOne,async()=>{
+    await denial(()=>db.query("select public.daybridge_link_court_staff('admin@zz.samplecircuit.samplecourt','coordinator')"));
+  });
+  await asRole(db,'service_role',staffOne,async()=>{
+    assert.equal((await db.query("select public.daybridge_link_court_staff('admin@zz.samplecircuit.samplecourt','case_manager') as id")).rows[0].id,courtOne);
+    assert.equal((await db.query("select public.daybridge_link_court_staff('coordinator@zz.samplecircuit.anothercourt','coordinator') as id")).rows[0].id,courtTwo);
+    await denial(()=>db.query("select public.daybridge_link_court_staff('wrong@zz.elsewhere.samplecourt','coordinator')"));
+  });
+  assert.equal((await db.query('select count(*)::int as n from public.daybridge_court_staff')).rows[0].n,2);
 
   await asRole(db,'authenticated',staffOne,async()=>{
    await denial(()=>db.query('select * from public.daybridge_court_participants'));

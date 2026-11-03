@@ -2,7 +2,7 @@
 
 **Status: Source-only candidate / not activated in production.**
 
-This branch adds a semantic **Court Admin Portal** link inside the public landing page footer. It opens `/admin`, a separate route **within the same DayBridge application**, not a second app. The admin page contains three dependent dropdowns in this order: **State → Judicial Circuit → Court**, followed by staff username/email and password fields. An authenticator-code second factor is required before admin account operations.
+This branch adds a semantic **Court Admin Portal** link inside the public landing page footer. It opens `/admin`, a separate route **within the same DayBridge application**, not a second app. The admin page contains three dependent dropdowns in this order: **State → Judicial Circuit → Court**, followed by staff username and password fields. The selected court builds the exact Supabase Auth alias **username@state.circuit.court**; a mismatched alias is refused. An authenticator-code second factor is required before admin account operations.
 
 ## Scope and privacy
 
@@ -17,15 +17,15 @@ Existing personal users are not migrated or assigned to courts automatically. No
 1. Create an **isolated staging Supabase project**, seed it with **synthetic** data, and test backup/restore. Do not first apply this migration to live production.
 2. Review and then apply `supabase/migrations/20261103040000_daybridge_court_admin.sql` in staging. The migration seeds only a clearly fictional and isolated directory hierarchy: **Sample State (ZZ) → Sample Judicial Circuit → Sample Court (25 seats)**. No real staff identity or participant is seeded. All six new registry tables are private to the service role.
 3. Confirm `SUPABASE_SERVICE_ROLE_KEY` is set only as a protected **server-side** secret and never published as `NEXT_PUBLIC_` or included in client bundles.
-4. Using trusted administrator tooling, create a verified staff Auth account with a working recovery email and enforce MFA. The staff member can enroll a TOTP factor on `/admin`. Do not create or infer actual staff accounts for this test.
+4. Using trusted administrator tooling, create a staff Auth account using a court alias (for example, `admin@zz.samplecircuit.samplecourt`), confirm its identity through a secure human process, and enforce MFA. The staff member can enroll a TOTP factor on `/admin`. Do not create or infer actual staff accounts for this test.
 5. In staging, after migration application, confirm the public directory shows **Sample State → Sample Judicial Circuit → Sample Court**. These are `daybridge_states`, `daybridge_judicial_circuits`, and `daybridge_courts` records joined using foreign keys. They have separate identities and constraints, not merely UI categories. A verified staff identity must be assigned to the sample court before any Auth account provisioning is allowed:
 
    ```sql
-   -- STAGING ONLY: requires a verified staff Auth user UUID.
-   insert into public.daybridge_court_staff(court_id,user_id,role)
-   select id,'<verified-staff-user-id>'::uuid,'coordinator'
-   from public.daybridge_courts
-   where court_name='Sample Court' and is_demo=true;
+   -- STAGING ONLY: match the already-created Supabase Auth identity
+   -- to a registered state/circuit/court and create its staff membership.
+   select public.daybridge_link_court_staff(
+     'admin@zz.samplecircuit.samplecourt','coordinator'
+   );
    ```
 
    Once staff sign in with MFA, the portal's **Create sample account** action uses `supabase.auth.admin.createUser` to create a **real Supabase Auth test account** and assigns it a seat in the Sample Court in a protected database transaction. The temporary password must be delivered securely and changed at first login. There are **no default shared admin credentials or pre-created participants**. The production Supabase database remains untouched unless staging passes and a separate rollout is approved.
@@ -55,3 +55,34 @@ Existing personal users are not migrated or assigned to courts automatically. No
 - A demo involving fictional participants is accepted before any institutional invitation.
 
 **Never seed actual court staff membership or deploy production Auth changes without verified authorization.** The sample court can create real Auth test accounts only once a trusted staff identity has been linked, protected secrets configured, and the database migration deployed to the intended environment.
+
+## Adding real states, circuits, courts, and owner-assigned staff logins
+
+State, judicial circuit and court dropdown options are **not hardcoded**: the API queries the registered Supabase hierarchy when the login page loads. Registering a new court means adding the related rows to `daybridge_states`, `daybridge_judicial_circuits`, and `daybridge_courts`; no UI source changes are needed.
+
+Use the Supabase Table Editor or SQL Editor with trusted operator access. For example, in an approved environment:
+
+```sql
+insert into public.daybridge_states(code,name)
+values ('GA','Georgia') on conflict (code) do nothing;
+
+insert into public.daybridge_judicial_circuits(state_code,name,login_slug)
+values ('GA','Enotah Judicial Circuit','enotah')
+on conflict (state_code,name) do nothing;
+
+insert into public.daybridge_courts(circuit_id,court_name,login_slug,seat_limit,subscription_plan,subscription_status,listed)
+select id,'Example STAR Court','starcourt',25,'pilot','pilot',true
+from public.daybridge_judicial_circuits
+where state_code='GA' and login_slug='enotah'
+on conflict (circuit_id,court_name) do nothing;
+```
+
+In **Supabase Authentication**, as an administrator, create and confirm `manager@ga.enotah.starcourt` with a strong password. This is a **non-deliverable internal alias**; do not expect email confirmation or password recovery messages to arrive. Establish a verified real-world contact and out-of-band reset procedure. Then, **only after verification**, execute:
+
+```sql
+select public.daybridge_link_court_staff('manager@ga.enotah.starcourt','coordinator');
+```
+
+The restricted function checks the existing normalized hierarchy and that the exact Auth user is confirmed. It then links the Auth UUID to a single court. An arbitrary email string can neither create a new court nor authorize itself. Reuse the known court ID for subscriptions and seats: `subscription_plan` and `subscription_status` live in `daybridge_courts` and are authoritative; the email is a human-readable identifier, **not** a subscription enforcement mechanism. The subscription gate currently prevents new account creation when a court is paused/canceled and does not charge money or automatically revoke participant data.
+
+**The dropdowns do not populate merely by creating an Auth identity.** You must register the state/circuit/court in the database and link each verified staff Auth account to its court. Both steps are intentional security boundaries.

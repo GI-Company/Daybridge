@@ -27,6 +27,7 @@ test('admin API requires signed-in identity, staff role, and MFA',()=>{
   assert.match(auth,/currentLevel!=='aal2'/);
   assert.match(auth,/eq\('court_id',courtId\)/);
   assert.match(auth,/eq\('user_id',user\.id\)/);
+  assert.match(auth,/courtStaffAuthEmail\(localPart,circuit\.state_code,circuit\.login_slug,court\.login_slug\)/);
   assert.match(api,/requireCourtAdmin\(court_id\)/);
   assert.match(api,/readPrivateJSON\(request\)/);
 });
@@ -35,10 +36,12 @@ test('three-tier court hierarchy has unique parent keys and sample seed',()=>{
   assert.match(sql,/daybridge_judicial_circuits[\s\S]*?references public\.daybridge_states\(code\)/);
   assert.match(sql,/daybridge_courts[\s\S]*?references public\.daybridge_judicial_circuits\(id\)/);
   assert.match(sql,/unique \(state_code, name\)/);
+  assert.match(sql,/unique \(state_code, login_slug\)/);
+  assert.match(sql,/unique \(circuit_id, login_slug\)/);
   assert.match(sql,/unique \(circuit_id, court_name\)/);
   assert.match(sql,/values \('ZZ','Sample State'\)/);
   assert.match(sql,/values \('ZZ','Sample Judicial Circuit'\)/);
-  assert.match(sql,/select c\.id, 'Sample Court',25,true,true,true/);
+  assert.match(sql,/select c\.id, 'Sample Court','samplecourt',25,true,true,true/);
   assert.match(page,/name="state"/);
   assert.match(page,/name="judicial-circuit"/);
   assert.match(page,/name="court"/);
