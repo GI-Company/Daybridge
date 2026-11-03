@@ -8,7 +8,7 @@
  * requires updating the corresponding Auth identities in Supabase.
  */
 export const AUTH_ALIAS_DOMAIN = 'accounts.daybridge.example.com';
-export const USERNAME_PATTERN = /^[a-z][a-z0-9_-]{2,31}$/;
+export const USERNAME_PATTERN = /^[a-z](?:[a-z0-9_-]|\.(?=[a-z0-9_-])){2,31}$/;
 
 export function normalizedUsername(value: string): string {
   return value.trim().toLowerCase();

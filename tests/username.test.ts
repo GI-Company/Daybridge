@@ -5,9 +5,10 @@ import {AUTH_ALIAS_DOMAIN, normalizedUsername, usernameToAuthEmail, loginIdentif
 test('admin username maps deterministically to a non-mailbox Auth identity',()=>{
  assert.equal(usernameToAuthEmail('Taylor_01'),`taylor_01@${AUTH_ALIAS_DOMAIN}`);
  assert.equal(usernameToAuthEmail('  Alpha-9  '),`alpha-9@${AUTH_ALIAS_DOMAIN}`);
+ assert.equal(usernameToAuthEmail(' Grace.Schulte '),`grace.schulte@${AUTH_ALIAS_DOMAIN}`);
 });
 test('rejects full email identifiers and malformed usernames',()=>{
- for(const value of ['a','ab','alice@example.com','.admin','two words','user.name','bad!','a'.repeat(33),'']) {
+ for(const value of ['a','ab','alice@example.com','.admin','two words','user..name','user.','bad!','a'.repeat(33),'']) {
   assert.equal(usernameToAuthEmail(value),null,value);
  }
 });
@@ -19,5 +20,6 @@ test('username mapping does not accidentally normalize away allowed uniqueness',
 test('existing admin-created email accounts can sign in without alias migration', () => {
  assert.equal(loginIdentifierToEmail(' testing@gmail.com '),'testing@gmail.com');
  assert.equal(loginIdentifierToEmail('TeSt_02'),'test_02@accounts.daybridge.example.com');
+ assert.equal(loginIdentifierToEmail('GRACE.SCHULTE'),'grace.schulte@accounts.daybridge.example.com');
  for(const bad of ['a@b', 'x@@test.com', 'john smith@example.com']) assert.equal(loginIdentifierToEmail(bad),null);
 });
