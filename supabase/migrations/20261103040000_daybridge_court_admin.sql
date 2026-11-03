@@ -13,7 +13,9 @@ create table if not exists public.daybridge_judicial_circuits (
   id uuid primary key default gen_random_uuid(),
   state_code text not null references public.daybridge_states(code) on delete restrict,
   name text not null check (length(trim(name)) between 3 and 120),
-  login_slug text not null check (login_slug ~ '^[a-z][a-z0-9-]{1,62}
+  login_slug text not null check (login_slug ~ '^[a-z][a-z0-9-]{1,62}$'),
+  unique (state_code, name),
+  unique (state_code, login_slug)
 );
 create index if not exists daybridge_circuits_state_idx
   on public.daybridge_judicial_circuits (state_code);
@@ -22,7 +24,7 @@ create table if not exists public.daybridge_courts (
   id uuid primary key default gen_random_uuid(),
   circuit_id uuid not null references public.daybridge_judicial_circuits(id) on delete restrict,
   court_name text not null check (length(trim(court_name)) between 3 and 120),
-  login_slug text not null check (login_slug ~ '^[a-z][a-z0-9-]{1,62}
+  login_slug text not null check (login_slug ~ '^[a-z][a-z0-9-]{1,62}$'),
   seat_limit integer not null check (seat_limit between 1 and 100000),
   subscription_plan text not null default 'pilot' check (subscription_plan in ('pilot','starter','growth','scale')),
   subscription_status text not null default 'pilot' check (subscription_status in ('pilot','active','paused','canceled')),
