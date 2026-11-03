@@ -1,17 +1,52 @@
 -- DayBridge institution-only account registry. NOT a deployment/seed operation.
 -- Apply only after reviewing the pilot readiness checklist and preserving backups.
 -- Court administrators never receive SELECT grants on participant private records.
+-- Normalize the organization hierarchy: one state -> many circuits -> many courts.
+-- Circuit and court names are unique only within their parent; separate courts
+-- in the same judicial circuit must not share seats or participant accounts.
+create table if not exists public.daybridge_states (
+  code text primary key check (code ~ '^[A-Z]{2}$'),
+  name text not null unique
+);
+
+create table if not exists public.daybridge_judicial_circuits (
+  id uuid primary key default gen_random_uuid(),
+  state_code text not null references public.daybridge_states(code) on delete restrict,
+  name text not null check (length(trim(name)) between 3 and 120),
+  unique (state_code, name)
+);
+create index if not exists daybridge_circuits_state_idx
+  on public.daybridge_judicial_circuits (state_code);
+
 create table if not exists public.daybridge_courts (
   id uuid primary key default gen_random_uuid(),
-  state_code text not null check (state_code ~ '^[A-Z]{2}$'),
-  state_name text not null,
-  circuit_name text not null,
+  circuit_id uuid not null references public.daybridge_judicial_circuits(id) on delete restrict,
+  court_name text not null check (length(trim(court_name)) between 3 and 120),
   seat_limit integer not null check (seat_limit between 1 and 100000),
   listed boolean not null default false,
   enabled boolean not null default true,
+  is_demo boolean not null default false,
   created_at timestamptz not null default now(),
-  unique (state_code, circuit_name)
+  unique (circuit_id, court_name)
 );
+create index if not exists daybridge_courts_circuit_idx
+  on public.daybridge_courts (circuit_id);
+
+-- FICTIONAL DEMONSTRATION DIRECTORY ONLY. Never seed real judicial staff or
+-- participant data, or assign anonymous/default-password admin credentials.
+-- When this migration is approved for a staging database, staff can provision
+-- actual Supabase Auth test users only AFTER a verified staff member is enrolled.
+insert into public.daybridge_states(code,name)
+values ('ZZ','Sample State') on conflict (code) do nothing;
+
+insert into public.daybridge_judicial_circuits(state_code,name)
+values ('ZZ','Sample Judicial Circuit') on conflict (state_code,name) do nothing;
+
+insert into public.daybridge_courts(circuit_id,court_name,seat_limit,listed,enabled,is_demo)
+select c.id, 'Sample Court',25,true,true,true
+from public.daybridge_judicial_circuits as c
+where c.state_code='ZZ' and c.name='Sample Judicial Circuit'
+on conflict (circuit_id,court_name) do nothing;
 
 create table if not exists public.daybridge_court_staff (
   court_id uuid not null references public.daybridge_courts(id) on delete restrict,
@@ -48,31 +83,25 @@ create table if not exists public.daybridge_court_audit (
 create index if not exists daybridge_court_audit_court_created_idx
   on public.daybridge_court_audit (court_id, created_at desc);
 
+alter table public.daybridge_states enable row level security;
+alter table public.daybridge_judicial_circuits enable row level security;
 alter table public.daybridge_courts enable row level security;
 alter table public.daybridge_court_staff enable row level security;
 alter table public.daybridge_court_participants enable row level security;
 alter table public.daybridge_court_audit enable row level security;
 
 -- No direct browser writes or reads for any administrative registry.
-revoke all on public.daybridge_courts, public.daybridge_court_staff,
+revoke all on public.daybridge_states, public.daybridge_judicial_circuits,
+  public.daybridge_courts, public.daybridge_court_staff,
   public.daybridge_court_participants, public.daybridge_court_audit
   from public, anon, authenticated;
-grant select, insert, update, delete on public.daybridge_courts,
+grant select, insert, update, delete on public.daybridge_states,
+  public.daybridge_judicial_circuits, public.daybridge_courts,
   public.daybridge_court_staff, public.daybridge_court_participants,
   public.daybridge_court_audit to service_role;
 
--- Explicit opt-in public directory, containing no staff/user data or seat counts.
-create or replace function public.daybridge_list_courts()
-returns table(id uuid, state_code text, state_name text, circuit_name text)
-language sql stable security definer set search_path = ''
-as $$
-  select c.id, c.state_code, c.state_name, c.circuit_name
-  from public.daybridge_courts as c
-  where c.enabled and c.listed
-  order by c.state_name, c.circuit_name;
-$$;
-revoke all on function public.daybridge_list_courts() from public;
-grant execute on function public.daybridge_list_courts() to anon, authenticated;
+-- Court selection directory is read through a server-only service client.
+-- No public SECURITY DEFINER function is required or granted.
 
 -- Use a court-row lock to enforce the seat limit when staff provision concurrently.
 -- Only the server-held service_role can execute this privileged operation.
