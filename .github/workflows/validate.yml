@@ -22,8 +22,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run security:scan
-      - run: npm test
       - run: npm run test:db
+      - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser:production
       - run: npm run build
