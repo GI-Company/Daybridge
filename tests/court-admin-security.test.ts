@@ -13,10 +13,10 @@ const landing=readFileSync('components/common/InstallGate.tsx','utf8');
 const firstUse=readFileSync('app/api/account/complete-onboarding/route.ts','utf8');
 
 test('court tables enable RLS and deny browser table access',()=>{
-  for(const table of ['daybridge_courts','daybridge_court_staff','daybridge_court_participants','daybridge_court_audit']){
+  for(const table of ['daybridge_states','daybridge_judicial_circuits','daybridge_courts','daybridge_court_staff','daybridge_court_participants','daybridge_court_audit']){
     assert.match(sql,new RegExp('alter table public\\.'+table+' enable row level security','i'));
   }
-  assert.match(sql,/revoke all on public\.daybridge_courts,[\s\S]+from public, anon, authenticated/i);
+  assert.match(sql,/revoke all on public\.daybridge_states,[\s\S]+from public, anon, authenticated/i);
   assert.match(sql,/grant execute on function public\.daybridge_assign_participant[\s\S]+to service_role/i);
   assert.match(sql,/grant execute on function public\.daybridge_transition_participant[\s\S]+to service_role/i);
 });
@@ -29,6 +29,21 @@ test('admin API requires signed-in identity, staff role, and MFA',()=>{
   assert.match(auth,/eq\('user_id',user\.id\)/);
   assert.match(api,/requireCourtAdmin\(court_id\)/);
   assert.match(api,/readPrivateJSON\(request\)/);
+});
+
+test('three-tier court hierarchy has unique parent keys and sample seed',()=>{
+  assert.match(sql,/daybridge_judicial_circuits[\s\S]*?references public\.daybridge_states\(code\)/);
+  assert.match(sql,/daybridge_courts[\s\S]*?references public\.daybridge_judicial_circuits\(id\)/);
+  assert.match(sql,/unique \(state_code, name\)/);
+  assert.match(sql,/unique \(circuit_id, court_name\)/);
+  assert.match(sql,/values \('ZZ','Sample State'\)/);
+  assert.match(sql,/values \('ZZ','Sample Judicial Circuit'\)/);
+  assert.match(sql,/select c\.id, 'Sample Court',25,true,true,true/);
+  assert.match(page,/name="state"/);
+  assert.match(page,/name="judicial-circuit"/);
+  assert.match(page,/name="court"/);
+  assert.ok(page.indexOf('name="state"') < page.indexOf('name="judicial-circuit"'));
+  assert.ok(page.indexOf('name="judicial-circuit"') < page.indexOf('name="court"'));
 });
 
 test('court seats use serialized database assignment',()=>{
