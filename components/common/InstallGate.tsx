@@ -277,7 +277,12 @@ export function InstallGate({ children }: { children: React.ReactNode }) {
       </section>
 
       <footer className="border-t border-slate-200 bg-white px-5 py-6 text-center text-xs text-slate-600">
-        DayBridge — Developed by Global Intent Company. Private access by invitation during early testing.
+        <nav aria-label="Court staff access" className="mx-auto mb-4 flex max-w-6xl justify-center">
+          <a href="/admin" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-teal-200 px-4 py-2 text-sm font-semibold text-teal-900 transition hover:bg-teal-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+            Court Admin Portal <ArrowRight aria-hidden="true" className="h-4 w-4"/>
+          </a>
+        </nav>
+        <p>DayBridge — Developed by Global Intent Company. Private access by invitation during early testing.</p>
       </footer>
     </main>
   );
