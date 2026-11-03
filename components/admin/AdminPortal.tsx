@@ -8,7 +8,6 @@ type ListedCourt={id:string;state_code:string;state_name:string;circuit_id:strin
 type CourtAccount={user_id:string;username:string;status:'active'|'suspended'|'removed';created_at:string};
 type PortalData={court:{id:string;name:string;is_demo:boolean;seat_limit:number;subscription_plan:string;subscription_status:string};occupied_seats:number;participants:CourtAccount[]};
 type ApiError={error?:string};
-type TotpEnrollment={id:string;secret:string};
 
 const field='mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100';
 const primary='rounded-xl bg-teal-800 px-5 py-3 font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50';
@@ -23,10 +22,6 @@ export function AdminPortal(){
   const [session,setSession]=useState<'loading'|'signedout'|'signedin'>('loading');
   const [identifier,setIdentifier]=useState('');
   const [password,setPassword]=useState('');
-  const [mfa,setMfa]=useState<'checking'|'needed'|'verified'>('checking');
-  const [factorId,setFactorId]=useState('');
-  const [enrollment,setEnrollment]=useState<TotpEnrollment|null>(null);
-  const [code,setCode]=useState('');
   const [username,setUsername]=useState('');
   const [portal,setPortal]=useState<PortalData|null>(null);
   const [credentials,setCredentials]=useState<{username:string;temporaryPassword:string}|null>(null);
@@ -71,21 +66,6 @@ export function AdminPortal(){
     return()=>{mounted=false;subscription.unsubscribe();};
   },[client]);
 
-  const refreshMfa=useCallback(async()=>{
-    if(!client)return;
-    const {data:assurance,error}=await client.auth.mfa.getAuthenticatorAssuranceLevel();
-    if(error){setMessage('Unable to check administrator verification');setMfa('needed');return;}
-    if(assurance.currentLevel==='aal2'){setMfa('verified');return;}
-    const {data:factors}=await client.auth.mfa.listFactors();
-    setFactorId(factors?.totp?.find(f=>f.status==='verified')?.id||'');
-    setMfa('needed');
-  },[client]);
-
-  useEffect(()=>{
-    if(session==='signedin'){void refreshMfa();}
-    else {setMfa('checking');setPortal(null);setCredentials(null);setEnrollment(null);}
-  },[session,refreshMfa]);
-
   const loadParticipants=useCallback(async()=>{
     if(!courtId)return;
     setMessage('');
@@ -99,8 +79,8 @@ export function AdminPortal(){
   },[courtId]);
 
   useEffect(()=>{
-    if(session==='signedin'&&mfa==='verified')void loadParticipants();
-  },[session,mfa,loadParticipants]);
+    if(session==='signedin')void loadParticipants();
+  },[session,loadParticipants]);
 
   const login=async(event:React.FormEvent)=>{
     event.preventDefault();if(!client)return;
@@ -110,32 +90,9 @@ export function AdminPortal(){
     try{
       const {error}=await client.auth.signInWithPassword({email,password});
       if(error)setMessage('Username or password not recognized.');
-      else {setSession('signedin');setMfa('checking');await refreshMfa();}
+      else setSession('signedin');
     }catch{setMessage('Authentication is temporarily unavailable.');}
     finally{setPassword('');setBusy(false);}
-  };
-
-  const beginMfa=async()=>{
-    if(!client)return;
-    setBusy(true);setMessage('');
-    try{
-      const {data,error}=await client.auth.mfa.enroll({factorType:'totp',friendlyName:'DayBridge Court Portal'});
-      if(error||!data?.totp?.secret)throw new Error('Could not set up authenticator');
-      setEnrollment({id:data.id,secret:data.totp.secret});
-      setFactorId(data.id);
-    }catch(e){setMessage(e instanceof Error?e.message:'MFA setup unavailable');}
-    finally{setBusy(false);}
-  };
-  const verifyMfa=async(event:React.FormEvent)=>{
-    event.preventDefault();if(!client||!factorId)return;
-    setBusy(true);setMessage('');
-    try{
-      const {error}=await client.auth.mfa.challengeAndVerify({factorId,code:code.trim()});
-      if(error)throw error;
-      setCode('');setEnrollment(null);
-      await refreshMfa();
-    }catch{setMessage('Verification failed. Check your authenticator code and try again.');}
-    finally{setBusy(false);}
   };
 
   const createParticipant=async(event:React.FormEvent)=>{
@@ -245,20 +202,7 @@ export function AdminPortal(){
         </form>
       </section>}
 
-      {session==='signedin'&&mfa==='needed'&&<section className="mt-5 max-w-lg rounded-3xl border border-amber-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-extrabold">Administrator verification required</h2>
-        <p className="mt-2 text-sm text-slate-700">Every administrative session must pass a second factor. This does not change participant login preferences.</p>
-        {!factorId&&!enrollment&&<button type="button" disabled={busy} className={primary+' mt-5'} onClick={()=>void beginMfa()}>Set up authenticator</button>}
-        {enrollment&&<p className="mt-4 rounded-xl bg-teal-50 p-3 text-sm">Add this setup key to your authenticator app, then enter its current six-digit code: <strong className="mt-2 block select-all break-all font-mono">{enrollment.secret}</strong></p>}
-        {factorId&&<form onSubmit={e=>void verifyMfa(e)} className="mt-5 space-y-4">
-          <label className="block text-sm font-semibold">Six-digit authenticator code
-            <input className={field} required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e=>setCode(e.target.value)}/>
-          </label>
-          <button className={primary+' w-full'} type="submit" disabled={busy}>Verify administrator</button>
-        </form>}
-      </section>}
-
-      {session==='signedin'&&mfa==='verified'&&portal&&<section className="mt-5 space-y-5">
+      {session==='signedin'&&portal&&<section className="mt-5 space-y-5">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-600">Licensed seats</p><p className="mt-1 text-3xl font-bold">{portal.court.seat_limit}</p></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-600">Assigned seats</p><p className="mt-1 text-3xl font-bold">{portal.occupied_seats}</p></div>
