@@ -1,6 +1,7 @@
 'use client';
 import React,{useState} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
+
 export function FirstUsePasswordChange({client}:{client:SupabaseClient}){
   const [password,setPassword]=useState('');
   const [confirm,setConfirm]=useState('');
@@ -13,15 +14,18 @@ export function FirstUsePasswordChange({client}:{client:SupabaseClient}){
     }
     setBusy(true);setMessage('');
     try{
-      const {error}=await client.auth.updateUser({password});
-      if(error)throw new Error('Password change failed. Try a different password.');
+      // The authenticated server performs password rotation and only then clears
+      // the one-time onboarding flag. No other endpoint can skip this check.
       const response=await fetch('/api/account/complete-onboarding',{
-        method:'POST',headers:{'Content-Type':'application/json'},body:'{}'
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({password})
       });
-      if(!response.ok)throw new Error('Password changed. Your setup needs to be finished; press Save again.');
-      const {error:refreshError}=await client.auth.refreshSession();
-      if(refreshError)throw new Error('Password changed. Please sign out and sign back in.');
+      const body=await response.json();
+      if(!response.ok)throw new Error(body.error||'Could not finish account setup');
       setPassword('');setConfirm('');
+      const {error:refreshError}=await client.auth.refreshSession();
+      if(refreshError)throw new Error('Password saved. Please sign out and sign in again.');
     }catch(e){setMessage(e instanceof Error?e.message:'Account setup unavailable');}
     finally{setBusy(false);}
   };
