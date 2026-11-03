@@ -21,11 +21,15 @@ Existing personal users are not migrated or assigned to courts automatically. No
 5. In staging, after migration application, confirm the public directory shows **Sample State → Sample Judicial Circuit → Sample Court**. These are `daybridge_states`, `daybridge_judicial_circuits`, and `daybridge_courts` records joined using foreign keys. They have separate identities and constraints, not merely UI categories. A verified staff identity must be assigned to the sample court before any Auth account provisioning is allowed:
 
    ```sql
-   -- STAGING ONLY: match the already-created Supabase Auth identity
-   -- to a registered state/circuit/court and create its staff membership.
-   select public.daybridge_link_court_staff(
-     'admin@zz.samplecircuit.samplecourt','coordinator'
-   );
+   -- STAGING ONLY. The operator must first verify the Auth identity.
+   insert into public.daybridge_court_staff(court_id,user_id,role)
+   select c.id,u.id,'coordinator'
+   from public.daybridge_courts c
+   join public.daybridge_judicial_circuits j on j.id=c.circuit_id
+   join auth.users u on lower(u.email)='admin@zz.samplecircuit.samplecourt'
+   where c.is_demo and c.login_slug='samplecourt'
+     and j.login_slug='samplecircuit' and j.state_code='ZZ'
+     and u.email_confirmed_at is not null;
    ```
 
    Once staff sign in with MFA, the portal's **Create sample account** action uses `supabase.auth.admin.createUser` to create a **real Supabase Auth test account** and assigns it a seat in the Sample Court in a protected database transaction. The temporary password must be delivered securely and changed at first login. There are **no default shared admin credentials or pre-created participants**. The production Supabase database remains untouched unless staging passes and a separate rollout is approved.
@@ -80,9 +84,18 @@ on conflict (circuit_id,court_name) do nothing;
 In **Supabase Authentication**, as an administrator, create and confirm `manager@ga.enotah.starcourt` with a strong password. This is a **non-deliverable internal alias**; do not expect email confirmation or password recovery messages to arrive. Establish a verified real-world contact and out-of-band reset procedure. Then, **only after verification**, execute:
 
 ```sql
-select public.daybridge_link_court_staff('manager@ga.enotah.starcourt','coordinator');
+insert into public.daybridge_court_staff(court_id,user_id,role)
+select c.id,u.id,'coordinator'
+from public.daybridge_courts c
+join public.daybridge_judicial_circuits j on j.id=c.circuit_id
+join auth.users u on lower(u.email)='manager@ga.enotah.starcourt'
+where j.state_code='GA' and j.login_slug='enotah'
+  and c.login_slug='starcourt' and u.email_confirmed_at is not null
+on conflict (court_id,user_id) do update set active=true,role='coordinator';
 ```
 
-The restricted function checks the existing normalized hierarchy and that the exact Auth user is confirmed. It then links the Auth UUID to a single court. An arbitrary email string can neither create a new court nor authorize itself. Reuse the known court ID for subscriptions and seats: `subscription_plan` and `subscription_status` live in `daybridge_courts` and are authoritative; the email is a human-readable identifier, **not** a subscription enforcement mechanism. The subscription gate currently prevents new account creation when a court is paused/canceled and does not charge money or automatically revoke participant data.
+This privileged SQL statement verifies the existing normalized hierarchy and links the confirmed Auth UUID to a single court. It must only run in the Supabase SQL Editor by the trusted project owner. An arbitrary email string can neither create a new court nor authorize itself. Reuse the known court ID for subscriptions and seats: `subscription_plan` and `subscription_status` live in `daybridge_courts` and are authoritative; the email is a human-readable identifier, **not** a subscription enforcement mechanism. The subscription gate currently prevents new account creation when a court is paused/canceled and does not charge money or automatically revoke participant data.
 
 **The dropdowns do not populate merely by creating an Auth identity.** You must register the state/circuit/court in the database and link each verified staff Auth account to its court. Both steps are intentional security boundaries.
+
+**Production test profile:** The operator-created `manager@ga.enotah.starcourt` account can be linked to a clearly labeled **DayBridge STAR Court Test** directory entry with `is_demo=true`, 25 seats, `subscription_plan='pilot'`, and `subscription_status='pilot'`. This label is a software testing workspace, **not an endorsement or a staff account of an actual court**. Do not onboard real participants until revocation, security testing, and consent workflows are verified.

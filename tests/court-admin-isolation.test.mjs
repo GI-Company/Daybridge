@@ -44,18 +44,12 @@ test('court hierarchy enforces database tenancy and seat limits',async()=>{
   assert.notEqual(courtOne,courtThree);
   await denial(()=>db.query(
    "insert into public.daybridge_courts(circuit_id,court_name,login_slug,seat_limit) values($1,'Sample Court','samplecourt',25)",[circuit]));
-  await db.exec("alter table auth.users add column email text; alter table auth.users add column email_confirmed_at timestamptz");
   for(const id of ids)await db.query('insert into auth.users(id) values($1)',[id]);
-  await db.query("update auth.users set email='admin@zz.samplecircuit.samplecourt',email_confirmed_at=now() where id=$1",[staffOne]);
-  await db.query("update auth.users set email='coordinator@zz.samplecircuit.anothercourt',email_confirmed_at=now() where id=$1",[staffTwo]);
-  await asRole(db,'authenticated',staffOne,async()=>{
-    await denial(()=>db.query("select public.daybridge_link_court_staff('admin@zz.samplecircuit.samplecourt','coordinator')"));
-  });
-  await asRole(db,'service_role',staffOne,async()=>{
-    assert.equal((await db.query("select public.daybridge_link_court_staff('admin@zz.samplecircuit.samplecourt','case_manager') as id")).rows[0].id,courtOne);
-    assert.equal((await db.query("select public.daybridge_link_court_staff('coordinator@zz.samplecircuit.anothercourt','coordinator') as id")).rows[0].id,courtTwo);
-    await denial(()=>db.query("select public.daybridge_link_court_staff('wrong@zz.elsewhere.samplecourt','coordinator')"));
-  });
+  // Trusted project owner (postgres), not a browser or service_role,
+  // maps already-provisioned Auth users to court membership.
+  await db.query(
+    "insert into public.daybridge_court_staff(court_id,user_id,role) values ($1,$3,'case_manager'),($2,$4,'coordinator')",
+    [courtOne,courtTwo,staffOne,staffTwo]);
   assert.equal((await db.query('select count(*)::int as n from public.daybridge_court_staff')).rows[0].n,2);
 
   await asRole(db,'authenticated',staffOne,async()=>{

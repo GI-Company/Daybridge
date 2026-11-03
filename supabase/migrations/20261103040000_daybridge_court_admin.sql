@@ -197,58 +197,6 @@ revoke all on function public.daybridge_transition_participant(uuid,uuid,uuid,te
 grant execute on function public.daybridge_transition_participant(uuid,uuid,uuid,text)
   to service_role;
 
--- Link a trusted staff identity already created in Supabase Authentication.
--- Only privileged operators can invoke this, never public site visitors.
--- The alias selects a REGISTERED hierarchy; it does not create organizations
--- from arbitrary login strings. No shared/public staff invite endpoint.
-create or replace function public.daybridge_link_court_staff(
-  p_staff_email text, p_role text
-) returns uuid
-language plpgsql security invoker set search_path = ''
-as $$
-declare
-  v_email text := lower(trim(p_staff_email));
-  v_domain text;
-  v_state text;
-  v_circuit text;
-  v_court text;
-  v_court_id uuid;
-  v_staff_id uuid;
-begin
-  if p_role not in ('coordinator','case_manager') then
-    raise exception 'Invalid staff role';
-  end if;
-  if v_email !~ '^[a-z][a-z0-9_-]{2,31}@[a-z]{2}\.[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$' then
-    raise exception 'Invalid court staff identity format';
-  end if;
-
-  v_domain := split_part(v_email,'@',2);
-  v_state := split_part(v_domain,'.',1);
-  v_circuit := split_part(v_domain,'.',2);
-  v_court := split_part(v_domain,'.',3);
-
-  select c.id into v_court_id
-  from public.daybridge_courts c
-  join public.daybridge_judicial_circuits j on j.id=c.circuit_id
-  join public.daybridge_states s on s.code=j.state_code
-  where lower(s.code)=v_state and j.login_slug=v_circuit
-    and c.login_slug=v_court and c.enabled and c.listed;
-  if v_court_id is null then raise exception 'Court is not registered'; end if;
-
-  select u.id into v_staff_id from auth.users u
-  where lower(u.email)=v_email and u.email_confirmed_at is not null;
-  if v_staff_id is null then
-    raise exception 'Confirmed staff authentication identity not found';
-  end if;
-
-  insert into public.daybridge_court_staff(court_id,user_id,role,active)
-  values (v_court_id,v_staff_id,p_role,true)
-  on conflict (court_id,user_id) do update
-  set role=excluded.role,active=true;
-  return v_court_id;
-end;
-$$;
-revoke all on function public.daybridge_link_court_staff(text,text)
-  from public, anon, authenticated;
-grant execute on function public.daybridge_link_court_staff(text,text)
-  to service_role;
+-- Staff linkages are provisioned by the owner through Supabase SQL Editor,
+-- where a trusted privileged operator can verify auth.users without granting
+-- the browser, service_role or an exposed public RPC access to auth.users.
