@@ -22,6 +22,7 @@ import { TravelPreferencesCard } from '../travel/TravelPreferences';
 import { ChangePasswordCard } from '../common/ChangePasswordCard';
 import { RecoveryHistory } from '../common/RecoveryHistory';
 import { DeviceStorageStatus } from '../common/DeviceStorageStatus';
+import { SignOutCard } from '../common/SignOutCard';
 
 export const SettingsView: React.FC = () => {
   const data=useDayBridge();
@@ -50,6 +51,8 @@ export const SettingsView: React.FC = () => {
           Preferences, quiet hours, notifications, and privacy options
         </p>
       </div>
+
+      <SignOutCard />
 
       <section className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
         <h3 className="font-semibold text-slate-950">Undo and redo changes</h3>
