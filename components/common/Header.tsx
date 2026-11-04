@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, currentTab }) => {
-  const { profile, syncStatus, syncIssue, retrySync, isLiveSupabase,canUndo,canRedo,undoChange,redoChange } = useDayBridge();
+  const { profile, syncStatus, syncIssue, syncConflict, resolveSyncConflict, retrySync, isLiveSupabase,canUndo,canRedo,undoChange,redoChange } = useDayBridge();
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -79,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenQuickAdd, onNavigate, curr
           </button>
         </div>
       </div>
-      {syncIssue && <p role="alert" className="mx-auto mt-2 max-w-4xl rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-950">{syncIssue}</p>}
+      {syncIssue && <div role="alert" className="mx-auto mt-2 max-w-4xl rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-950"><p>{syncIssue}</p>{syncConflict&&resolveSyncConflict&&<div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={()=>{if(window.confirm('Use the latest cloud values for conflicting fields? Other device-only edits will be merged when possible. An encrypted copy of this device version is kept for recovery.'))void resolveSyncConflict('cloud');}} className="min-h-11 rounded-lg bg-teal-800 px-3 py-2 font-semibold text-white">Use latest cloud values</button><button type="button" onClick={()=>{if(window.confirm('Keep this device’s values for conflicting fields? This will update the cloud. The existing device copy is retained for recovery.'))void resolveSyncConflict('device');}} className="min-h-11 rounded-lg border border-rose-300 bg-white px-3 py-2 font-semibold">Keep this device’s conflicting edits</button></div>}</div>}
     </header>
   );
 };

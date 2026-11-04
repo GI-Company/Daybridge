@@ -8,6 +8,8 @@ export async function authenticated() {
  const db=await serverSupabase();
  const { data, error }=await db.auth.getUser();
  if(error||!data.user)return null;
+ const access=await db.rpc('daybridge_workspace_access');
+ if(access.error||access.data!==true)return null;
  return {db,userId:data.user.id};
 }
 export function jsonError(message:string,status:number) {

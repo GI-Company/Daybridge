@@ -12,6 +12,10 @@ export interface DeviceSnapshot {
  revision:number;
  dirty:boolean;
  updatedAt:number;
+ /** Last acknowledged cloud version, used to merge only actual local edits. */
+ basePayload?:Record<string,unknown>;
+ /** Identifies this workspace instance so another open tab cannot discard its queue. */
+ writerId?:string;
 }
 type Envelope={version:1;iv:Uint8Array;ciphertext:ArrayBuffer};
 const DB_NAME='daybridge-private-device-v1';
@@ -75,8 +79,8 @@ async function keyFor(userId:string):Promise<CryptoKey>{
 function additionalData(userId:string):Uint8Array{
  return new TextEncoder().encode('daybridge-snapshot-v1:'+userId);
 }
-export async function readDeviceSnapshot(userId:string):Promise<DeviceSnapshot|null>{
- const envelope=await readEntry<Envelope>(SNAPSHOTS,userId);
+async function readSnapshotEntry(userId:string,id:string):Promise<DeviceSnapshot|null>{
+ const envelope=await readEntry<Envelope>(SNAPSHOTS,id);
  if(!envelope)return null;
  if(envelope.version!==1||!envelope.iv||!envelope.ciphertext)throw new Error('Unsupported local record format');
  const key=await keyFor(userId);
@@ -89,14 +93,37 @@ export async function readDeviceSnapshot(userId:string):Promise<DeviceSnapshot|n
   throw new Error('Local record data is invalid');
  return value;
 }
-export async function writeDeviceSnapshot(userId:string,snapshot:DeviceSnapshot):Promise<void>{
+export async function readDeviceSnapshot(userId:string):Promise<DeviceSnapshot|null>{return readSnapshotEntry(userId,userId);}
+async function writeSnapshotEntry(userId:string,id:string,snapshot:DeviceSnapshot):Promise<void>{
  const key=await keyFor(userId);
  const iv=crypto.getRandomValues(new Uint8Array(12));
  const encoded=new TextEncoder().encode(JSON.stringify(snapshot));
  const ciphertext=await crypto.subtle.encrypt({
   name:'AES-GCM',iv:iv.buffer,additionalData:additionalData(userId).buffer as ArrayBuffer
  },key,encoded.buffer as ArrayBuffer);
- await writeEntry(SNAPSHOTS,userId,{version:1,iv,ciphertext} satisfies Envelope);
+ await writeEntry(SNAPSHOTS,id,{version:1,iv,ciphertext} satisfies Envelope);
+}
+export async function writeDeviceSnapshot(userId:string,snapshot:DeviceSnapshot):Promise<void>{
+ const save=async()=>{
+  const prior=await readDeviceSnapshot(userId);
+  if(prior?.dirty&&prior.writerId!==snapshot.writerId&&JSON.stringify(prior.payload)!==JSON.stringify(snapshot.payload))await writeDeviceRecovery(userId,prior);
+  await writeSnapshotEntry(userId,userId,snapshot);
+ };
+ // Coordinate installed app/browser tabs that share IndexedDB. Preserve another
+ // workspace's pending edits before replacing the shared current cache entry.
+ if(globalThis.navigator?.locks)await navigator.locks.request('daybridge-device-save:'+userId,save);
+ else await save();
+}
+/** Recovery copies are separate, encrypted, append-only entries. Normal sync never replaces them. */
+export async function writeDeviceRecovery(userId:string,snapshot:DeviceSnapshot):Promise<void>{
+ await writeSnapshotEntry(userId,'recovery:'+userId+':'+crypto.randomUUID(),snapshot);
+}
+export async function readDeviceRecoveries(userId:string):Promise<DeviceSnapshot[]>{
+ const db=await openDatabase();
+ const keys=await new Promise<IDBValidKey[]>((resolve,reject)=>{const request=db.transaction(SNAPSHOTS,'readonly').objectStore(SNAPSHOTS).getAllKeys();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+ const result:DeviceSnapshot[]=[];
+ for(const key of keys)if(typeof key==='string'&&key.startsWith('recovery:'+userId+':')){const value=await readSnapshotEntry(userId,key);if(value)result.push(value);}
+ return result;
 }
 export async function requestDurableStorage():Promise<boolean>{
  if(typeof navigator==='undefined'||!navigator.storage?.persist)return false;

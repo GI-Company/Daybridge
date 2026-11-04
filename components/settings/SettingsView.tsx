@@ -1,4 +1,5 @@
 'use client';
+import {SyncRecovery} from '../common/SyncRecovery';
 
 import React from 'react';
 import {
@@ -23,6 +24,7 @@ import { ChangePasswordCard } from '../common/ChangePasswordCard';
 import { RecoveryHistory } from '../common/RecoveryHistory';
 import { DeviceStorageStatus } from '../common/DeviceStorageStatus';
 import { SignOutCard } from '../common/SignOutCard';
+import {PersonalBilling} from './PersonalBilling';
 
 export const SettingsView: React.FC = () => {
   const data=useDayBridge();
@@ -53,6 +55,7 @@ export const SettingsView: React.FC = () => {
       </div>
 
       <SignOutCard />
+      <PersonalBilling />
 
       <section className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
         <h3 className="font-semibold text-slate-950">Undo and redo changes</h3>
@@ -191,7 +194,8 @@ export const SettingsView: React.FC = () => {
           </button>
 
         </div>
-        <p className="text-xs leading-5 text-slate-600">The export contains unencrypted personal information. Data deletion and recovery workflows are intentionally unavailable until they can be confirmed and tested against the cloud database.</p>
+        <SyncRecovery userId={profile.id}/>
+        <p className="text-xs leading-5 text-slate-600">Exports contain unencrypted personal information. Keep downloads private. Sync recovery copies let you inspect preserved device edits; importing a recovery file or deleting cloud records is not available here.</p>
       </section>
     </div>
   );

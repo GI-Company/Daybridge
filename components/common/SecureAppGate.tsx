@@ -66,8 +66,9 @@ export function SecureAppGate({children,backend}:{children:(id:string)=>React.Re
  }:undefined}>{children(user.id)}</SessionLock>}</DeviceLockSettings>;
  const screened=user.app_metadata?.daybridge_must_change_password===true
   ? <FirstUsePasswordChange client={client}/>:workspace;
+ if(user.app_metadata?.daybridge_must_change_password===true)return screened;
  return user.app_metadata?.daybridge_managed===true
-  ? <ManagedAccountGate>{screened}</ManagedAccountGate>:screened;
+  ? <ManagedAccountGate userId={user.id}>{screened}</ManagedAccountGate>:screened;
  }
  const login=async(e:React.FormEvent)=>{
   e.preventDefault();

@@ -14,11 +14,12 @@ const seed=(id:string)=>({profile:{id,fullName:'Synthetic '+id},tasks:[],medicat
 export function simulatedBackend(id:string,initialPayload:unknown=seed(id)):SupabaseClient{
  const key='synthetic-remote-'+id;
  const read=()=>JSON.parse(sessionStorage.getItem(key)||JSON.stringify({payload:initialPayload,revision:1}));
- return {from(){const query={select(){return query;},eq(){return query;},async maybeSingle(){return {data:read(),error:null};}};return query;},async rpc(name:string,args:Record<string,unknown>){
+ return {from(table:string){let revision:number|undefined;const query={select(){return query;},eq(column:string,value:unknown){if(column==='revision')revision=Number(value);return query;},update(){return query;},async maybeSingle(){return {data:table==='private_snapshot_history'?JSON.parse(sessionStorage.getItem(key+'-history')||'{}')[String(revision)]||null:read(),error:null};}};return query;},async rpc(name:string,args:Record<string,unknown>){
   if(!navigator.onLine)return {data:null,error:{message:'Synthetic offline'}};
   if(name!=='save_private_snapshot_for_user'||args.p_user_id!==id)return {data:null,error:{message:'owner mismatch'}};
   const prior=read();
   if(args.p_expected_revision!==prior.revision)return {data:null,error:{message:'snapshot_conflict'}};
+  const history=JSON.parse(sessionStorage.getItem(key+'-history')||'{}');history[prior.revision]={payload:prior.payload};sessionStorage.setItem(key+'-history',JSON.stringify(history));
   const revision=prior.revision+1;sessionStorage.setItem(key,JSON.stringify({revision,payload:args.p_payload}));
   return {data:revision,error:null};
  }} as unknown as SupabaseClient;
@@ -63,8 +64,13 @@ export function AuthHarness(){
  const backend=useMemo(()=>{
   let callback:((event:string,session:unknown)=>void)|undefined;
   const user={id:'synthetic-auth',email:'synthetic@example.invalid'} as User;
-  const auth={getUser:async()=>({data:{user:sessionStorage.getItem('synthetic-auth-valid')==='yes'?user:null},error:null}),getSession:async()=>({data:{session:sessionStorage.getItem('synthetic-auth-valid')==='yes'?{user,expires_at:sessionStorage.getItem('synthetic-auth-expired')==='yes'?1:Date.now()/1000+300}:null}}),onAuthStateChange(fn:typeof callback){callback=fn;return {data:{subscription:{unsubscribe(){callback=undefined;}}}};},async signInWithPassword({password}:{password:string}){if(password!=='synthetic-password')return {data:{user:null},error:{message:'Synthetic denial'}};sessionStorage.setItem('synthetic-auth-valid','yes');callback?.('SIGNED_IN',{user});return {data:{user},error:null};}};
+  const auth={passkey:{list:async()=>({data:[],error:null})},getUser:async()=>({data:{user:sessionStorage.getItem('synthetic-auth-valid')==='yes'?user:null},error:null}),getSession:async()=>({data:{session:sessionStorage.getItem('synthetic-auth-valid')==='yes'?{user,expires_at:sessionStorage.getItem('synthetic-auth-expired')==='yes'?1:Date.now()/1000+300}:null}}),onAuthStateChange(fn:typeof callback){callback=fn;return {data:{subscription:{unsubscribe(){callback=undefined;}}}};},async signInWithPassword({password}:{password:string}){if(password!=='synthetic-password')return {data:{user:null},error:{message:'Synthetic denial'}};sessionStorage.setItem('synthetic-auth-valid','yes');callback?.('SIGNED_IN',{user});return {data:{user},error:null};}};
   return {auth} as unknown as SupabaseClient;
  },[]);
  return <SecureAppGate backend={backend}>{id=><><p>Authorized synthetic identity: {id}</p><button onClick={()=>setIdentity({id} as User)}>Observe identity</button><p>{identity?.id}</p></>}</SecureAppGate>;
+}
+
+export function sharedBackend(id:string):SupabaseClient{
+ const request=async(action:string,args:Record<string,unknown>={})=>{if(!navigator.onLine)throw Error('Synthetic offline');return (await fetch('/synthetic-sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action,...args})})).json();};
+ return {from(table:string){let revision:number|undefined;const query={select(){return query;},eq(column:string,value:unknown){if(column==='revision')revision=Number(value);return query;},async maybeSingle(){return request(table==='private_snapshot_history'?'history':'read',{revision});}};return query;},rpc(name:string,args:Record<string,unknown>){return request('save',{...args,name});},channel(){const listeners:Array<()=>void>=[];const notify=()=>listeners.forEach(fn=>fn());const channel={on(_type:string,_filter:unknown,callback:()=>void){listeners.push(callback);return channel;},subscribe(callback:(status:string)=>void){window.addEventListener('synthetic-remote-change',notify);queueMicrotask(()=>callback('SUBSCRIBED'));return channel;},remove(){window.removeEventListener('synthetic-remote-change',notify);}};return channel;},removeChannel(channel:{remove:()=>void}){channel.remove();return Promise.resolve('ok');},auth:{signOut:async()=>({error:null})}} as unknown as SupabaseClient;
 }

@@ -34,7 +34,7 @@ export async function GET(request:Request){
     const {service,court,userId,role,administratorUsername}=await requireCourtAdmin(id!);
     const {data,error}=await service.from('daybridge_court_participants')
       .select('user_id,username,status,created_at,created_by')
-      .eq('court_id',court.id).order('created_at',{ascending:false});
+      .eq('court_id',court.id).neq('status','removed').order('created_at',{ascending:false});
     if(error)return fail('Unable to load court accounts',503);
     const participants=(data||[]) as {user_id:string;username:string;status:string;created_at:string;created_by:string}[];
     return NextResponse.json({
@@ -102,10 +102,10 @@ export async function PATCH(request:Request){
       return NextResponse.json({temporaryPassword},{headers});
     }
 
-    // A suspended/removed account remains in Auth for participant data retention.
-    // Existing access tokens may remain usable until expiry; do not claim instant remote wipe.
+    // Removal ends sponsorship, while the identity remains able to sign in to
+    // the personal subscription gate. Suspension still disables sign-in.
     const prior=member.status as 'active'|'suspended'|'removed';
-    const shouldBan=action!=='restore';
+    const shouldBan=action==='suspend';
     const {error:authError}=await service.auth.admin.updateUserById(user_id,{
       ban_duration:shouldBan?'876000h':'none'
     });
@@ -115,7 +115,7 @@ export async function PATCH(request:Request){
     });
     if(transitionError){
       const {error:rollbackError}=await service.auth.admin.updateUserById(user_id,{
-        ban_duration:prior==='active'?'none':'876000h'
+        ban_duration:prior==='suspended'?'876000h':'none'
       });
       if(rollbackError)console.error('DayBridge court status rollback failed; manual reconciliation required');
       return fail('Could not update the court record; review account status',409);

@@ -8,6 +8,7 @@ test('sign out permits only fully synced sessions with no unfinished draft',()=>
  for(const state of ['device_saved','local_only','syncing','offline'] as const){
   assert.match(signOutBlockReason(state,false)??'',/not fully synced/);
  }
+ for(const state of ['device_saved','syncing','offline'] as const)assert.equal(signOutBlockReason(state,false,true),null);
  assert.match(signOutBlockReason('synced',true)??'',/unfinished form/);
  assert.match(signOutBlockReason('device_saved',true)??'',/unfinished form/);
 });

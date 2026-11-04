@@ -14,12 +14,12 @@ test('offline edits survive encrypted device reload and flush without duplicate 
  await page.getByRole('button',{name:'Delete tasks',exact:true}).click();await expect.poll(async()=> (await cloud(page)).tasks.length).toBe(0);await expect(page.getByTestId('sync-status')).toHaveText('synced');
  await page.reload();await expect(page.getByTestId('records')).not.toContainText('Synthetic offline task');
 });
-test('a stale device preserves its edits and refuses to overwrite a newer revision',async({page})=>{
+test('a stale device merges its new task into an unchanged newer cloud revision',async({page})=>{
  await page.goto(storage);await expect(page.getByTestId('sync-status')).toHaveText('synced');
  await page.getByRole('button',{name:'Other device advances revision'}).click();
  await page.getByRole('button',{name:'Create synthetic task',exact:true}).click();
- await expect(page.getByTestId('sync-issue')).toContainText('newer cloud changes');
- await page.reload();await expect(page.getByTestId('records')).toContainText('Synthetic offline task');await expect(page.getByTestId('sync-issue')).toContainText('not merged');
+ await expect(page.getByTestId('sync-status')).toHaveText('synced');
+ await page.reload();await expect(page.getByTestId('records')).toContainText('Synthetic offline task');await expect(page.getByTestId('sync-issue')).toBeEmpty();
 });
 test('account switching separates pending device records and cloud destinations',async({page})=>{
  await page.addInitScript(()=>{Object.defineProperty(navigator,'onLine',{get:()=>sessionStorage.getItem('synthetic-offline')!=='yes'});});

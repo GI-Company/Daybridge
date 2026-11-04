@@ -11,7 +11,7 @@ async function fixture(page:Page){
   const request=route.request();
   if(request.method()==='GET'){
    if(new URL(request.url()).searchParams.get('court_id')!==court)return route.fulfill({status:403,json:{error:'You are not assigned to this court'}});
-   return route.fulfill({json:{court:{id:court,name:'DayBridge STAR Court Test',is_demo:true,seat_limit:25,subscription_plan:'pilot',subscription_status:'pilot'},participants,occupied_seats:participants.filter(p=>p.status!=='removed').length,administrator:{username:'manager',role:'coordinator'}}});
+   return route.fulfill({json:{court:{id:court,name:'DayBridge STAR Court Test',is_demo:true,seat_limit:25,subscription_plan:'pilot',subscription_status:'pilot'},participants:participants.filter(p=>p.status!=='removed'),occupied_seats:participants.filter(p=>p.status!=='removed').length,administrator:{username:'manager',role:'coordinator'}}});
   }
   const input=request.postDataJSON();
   if(request.method()==='POST'){
@@ -58,8 +58,8 @@ test('participant actions require confirmation and update seats, status, credent
  await accountAction(page,'Reset password for participant001');await confirm.getByRole('button',{name:'Confirm reset password',exact:true}).click();
  const credential=page.getByRole('status',{name:'Temporary credentials'});await expect(credential).toContainText('Temporary password issued');await credential.getByRole('button',{name:'Show temporary password'}).click();await expect(credential).toContainText('FictionalResetValue_456');
  await page.getByRole('navigation',{name:'Admin portal'}).getByRole('button',{name:'Participants',exact:true}).click();await expect(credential).toHaveCount(0);
- await accountAction(page,'Remove participant001');await expect(confirm).toContainText('does not delete personal records');await confirm.getByRole('button',{name:'Confirm remove from court',exact:true}).click();
- await expect(page.getByRole('heading',{name:'Participants (2)'})).toBeVisible();await page.getByLabel('Participant status',{exact:true}).selectOption('removed');await expect(page.locator('tbody')).toContainText('participant001');expect(state.participants).toHaveLength(3);expect(state.counts().changes).toBe(4);
+ await accountAction(page,'Remove participant001');await expect(confirm).toContainText('Supabase account and personal records remain');await confirm.getByRole('button',{name:'Confirm remove from court',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Participants (2)'})).toBeVisible();await expect(page.locator('tbody')).not.toContainText('participant001');expect(state.participants).toHaveLength(3);expect(state.counts().changes).toBe(4);
 });
 test('an expired session clears credentials and ignores a delayed privileged response',async({page})=>{
  await fixture(page);await page.getByLabel('Participant username',{exact:false}).fill('participant004');

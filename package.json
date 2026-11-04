@@ -19,7 +19,7 @@
     "predev": "node scripts/prepare-maps.mjs",
     "prebuild": "node scripts/prepare-maps.mjs",
     "test:browser": "node scripts/test-maps.mjs",
-    "test:db": "node --test tests/rls-isolation.test.mjs tests/court-admin-isolation.test.mjs",
+    "test:db": "node --test tests/rls-isolation.test.mjs tests/court-admin-isolation.test.mjs tests/billing-isolation.test.mjs",
     "test:browser:production": "node scripts/test-maps.mjs --production",
     "security:scan": "node scripts/scan-secrets.mjs"
   },
@@ -42,6 +42,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-hook-form": "^7.90.0",
+    "stripe": "23.0.0",
     "tailwind-merge": "^3.3.1",
     "web-push": "3.6.7",
     "zod": "^4.6.7"
