@@ -1,6 +1,6 @@
 # DayBridge Court Admin Portal — staged rollout
 
-**Status: Source-only candidate / not activated in production.**
+**Historical rollout proposal.** The court portal is now deployed on `main`. Use [the current portal guide](../ADMIN_PORTAL.md) and [free-beta engineering audit](BETA_READINESS_2026-11-04.md). This document preserves the original proposal: its staging-only status, required MFA, and missing billing/revocation statements no longer describe current behavior. Current staff login uses password authentication plus server-verified court membership; MFA is not enforced by the app.
 
 This branch adds a semantic **Court Admin Portal** link inside the public landing page footer. It opens `/admin`, a separate route **within the same DayBridge application**, not a second app. The admin page contains three dependent dropdowns in this order: **State → Judicial Circuit → Court**, followed by staff username and password fields. The selected court builds the exact Supabase Auth alias **username@state.circuit.court**; a mismatched alias is refused. An authenticator-code second factor is required before admin account operations.
 

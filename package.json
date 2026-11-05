@@ -19,7 +19,7 @@
     "predev": "node scripts/prepare-maps.mjs",
     "prebuild": "node scripts/prepare-maps.mjs",
     "test:browser": "node scripts/test-maps.mjs",
-    "test:db": "node --test tests/rls-isolation.test.mjs tests/court-admin-isolation.test.mjs tests/billing-isolation.test.mjs",
+    "test:db": "node --test tests/rls-isolation.test.mjs tests/court-admin-isolation.test.mjs tests/billing-isolation.test.mjs tests/pilot-capacity.test.mjs",
     "test:browser:production": "node scripts/test-maps.mjs --production",
     "security:scan": "node scripts/scan-secrets.mjs"
   },
@@ -66,6 +66,9 @@
     "node": "24.x"
   },
   "overrides": {
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.1"
+    }
   }
 }

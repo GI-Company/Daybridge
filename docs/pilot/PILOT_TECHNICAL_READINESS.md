@@ -1,4 +1,6 @@
-# Pilot technical readiness and final engineering report
+# Historical institutional pilot technical readiness report
+
+> For the current voluntary, free 25-user beta, use [the November 4 engineering audit](BETA_READINESS_2026-11-04.md). This October report remains evidence of the earlier institutional assessment; branch, deployment and MFA statements below describe that historical candidate.
 
 > Production update, 2026-10-24: the owner approved release after backup checks. The security migration is applied and all 26 pre-existing public-table records were verified unchanged. See [release verification](PRODUCTION_RELEASE_2026-10-24.md) for current status; candidate-state statements below describe the original audit. Institutional enrollment remains subject to the listed gates.
 

@@ -2,7 +2,7 @@
 
 **DayBridge** is a private, installable daily organizer that brings appointments, tasks, medication records, budgeting, saved locations, and travel reminders into one interface. It is currently a **Next.js progressive web app (PWA)**, not a native Android application.
 
-> **Release scope (2026-10-24):** `main` contains the personal security baseline, encrypted device-first synchronization and daily drug-test check-ins. The owner-approved Supabase security migration passed record-preservation checks, but live installed-device acceptance and institutional enrollment approval are separate outstanding gates. DayBridge is **not represented as HIPAA compliant**. See [personal release evidence](docs/pilot/PRODUCTION_RELEASE_2026-10-24.md) and [pilot readiness](docs/pilot/PILOT_TECHNICAL_READINESS.md).
+> **Free beta (2026-11-04):** The current engineering review targets a voluntary 25-user beta. See [beta security audit and verification](docs/pilot/BETA_READINESS_2026-11-04.md) for fixes, measured checks and remaining device/operations limits. Older institutional-readiness reports are historical; they are not the current free-beta assessment.
 
 > **Map implementation:** Locations and appointment travel use one fully interactive MapLibre 6 renderer with TomTom Orbis street tiles, selectable markers, traffic layers and road geometry. Static-map replacement has been removed. Desktop/mobile browser tests use controlled tile fixtures; production credentials, authenticated imagery and installed-device behavior require separate live verification.
 

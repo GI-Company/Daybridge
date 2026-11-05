@@ -16,8 +16,15 @@ test('starts the real worker, renders selectable markers, and supports zoom and 
   await expect(page.getByText('Loading interactive map…')).toBeHidden({timeout: 20000});
   await expect(page.locator('section [role="alert"]')).toBeHidden();
   const canvas = page.locator('canvas.maplibregl-canvas');
-  await canvas.click();
-  await expect(page.getByTestId('selection')).toHaveText('clinic');
+  // Target the actual map center, not the center of its viewport-clipped area.
+  await canvas.scrollIntoViewIfNeeded();
+  const size=await canvas.boundingBox();
+  expect(size).not.toBeNull();
+  const center={x:size!.width/2,y:size!.height/2};
+  await expect(async()=>{
+    await canvas.click({position:center});
+    await expect(page.getByTestId('selection')).toHaveText('clinic');
+  }).toPass({timeout:10000});
   await expect(page.locator('.maplibregl-popup')).toContainText('Test clinic');
   await page.getByRole('button', {name: 'Zoom in', exact: true}).click();
   const bounds = await canvas.boundingBox();

@@ -4,6 +4,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {SnapshotSync,type SyncState} from './snapshot-sync';
 import {readDeviceSnapshot,writeDeviceSnapshot,writeDeviceRecovery,requestDurableStorage} from './device-cache';
 import {snapshotEqual,type Snapshot,type MergeChoice} from './merge-snapshots';
+import {snapshotTransport} from './snapshot-transport';
 export function useSnapshotSync({userId,backend,payload,normalize,apply}:{userId:string;backend:SupabaseClient|null;payload:Snapshot;normalize:(value:Snapshot)=>Snapshot;apply:(value:Snapshot)=>void}){
  const [loaded,setLoaded]=useState(false),[state,setState]=useState<SyncState>({status:'syncing',issue:null,conflict:false});
  const engine=useRef<SnapshotSync|null>(null),timer=useRef<number|null>(null);
@@ -11,14 +12,7 @@ export function useSnapshotSync({userId,backend,payload,normalize,apply}:{userId
  applyRef.current=apply;normalizeRef.current=normalize;payloadRef.current=payload;
  useEffect(()=>{
   let active=true;
-  const transport=backend?{
-   async read(){
-    const {data,error}=await backend.from('private_snapshots').select('payload,revision').eq('user_id',userId).maybeSingle();
-    if(error)throw Error('Cloud read failed');return data?{payload:data.payload as Snapshot,revision:Number(data.revision)}:{payload:{},revision:0};
-   },
-   async history(revision:number){const {data,error}=await backend.from('private_snapshot_history').select('payload').eq('user_id',userId).eq('revision',revision).maybeSingle();if(error)return null;return data?.payload as Snapshot|null;},
-   async save(value:Snapshot,revision:number){const {data,error}=await backend.rpc('save_private_snapshot_for_user',{p_user_id:userId,p_payload:value,p_expected_revision:revision});if(error)throw Error(error.message);return Number(data);}
-  }:null;
+  const transport=backend?snapshotTransport(backend,userId):null;
   const sync=new SnapshotSync({transport,readDevice:()=>readDeviceSnapshot(userId),writeDevice:value=>writeDeviceSnapshot(userId,value),backup:value=>writeDeviceRecovery(userId,value),normalize:value=>normalizeRef.current(value),online:()=>navigator.onLine,
    apply:value=>{if(active){applyRef.current(value);setLoaded(true);}},notify:value=>{if(active)setState(value);}});
   engine.current=sync;
