@@ -20,7 +20,9 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
  const [login,setLogin]=useState(''),[password,setPassword]=useState('');
  const [message,setMessage]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [create,setCreate]=useState(emptyCreate),[selected,setSelected]=useState('');
- const [edit,setEdit]=useState<OwnerCourt|null>(null),[staffName,setStaffName]=useState(''),[staffRole,setStaffRole]=useState('case_manager');
+ const [courtDraft,setCourtDraft]=useState<Partial<OwnerCourt>|null>(null),[staffName,setStaffName]=useState(''),[staffRole,setStaffRole]=useState('case_manager');
+ const editBase=directory?.courts.find(c=>c.id===selected);
+ const edit=editBase?{...editBase,...(courtDraft?.id===selected?courtDraft:{})}:null;
  const [credentials,setCredentials]=useState<(Credentials&{signIn:StaffSignIn})|null>(null);
  const epoch=useRef(0),identity=useRef(''),sequence=useRef(0);
  const load=useCallback(async()=>{
@@ -28,7 +30,7 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
   try{
    const response=await fetch('/api/owner/setup',{cache:'no-store'});const data=await response.json();
    if(scope!==epoch.current||request!==sequence.current)return false;
-   if(!response.ok){setCredentials(null);setDirectory(null);setEdit(null);setState(response.status===401?'signin':response.status===403?'denied':'error');setMessage(data.error||'Owner setup unavailable');return false;}
+   if(!response.ok){setCredentials(null);setDirectory(null);setCourtDraft(null);setState(response.status===401?'signin':response.status===403?'denied':'error');setMessage(data.error||'Owner setup unavailable');return false;}
    setDirectory(data);setState('ready');setMessage('');return true;
   }catch{if(scope===epoch.current&&request===sequence.current){setCredentials(null);setDirectory(null);setState('error');setMessage('Could not load court setup. Reconnect and retry.');}return false;}
  },[]);
@@ -37,7 +39,7 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
   const change=(id:string)=>{
    if(!active)return;
    if(identity.current===id){if(!id)setState('signin');return;}
-   if(identity.current!==id){identity.current=id;epoch.current++;sequence.current++;setCredentials(null);setDirectory(null);setEdit(null);setSelected('');setView('overview');setCreate(emptyCreate);setStaffName('');setMessage('');setNotice('');}
+   if(identity.current!==id){identity.current=id;epoch.current++;sequence.current++;setCredentials(null);setDirectory(null);setCourtDraft(null);setSelected('');setView('overview');setCreate(emptyCreate);setStaffName('');setMessage('');setNotice('');}
    if(id){setState('loading');void load();}else setState('signin');
   };
   if(!client){setState('signin');return;}
@@ -46,7 +48,6 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
   void client.auth.getUser().then(({data,error})=>{if(active&&epoch.current===started)change(error?'':data.user?.id||'');}).catch(()=>{if(active)setState('signin');});
   return()=>{active=false;epoch.current++;subscription.unsubscribe();};
  },[client,load]);
- useEffect(()=>{const court=directory?.courts.find(c=>c.id===selected);setEdit(court?{...court}:null);setStaffName('');},[directory,selected]);
  async function signIn(event:FormEvent){
   event.preventDefault();const email=loginIdentifierToEmail(login);if(!email||!client){setMessage('Enter your existing owner username or email.');return;}
   setBusy(true);setMessage('');
@@ -54,7 +55,7 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
  }
  async function signOut(){
   if(hasDraft&&!window.confirm('Sign out and discard unsaved court setup fields?'))return;
-  setBusy(true);try{const result=await client?.auth.signOut({scope:'local'});if(result?.error)throw result.error;epoch.current++;identity.current='';setCredentials(null);setDirectory(null);setEdit(null);setState('signin');setMessage('');setNotice('');}catch{setMessage('Could not sign out. Reconnect and retry.');}finally{setBusy(false);}
+  setBusy(true);try{const result=await client?.auth.signOut({scope:'local'});if(result?.error)throw result.error;epoch.current++;identity.current='';setCredentials(null);setDirectory(null);setCourtDraft(null);setState('signin');setMessage('');setNotice('');}catch{setMessage('Could not sign out. Reconnect and retry.');}finally{setBusy(false);}
  }
  async function mutate(input:object,confirmation:string,success:string){
   if(busy||!window.confirm(confirmation))return false;
@@ -62,8 +63,13 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
   try{
    const response=await fetch('/api/owner/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input),cache:'no-store'});const data=await response.json();
    if(scope!==epoch.current)return false;
-   if(!response.ok){if(response.status===401||response.status===403){setCredentials(null);setDirectory(null);setEdit(null);setState(response.status===401?'signin':'denied');}throw Error(data.error||'Could not save setup');}
-   setNotice(success);await load();if(input&&'action' in input&&input.action==='create'){setSelected(data.court_id);setView('manage');}return true;
+   if(!response.ok){if(response.status===401||response.status===403){setCredentials(null);setDirectory(null);setCourtDraft(null);setState(response.status===401?'signin':'denied');}throw Error(data.error||'Could not save setup');}
+   setNotice(success);await load();if(scope!==epoch.current)return false;
+   if(input&&'action' in input){
+    if(input.action==='update')setCourtDraft(null);
+    if(input.action==='assign_staff')setStaffName('');
+    if(input.action==='create'){setCourtDraft(null);setSelected(data.court_id);setView('manage');}
+   }return true;
   }catch(error){if(scope===epoch.current)setMessage(error instanceof Error?error.message:'Could not save setup');return false;}finally{setBusy(false);}
  }
  useEffect(()=>{if(!credentials)return;const timer=window.setTimeout(()=>setCredentials(null),5*60_000);return()=>window.clearTimeout(timer);},[credentials]);
@@ -77,13 +83,12 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
   try{
    const response=await fetch('/api/owner/staff',{method:action==='create'?'POST':'PATCH',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify(action==='create'?{court_id:edit.id,username:staffName.trim().toLowerCase(),role:staffRole}:{court_id:edit.id,user_id:userId})});
    const result=await response.json();if(scope!==epoch.current)return;
-   if(!response.ok){if(response.status===401){setDirectory(null);setEdit(null);setState('signin');}else if(response.status===403){await load();}throw Error(result.error||'Staff credentials could not be issued');}
+   if(!response.ok){if(response.status===401){setDirectory(null);setCourtDraft(null);setState('signin');}else if(response.status===403){await load();}throw Error(result.error||'Staff credentials could not be issued');}
    const signIn={email:result.email,courtId:edit.id,courtName:edit.court_name,circuitName:circuit.name,stateName:directory?.states.find(state=>state.code===circuit.state_code)?.name||circuit.state_code};
-   if(await load()&&scope===epoch.current){setCredentials({username:result.username,temporaryPassword:result.temporaryPassword,kind:action==='create'?'created':'reset',signIn});setNotice(action==='create'?'Staff account created. Share the temporary credentials privately.':'Staff password reset. Share the new temporary credentials privately.');}
+   if(await load()&&scope===epoch.current){setStaffName('');setCredentials({username:result.username,temporaryPassword:result.temporaryPassword,kind:action==='create'?'created':'reset',signIn});setNotice(action==='create'?'Staff account created. Share the temporary credentials privately.':'Staff password reset. Share the new temporary credentials privately.');}
   }catch(error){if(scope===epoch.current)setMessage(error instanceof Error?error.message:'Staff credential management unavailable');}
   finally{if(scope===epoch.current)setBusy(false);}
  }
- const editBase=directory?.courts.find(c=>c.id===selected);
  const editDirty=Boolean(edit&&editBase&&JSON.stringify(edit)!==JSON.stringify(editBase));
  const hasDraft=JSON.stringify(create)!==JSON.stringify(emptyCreate)||editDirty||Boolean(staffName);
  useEffect(()=>{
@@ -91,8 +96,8 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
   window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);
  },[hasDraft]);
  const navigate=(next:OwnerView)=>{setCredentials(null);setView(next);setMessage('');setNotice('');};
- const manage=(id:string)=>{if((editDirty||staffName)&&id!==selected&&!window.confirm('Discard the unsaved settings for this court?'))return;setSelected(id);navigate('manage');};
- const refreshDashboard=()=>{if(hasDraft&&!window.confirm('Refresh and discard your unsaved setup fields?'))return;setCredentials(null);setCreate(emptyCreate);setStaffName('');void load();};
+ const manage=(id:string)=>{if((editDirty||staffName)&&id!==selected&&!window.confirm('Discard the unsaved settings for this court?'))return;if(id!==selected){setCourtDraft(null);setStaffName('');}setSelected(id);navigate('manage');};
+ const refreshDashboard=()=>{if(hasDraft&&!window.confirm('Refresh and discard your unsaved setup fields?'))return;setCredentials(null);setCreate(emptyCreate);setCourtDraft(null);setStaffName('');void load();};
  const circuit=directory?.circuits.find(j=>j.id===edit?.circuit_id);
  const alias=circuit&&edit?courtStaffAuthEmail(staffName,circuit.state_code,circuit.login_slug,edit.login_slug):null;
  const circuitOptions=directory?.circuits.filter(j=>j.state_code===create.state_code)||[];
@@ -129,9 +134,11 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
     <section hidden={view!=='manage'} className={panel+' max-w-3xl space-y-4 p-5'}><h2 className="text-lg font-bold">Manage a court</h2><label className="block text-sm font-semibold">Select court<select disabled={busy} aria-label="Select court" className={field} value={selected} onChange={e=>manage(e.target.value)}><option value="">Choose a court</option>{directory.courts.map(c=><option key={c.id} value={c.id}>{c.court_name}{c.is_demo?' (test)':''}</option>)}</select></label>
      {edit&&<><p className="text-sm text-slate-600">{circuit?.name} · {circuit?.state_code} · {edit.occupied_seats} assigned / {edit.seat_limit} seats</p>
       <form className="space-y-3" onSubmit={e=>{e.preventDefault();void mutate({action:'update',court_id:edit.id,court_name:edit.court_name,seat_limit:edit.seat_limit,subscription_status:edit.subscription_status,listed:edit.listed,enabled:edit.enabled},'Save these court settings? Disabling the court stops staff portal access. Pausing enrollment retains existing participant records.','Court settings saved.');}}>
-       <label className="block text-sm font-semibold">Display name<input className={field} required minLength={3} maxLength={120} value={edit.court_name} onChange={e=>setEdit({...edit,court_name:e.target.value})}/></label><label className="block text-sm font-semibold">Seat limit<input className={field} required type="number" min={Math.max(1,edit.occupied_seats)} max={100000} value={edit.seat_limit} onChange={e=>setEdit({...edit,seat_limit:Number(e.target.value)})}/></label>
-       <label className="block text-sm font-semibold">Enrollment status<select className={field} value={edit.subscription_status} onChange={e=>setEdit({...edit,subscription_status:e.target.value as OwnerCourt['subscription_status']})}><option value="pilot">Free pilot</option><option value="active">Active</option><option value="paused">Paused</option><option value="canceled">Canceled</option></select></label><p className="text-xs text-slate-500">This controls enrollment, not payment collection. Suspended participants still occupy seats.</p>
-       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.listed} onChange={e=>setEdit({...edit,listed:e.target.checked})}/>Show in public directory</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.enabled} onChange={e=>setEdit({...edit,enabled:e.target.checked})}/>Court staff portal enabled</label><button disabled={busy} className={primary}>Save court settings</button>
+       <label className="block text-sm font-semibold">Display name<input className={field} required minLength={3} maxLength={120} value={edit.court_name} onChange={e=>setCourtDraft({...courtDraft,id:edit.id,court_name:e.target.value})}/></label><label className="block text-sm font-semibold">Seat limit<input className={field} required type="number" min={Math.max(1,edit.occupied_seats)} max={100000} value={edit.seat_limit} onChange={e=>setCourtDraft({...courtDraft,id:edit.id,seat_limit:Number(e.target.value)})}/></label>
+       <label className="block text-sm font-semibold">Enrollment status<select className={field} value={edit.subscription_status} onChange={e=>setCourtDraft({...courtDraft,id:edit.id,subscription_status:e.target.value as OwnerCourt['subscription_status']})}><option value="pilot">Free pilot</option><option value="active">Active</option><option value="paused">Paused</option><option value="canceled">Canceled</option></select></label><p className="text-xs text-slate-500">This controls enrollment, not payment collection. Suspended participants still occupy seats.</p>
+       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.listed} onChange={e=>setCourtDraft({...courtDraft,id:edit.id,listed:e.target.checked})}/>Show in public directory</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.enabled} onChange={e=>setCourtDraft({...courtDraft,id:edit.id,enabled:e.target.checked})}/>Court staff portal enabled</label><button disabled={busy} className={primary}>Save court settings</button>
+       <p role="status" className="text-sm text-slate-600">{editDirty?'Unsaved court settings. Click Save court settings to apply changes, including the public directory checkbox.':editBase?.listed&&editBase.enabled?'Saved: this court appears in the public staff sign-in directory.':'Saved: this court is hidden from the public staff sign-in directory.'}</p>
+       {editBase?.listed&&editBase.enabled&&<Link className={secondary} href={'/admin?court_id='+editBase.id} onClick={e=>{if(hasDraft&&!window.confirm('Leave with unsaved court settings? Save them first to update the directory.'))e.preventDefault();}}>Open this court in staff portal</Link>}
       </form>
       <OwnerCourtStaff key={edit.id} court={edit} staff={directory.staff.filter(s=>s.court_id===edit.id)} username={staffName} setUsername={setStaffName} role={staffRole} setRole={setStaffRole} alias={alias} busy={busy}
        onCreate={()=>void staffCredentials('create')}

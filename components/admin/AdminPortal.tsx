@@ -42,12 +42,12 @@ export function AdminPortal({backend}:{backend?:SupabaseClient}){
  const clearScope=useCallback(()=>{scope.current++;setPasswordRequired(false);setPortal(null);setCredentials(null);setPending(null);setEntries([]);setNextCursor(null);setActivityLoaded(false);setActivityError('');setResetId('');setNotice('');setMessage('');setBusy(false);setLoading(false);setActivityLoading(false);},[]);
  const loadDirectory=useCallback(async(signal?:AbortSignal)=>{
   setDirectoryMessage('');
-  try{const response=await fetch('/api/admin/courts',{cache:'no-store',signal});const data=await response.json();if(!response.ok)throw Error(data.error||'Court directory unavailable');const list=data.courts as ListedCourt[];setCourts(list);return list;}
+  try{const response=await fetch('/api/admin/courts',{cache:'no-store',signal});const data=await response.json();if(!response.ok)throw Error(data.error||'Court directory unavailable');const list=data.courts as ListedCourt[];setCourts(list);if(!list.length)setDirectoryMessage('No courts have been published for this portal.');return list;}
   catch(error){if(!signal?.aborted)setDirectoryMessage(error instanceof Error?error.message:'Court directory unavailable');return null;}
  },[]);
  useEffect(()=>{
   let mounted=true;const controller=new AbortController();
-  void loadDirectory(controller.signal).then(list=>{if(!mounted||!list)return;if(!list.length){setDirectoryMessage('No courts have been activated for this portal.');return;}const requested=new URLSearchParams(location.search).get('court_id');const initial=list.find(c=>c.id===requested)||list[0];setStateCode(initial.state_code);setCircuitId(initial.circuit_id);setCourtId(initial.id);});
+  void loadDirectory(controller.signal);
   const setIdentity=(id:string)=>{if(!mounted)return;if(identity.current!==id){identity.current=id;clearScope();}setSession(id?'signedin':'signedout');};
   if(!client){setSession('signedout');return()=>{mounted=false;controller.abort();};}
   let authEvent=false;
@@ -55,6 +55,12 @@ export function AdminPortal({backend}:{backend?:SupabaseClient}){
   const {data:{subscription}}=client.auth.onAuthStateChange((_event,authSession)=>{authEvent=true;setIdentity(authSession?.user?.id||'');});
   return()=>{mounted=false;scope.current++;controller.abort();subscription.unsubscribe();};
  },[client,clearScope,loadDirectory]);
+ useEffect(()=>{
+  if(courts.some(c=>c.id===courtId))return;
+  const requested=new URLSearchParams(location.search).get('court_id');
+  const next=courts.find(c=>c.id===requested)||courts[0];
+  clearScope();setStateCode(next?.state_code||'');setCircuitId(next?.circuit_id||'');setCourtId(next?.id||'');
+ },[courts,courtId,clearScope]);
  useEffect(()=>{if(session==='signedout'){setPortal(null);setCredentials(null);}},[session]);
  useEffect(()=>{if(!credentials)return;const timer=window.setTimeout(()=>setCredentials(null),5*60_000);return()=>window.clearTimeout(timer);},[credentials]);
  const loadParticipants=useCallback(async()=>{

@@ -103,3 +103,21 @@ test('temporary staff credentials cannot open participant administration before 
  await fill();await page.getByRole('button',{name:'Save staff password',exact:true}).click();await expect(page.getByRole('region',{name:'Staff password setup'}).getByRole('alert')).toContainText('Temporary password was not accepted');await expect(page.getByLabel('Current temporary password',{exact:true})).toHaveValue('');
  await fill();await page.getByRole('button',{name:'Save staff password',exact:true}).click();await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByText('Staff password saved. Sign in with your new password.',{exact:true})).toBeVisible();
 });
+
+test('refresh initializes selectors when the first published court arrives and preserves valid selections',async({page})=>{
+ let courts:typeof directory=[];
+ await page.route('**/api/admin/courts',r=>r.fulfill({json:{courts}}));
+ await page.goto('/map-test-internal?admin=test&court_id='+court);
+ await expect(page.getByRole('alert').filter({hasText:'No courts have been published'})).toBeVisible();
+ courts=directory;
+ await page.getByRole('button',{name:'Refresh court directory',exact:true}).click();
+ await expect(page.getByRole('combobox',{name:'State',exact:true})).toHaveValue('GA');
+ await expect(page.getByRole('combobox',{name:'Judicial circuit',exact:true})).toHaveValue('synthetic-enotah');
+ await expect(page.getByRole('combobox',{name:'Court',exact:true})).toHaveValue(court);
+ await page.getByRole('combobox',{name:'Court',exact:true}).selectOption(second);
+ await page.getByRole('button',{name:'Refresh court directory',exact:true}).click();
+ await expect(page.getByRole('combobox',{name:'Court',exact:true})).toHaveValue(second);
+ courts=[directory[0]];
+ await page.getByRole('button',{name:'Refresh court directory',exact:true}).click();
+ await expect(page.getByRole('combobox',{name:'Court',exact:true})).toHaveValue(court);
+});

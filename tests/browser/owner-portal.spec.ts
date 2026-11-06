@@ -29,9 +29,11 @@ test('owner creates a court using an existing hierarchy and gets accurate setup 
  await page.getByLabel('Judicial circuit',{exact:true}).fill('Beta Circuit');await expect(page.getByLabel('Circuit sign-in code',{exact:true})).toHaveValue('beta');
  await page.getByLabel('Court name',{exact:true}).fill('New Beta Court');await expect(page.getByLabel('Court sign-in code',{exact:true})).toHaveValue('new-beta-court');
  await expect(page.getByLabel('Participant seats',{exact:true})).toHaveValue('25');
+ await expect(page.getByRole('checkbox',{name:'Show in public court directory',exact:true})).not.toBeChecked();
+ await page.getByRole('checkbox',{name:'Show in public court directory',exact:true}).check();
  page.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Create court',exact:true}).click();expect(state.mutations).toHaveLength(0);
  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Create court',exact:true}).click();await expect(page.getByText('Court created.',{exact:false})).toBeVisible();await expect(page.getByRole('combobox',{name:'Select court',exact:true})).toHaveValue('a1000000-0000-4000-8000-000000000012');
- expect(state.mutations[0]).toMatchObject({state_code:'GA',circuit_slug:'beta',seat_limit:25,listed:false,is_demo:true});
+ expect(state.mutations[0]).toMatchObject({state_code:'GA',circuit_slug:'beta',seat_limit:25,listed:true,is_demo:true});
 });
 test('staff assignment uses the court alias, requires confirmation, and revokes without deleting records',async({page})=>{
  const state=await fixture(page);await page.getByRole('navigation',{name:'Owner dashboard'}).getByRole('button',{name:'Courts',exact:true}).click();await page.getByRole('button',{name:'Manage Beta Court',exact:true}).click();
@@ -108,4 +110,24 @@ test('late staff credentials never appear after owner sign-out',async({page})=>{
  await page.route('**/api/owner/staff',async route=>{receive();await waiting;return route.fulfill({status:201,json:{username:'manager',email:'manager@ga.beta.beta-court',temporaryPassword:'FictionalLateStaffSecret'}});});
  await page.getByLabel('Staff username',{exact:true}).fill('manager');page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Create staff account',exact:true}).click();await started;
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('synthetic-owner-auth',{detail:null})));release();await expect(page.getByRole('heading',{name:'Owner sign in'})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);
+});
+
+test('directory changes survive staff setup and publish only after saving court settings',async({page})=>{
+ const state=await fixture(page);
+ await page.getByRole('navigation',{name:'Owner dashboard'}).getByRole('button',{name:'Courts',exact:true}).click();
+ await page.getByRole('button',{name:'Manage Beta Court',exact:true}).click();
+ const listed=page.getByRole('checkbox',{name:'Show in public directory',exact:true});
+ await listed.check();
+ await expect(page.getByText('Unsaved court settings.',{exact:false})).toBeVisible();
+ await page.getByLabel('Staff username',{exact:true}).fill('manager');
+ page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Create staff account',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Temporary credentials'})).toBeVisible();
+ await expect(listed).toBeChecked();expect(state.data.courts[0].listed).toBe(false);
+ await page.getByRole('navigation',{name:'Owner dashboard'}).getByRole('button',{name:'Courts',exact:true}).click();
+ await page.getByRole('button',{name:'Manage Beta Court',exact:true}).click();await expect(listed).toBeChecked();
+ page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Save court settings',exact:true}).click();
+ await expect(page.getByText('Saved: this court appears in the public staff sign-in directory.',{exact:true})).toBeVisible();
+ expect(state.data.courts[0].listed).toBe(true);
+ await expect(page.getByRole('link',{name:'Open this court in staff portal',exact:true})).toHaveAttribute('href','/admin?court_id='+court);
+ await page.getByRole('button',{name:'Refresh dashboard',exact:true}).click();await expect(listed).toBeChecked();
 });
