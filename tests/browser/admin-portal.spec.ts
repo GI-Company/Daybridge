@@ -90,3 +90,16 @@ test('narrow participant cards expose keyboard-accessible actions, clear filters
  await page.getByLabel('Search participants',{exact:true}).fill('no-match');await expect(page.getByText('No matching participants',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect(cards.getByRole('article')).toHaveCount(3);
  await accountAction(page,'Remove participant001');await expect(page.getByRole('dialog')).toContainText('participant001');await page.getByRole('button',{name:'Cancel',exact:true}).click();await expect(menu).toBeFocused();
 });
+
+
+test('temporary staff credentials cannot open participant administration before password setup',async({page})=>{
+ await page.route('**/api/admin/courts',r=>r.fulfill({json:{courts:directory}}));
+ await page.route('**/api/admin/participants**',r=>r.fulfill({status:403,json:{error:'Change your staff password',password_change_required:true}}));
+ let attempts=0;
+ await page.route('**/api/admin/staff-password',r=>{attempts++;return r.fulfill(attempts===1?{status:400,json:{error:'Temporary password was not accepted'}}:{json:{ok:true}});});
+ await page.goto('/map-test-internal?admin=test');
+ await expect(page.getByRole('heading',{name:'Set your private staff password'})).toBeVisible();await expect(page.getByLabel('Participant username',{exact:false})).toHaveCount(0);
+ const fill=async()=>{await page.getByLabel('Current temporary password',{exact:true}).fill('FictionalTemporary');await page.getByLabel('New staff password',{exact:true}).fill('FictionalPrivate_456');await page.getByLabel('Confirm new staff password',{exact:true}).fill('FictionalPrivate_456');};
+ await fill();await page.getByRole('button',{name:'Save staff password',exact:true}).click();await expect(page.getByRole('region',{name:'Staff password setup'}).getByRole('alert')).toContainText('Temporary password was not accepted');await expect(page.getByLabel('Current temporary password',{exact:true})).toHaveValue('');
+ await fill();await page.getByRole('button',{name:'Save staff password',exact:true}).click();await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByText('Staff password saved. Sign in with your new password.',{exact:true})).toBeVisible();
+});

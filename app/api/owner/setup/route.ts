@@ -13,7 +13,7 @@ export async function GET(){
   const [directory,activity]=await Promise.all([
    service.rpc('daybridge_owner_directory',{p_actor:userId}),
    service.from('daybridge_court_audit').select('id,court_id,action,created_at')
-    .in('action',['owner_create','owner_update','owner_assign_staff','owner_revoke_staff'])
+    .in('action',['owner_create','owner_update','owner_assign_staff','owner_revoke_staff','owner_staff_created','owner_staff_password_reset','owner_staff_credentials_failed'])
     .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(8)
   ]);
   if(directory.error||activity.error)throw Error('Directory unavailable');

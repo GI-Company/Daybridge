@@ -1,6 +1,6 @@
 /**
  * Supabase Auth-style login alias; not a deliverable email address.
- * Authorization always requires a signed session, MFA, and court membership.
+ * Authorization requires a verified session and active court membership.
  */
 export const COURT_STAFF_NAME=/^[a-z][a-z0-9_-]{2,31}$/;
 export const COURT_LOGIN_SLUG=/^[a-z][a-z0-9-]{1,62}$/;

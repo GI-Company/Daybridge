@@ -2,7 +2,7 @@ import {randomBytes} from 'node:crypto';
 import {NextResponse} from 'next/server';
 import {z} from 'zod';
 import {assertSameOrigin,readPrivateJSON,PrivateRequestError} from '../../../../lib/security/request';
-import {requireCourtAdmin,CourtAccessError} from '../../../../lib/admin/courts';
+import {requireCourtAdmin,CourtAccessError,StaffPasswordRequired} from '../../../../lib/admin/courts';
 import {usernameToAuthEmail} from '../../../../lib/auth/username';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -22,6 +22,7 @@ function fail(message:string,status=400) {
   return NextResponse.json({error:message},{status,headers});
 }
 function errorResponse(error:unknown){
+  if(error instanceof StaffPasswordRequired)return NextResponse.json({error:error.message,password_change_required:true},{status:403,headers});
   if(error instanceof CourtAccessError||error instanceof PrivateRequestError)
     return fail(error.message,error.status);
   return fail('Account management is temporarily unavailable',503);
