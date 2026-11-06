@@ -12,3 +12,6 @@ test-results/
 app/map-test-internal/
 .next-map-tests/
 supabase/.temp/
+
+# Local guides and exports may contain privately supplied credentials.
+/output/

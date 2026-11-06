@@ -19,7 +19,7 @@
     "predev": "node scripts/prepare-maps.mjs",
     "prebuild": "node scripts/prepare-maps.mjs",
     "test:browser": "node scripts/test-maps.mjs",
-    "test:db": "node --test tests/rls-isolation.test.mjs tests/court-admin-isolation.test.mjs tests/billing-isolation.test.mjs tests/pilot-capacity.test.mjs tests/owner-isolation.test.mjs",
+    "test:db": "node --test tests/rls-isolation.test.mjs tests/court-admin-isolation.test.mjs tests/billing-isolation.test.mjs tests/pilot-capacity.test.mjs tests/owner-isolation.test.mjs tests/reporting-isolation.test.mjs",
     "test:browser:production": "node scripts/test-maps.mjs --production",
     "security:scan": "node scripts/scan-secrets.mjs"
   },

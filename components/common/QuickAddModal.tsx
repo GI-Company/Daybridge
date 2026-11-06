@@ -57,7 +57,7 @@ const hourLater=(value:string)=>{
 };
 
 export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, initialType, initialDate }) => {
-  const { profile, addEvent, addMedication, addTask, addTransaction, addBill, addContact, addSavedPlace, accounts, savedPlaces } = useDayBridge();
+  const { profile, addEvent, addMedication, addTask, addTransaction, addBill, addContact, addSavedPlace, accounts, savedPlaces, events } = useDayBridge();
 
   const [activeType, setActiveType] = useState<QuickAddType|null>(initialType??null);
   const [advanced,setAdvanced]=useState(false);
@@ -109,6 +109,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
   const [taskDueTime,setTaskDueTime]=useState('12:00');
   const [taskLead,setTaskLead]=useState(0);
   const [taskNotes,setTaskNotes]=useState('');
+  const [taskCourtEvent,setTaskCourtEvent]=useState('');
 
   // Money transaction form state
   const [txType, setTxType] = useState<'expense' | 'income'>('expense');
@@ -241,6 +242,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         dueDate: taskDueDate ? taskDueDate+'T'+taskDueTime+':00' : undefined,
         reminderLeadMinutes:taskLead,
         notes:taskNotes.trim(),
+        linkedEventId:taskCourtEvent||undefined,
         isRecurring: false,
         subtasks: [],
       });
@@ -612,6 +614,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
           )}
 
           {activeType==='task'&&<div className="space-y-3">
+            <label className="block text-sm font-semibold text-slate-800">Related court appointment (optional)
+              <select value={taskCourtEvent} onChange={e=>setTaskCourtEvent(e.target.value)} className="mt-1 block min-h-11 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"><option value="">No court link</option>{events.filter(e=>e.category==='court'||e.category==='case_management').map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select>
+              <span className="mt-1 block text-xs font-normal text-slate-600">This link stays private. Sharing requires a separate choice in Sharing with My Court.</span>
+            </label>
             <label className="block text-sm font-semibold text-slate-800">Remind me for this task: {taskLead===0?'At due time':taskLead+' minutes before due'}
               <input type="range" min="0" max="300" step="5" value={taskLead} onChange={e=>setTaskLead(Number(e.target.value))}
                className="mt-2 block w-full accent-teal-800" aria-label="Task reminder lead time"/>

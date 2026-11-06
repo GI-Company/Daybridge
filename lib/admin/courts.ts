@@ -46,15 +46,17 @@ export async function requireCourtAdmin(courtId:string,{allowPasswordChange=fals
   if(circuitError||!expected||user.email?.toLowerCase()!==expected)
     throw new CourtAccessError(403,'Administrator identity does not match the selected court');
   if(membership.password_change_required&&!allowPasswordChange)throw new StaffPasswordRequired();
+  let staffSessionId:string|null=null;
   if(membership.credential_valid_after&&!allowPasswordChange){
     const {data:claims,error:claimsError}=await browserSession.auth.getClaims();
     const session=claims?.claims?.session_id;
     if(claimsError||claims?.claims?.sub!==user.id||typeof session!=='string')throw new CourtAccessError(401,'Sign in again with your current staff password');
+    staffSessionId=session;
     const {data:current,error:sessionError}=await service.rpc('daybridge_staff_session_current',{p_user:user.id,p_court:courtId,p_session:session});
     if(sessionError)throw new CourtAccessError(503,'Staff session could not be verified');
     if(current!==true)throw new CourtAccessError(401,'Sign in again with your current staff password');
   }
   return {service,userId:user.id,court:court as Court,role:membership.role as string,administratorUsername:localPart,
-    email:user.email!,passwordChangeRequired:membership.password_change_required===true,
+    email:user.email!,staffSessionId,passwordChangeRequired:membership.password_change_required===true,
     credentialVersion:membership.credential_version as string|null,credentialOperationUntil:membership.credential_operation_until as string|null};
 }

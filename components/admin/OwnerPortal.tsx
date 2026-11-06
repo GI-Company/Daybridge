@@ -7,6 +7,7 @@ import {loginIdentifierToEmail} from '../../lib/auth/username';
 import {courtStaffAuthEmail} from '../../lib/auth/court-staff';
 import {suggestedLoginSlug,type OwnerCourt,type OwnerDashboardData,type OwnerView} from '../../lib/admin/owner-types';
 import {field,panel,primary,secondary,PortalFeedback,CredentialCard,type Credentials,type StaffSignIn} from './PortalPanels';
+import {OwnerReportingSetting} from './OwnerReportingSetting';
 import {OwnerCourtStaff} from './OwnerCourtStaff';
 import {OwnerNavigation,OwnerOverview,OwnerCourts,OwnerStaff,OwnerGuide,OwnerSecurity,ownerViewTitles} from './OwnerDashboardPanels';
 
@@ -133,6 +134,7 @@ export function OwnerPortal({backend}:{backend?:SupabaseClient|null}){
        <label className="block text-sm font-semibold">Enrollment status<select className={field} value={edit.subscription_status} onChange={e=>setEdit({...edit,subscription_status:e.target.value as OwnerCourt['subscription_status']})}><option value="pilot">Free pilot</option><option value="active">Active</option><option value="paused">Paused</option><option value="canceled">Canceled</option></select></label><p className="text-xs text-slate-500">This controls enrollment, not payment collection. Suspended participants still occupy seats.</p>
        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.listed} onChange={e=>setEdit({...edit,listed:e.target.checked})}/>Show in public directory</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.enabled} onChange={e=>setEdit({...edit,enabled:e.target.checked})}/>Court staff portal enabled</label><button disabled={busy} className={primary}>Save court settings</button>
       </form>
+      <OwnerReportingSetting key={edit.id+'reporting'} courtId={edit.id}/>
       <OwnerCourtStaff key={edit.id} court={edit} staff={directory.staff.filter(s=>s.court_id===edit.id)} username={staffName} setUsername={setStaffName} role={staffRole} setRole={setStaffRole} alias={alias} busy={busy}
        onCreate={()=>void staffCredentials('create')}
        onAssign={()=>void mutate({action:'assign_staff',court_id:edit.id,username:staffName.trim().toLowerCase(),role:staffRole},`Grant ${alias} ${staffRole.replace('_',' ')} access to ${edit.court_name}?`,'Staff assignment saved.')}
