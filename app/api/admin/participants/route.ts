@@ -4,14 +4,12 @@ import {z} from 'zod';
 import {assertSameOrigin,readPrivateJSON,PrivateRequestError} from '../../../../lib/security/request';
 import {requireCourtAdmin,CourtAccessError,StaffPasswordRequired} from '../../../../lib/admin/courts';
 import {usernameToAuthEmail} from '../../../../lib/auth/username';
+import {participantCreateInput} from '../../../../lib/admin/participant-input';
+import {generateParticipantUsername} from '../../../../lib/admin/participant-username';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 
 const courtId=z.string().uuid();
-const createInput=z.object({
-  court_id:courtId,
-  username:z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_-]{2,31}$/)
-}).strict();
 const changeInput=z.object({
   court_id:courtId,
   user_id:z.string().uuid(),
@@ -34,10 +32,10 @@ export async function GET(request:Request){
     if(!courtId.safeParse(id).success)return fail('Choose a valid court');
     const {service,court,userId,role,administratorUsername}=await requireCourtAdmin(id!);
     const {data,error}=await service.from('daybridge_court_participants')
-      .select('user_id,username,status,created_at,created_by')
+      .select('user_id,username,participant_name,birth_date,status,created_at,created_by')
       .eq('court_id',court.id).neq('status','removed').order('created_at',{ascending:false});
     if(error)return fail('Unable to load court accounts',503);
-    const participants=(data||[]) as {user_id:string;username:string;status:string;created_at:string;created_by:string}[];
+    const participants=(data||[]) as {user_id:string;username:string;participant_name:string|null;birth_date:string|null;status:string;created_at:string;created_by:string}[];
     return NextResponse.json({
       court:{id:court.id,name:court.court_name,is_demo:court.is_demo,seat_limit:court.seat_limit,subscription_plan:court.subscription_plan,subscription_status:court.subscription_status},
       administrator:{username:administratorUsername,role},
@@ -49,30 +47,45 @@ export async function GET(request:Request){
 
 export async function POST(request:Request){
   try{
-    const parsed=createInput.safeParse(await readPrivateJSON(request));
-    if(!parsed.success)return fail('Enter a valid court and a 3–32 character username');
-    const {court_id,username}=parsed.data;
+    const parsed=participantCreateInput.safeParse(await readPrivateJSON(request));
+    if(!parsed.success)return fail('Enter the participant’s full name and a valid date of birth');
+    const {court_id,participant_name,birth_date}=parsed.data;
     const {service,userId,court}=await requireCourtAdmin(court_id);
     if(!['pilot','active'].includes(court.subscription_status))
       return fail('New accounts are unavailable for this court subscription',403);
-    const email=usernameToAuthEmail(username);
-    if(!email)return fail('Invalid participant username');
     // One-time secret is shown once in the secured admin response; never logged or stored here.
     const temporaryPassword=randomBytes(24).toString('base64url');
-    const {data:created,error:createError}=await service.auth.admin.createUser({
-      email,password:temporaryPassword,email_confirm:true,
-      app_metadata:{daybridge_managed:true,daybridge_must_change_password:true}
-    });
-    if(createError||!created.user)return fail('Username is unavailable or identity provider rejected the request',409);
-    const {error:seatError}=await service.rpc('daybridge_assign_participant',{
-      p_court_id:court_id,p_user_id:created.user.id,p_username:username,p_actor_id:userId
-    });
-    if(seatError){
-      const {error:rollbackError}=await service.auth.admin.deleteUser(created.user.id);
-      if(rollbackError)console.error('DayBridge court provisioning rollback failed; review orphaned account');
-      return fail('Seat assignment failed. Check capacity and try again.',409);
+    for(let attempt=0;attempt<8;attempt++){
+      const username=generateParticipantUsername();
+      const {data:existing,error:lookupError}=await service.from('daybridge_court_participants')
+        .select('user_id').eq('username',username).maybeSingle();
+      if(lookupError)return fail('Unable to verify username availability. Try again.',503);
+      if(existing)continue;
+      const email=usernameToAuthEmail(username)!;
+      const {data:created,error:createError}=await service.auth.admin.createUser({
+        email,password:temporaryPassword,email_confirm:true,
+        app_metadata:{daybridge_managed:true,daybridge_must_change_password:true}
+      });
+      // Auth's unique identity constraint is authoritative if requests race or an
+      // existing Auth user has no court registry entry. Retry only collisions.
+      if(createError){
+        if(createError.code==='email_exists'||createError.code==='user_already_exists')continue;
+        return fail('Identity provider could not create the account. Try again.',503);
+      }
+      if(!created.user)return fail('Identity provider could not create the account. Try again.',503);
+      const {error:seatError}=await service.rpc('daybridge_assign_participant_profile',{
+        p_court_id:court_id,p_user_id:created.user.id,p_username:username,p_actor_id:userId,
+        p_participant_name:participant_name,p_birth_date:birth_date
+      });
+      if(seatError){
+        const {error:rollbackError}=await service.auth.admin.deleteUser(created.user.id);
+        if(rollbackError)console.error('DayBridge court provisioning rollback failed; review orphaned account');
+        if(!rollbackError&&seatError.code==='23505')continue;
+        return fail('Seat assignment failed. Check capacity and try again.',409);
+      }
+      return NextResponse.json({username,temporaryPassword},{status:201,headers});
     }
-    return NextResponse.json({username,temporaryPassword},{status:201,headers});
+    return fail('Could not generate an available username. Try again.',503);
   }catch(e){return errorResponse(e);}
 }
 

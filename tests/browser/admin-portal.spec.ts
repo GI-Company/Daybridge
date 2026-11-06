@@ -2,7 +2,7 @@ import {test,expect,type Page} from '@playwright/test';
 const court='da730f6c-165a-4af2-b135-4fc06993e46b',second='a724d697-7304-4763-aa96-09f62c2a5824';
 const directory=[{id:court,state_code:'GA',state_name:'Georgia',circuit_id:'synthetic-enotah',circuit_name:'Enotah Judicial Circuit',circuit_slug:'enotah',court_name:'DayBridge STAR Court Test',court_slug:'starcourt'},{id:second,state_code:'GA',state_name:'Georgia',circuit_id:'synthetic-enotah',circuit_name:'Enotah Judicial Circuit',circuit_slug:'enotah',court_name:'Other Test Court',court_slug:'other'}];
 async function fixture(page:Page){
- const participants=[{user_id:'synthetic-one',username:'participant001',status:'active',created_at:'2026-11-01T14:24:00Z',created_by_label:'You'},{user_id:'synthetic-two',username:'participant002',status:'active',created_at:'2026-11-01T13:00:00Z',created_by_label:'Court staff'},{user_id:'synthetic-three',username:'participant003',status:'suspended',created_at:'2026-11-01T12:00:00Z',created_by_label:'You'}];
+ const participants=[{user_id:'synthetic-one',username:'participant001',participant_name:'Alex Sample',birth_date:'1990-01-15',status:'active',created_at:'2026-11-01T14:24:00Z',created_by_label:'You'},{user_id:'synthetic-two',username:'participant002',participant_name:'Alex Sample',birth_date:'1993-07-21',status:'active',created_at:'2026-11-01T13:00:00Z',created_by_label:'Court staff'},{user_id:'synthetic-three',username:'participant003',participant_name:'Morgan Example',birth_date:'1985-09-30',status:'suspended',created_at:'2026-11-01T12:00:00Z',created_by_label:'You'}];
  const activity:Array<{id:string;action:string;username:string;actor_label:string;created_at:string}>=[];
  let creates=0,changes=0;
  await page.route('**/api/admin/courts',route=>route.fulfill({json:{courts:directory}}));
@@ -15,9 +15,9 @@ async function fixture(page:Page){
   }
   const input=request.postDataJSON();
   if(request.method()==='POST'){
-   creates++;if(participants.some(p=>p.username===input.username))return route.fulfill({status:409,json:{error:'Username is unavailable'}});
-   participants.push({user_id:'synthetic-new',username:input.username,status:'active',created_at:'2026-11-03T12:00:00Z',created_by_label:'You'});activity.unshift({id:'audit-created',action:'participant_created',username:input.username,actor_label:'You',created_at:'2026-11-03T12:00:00Z'});
-   return route.fulfill({status:201,json:{username:input.username,temporaryPassword:'FictionalOneTimeValue_123'}});
+   creates++;expect(input).not.toHaveProperty('username');if(input.participant_name==='Provider failure')return route.fulfill({status:503,json:{error:'Identity provider could not create the account. Try again.'}});const username='kqmt'+String(4826+creates);
+   participants.push({user_id:'synthetic-new',username,participant_name:input.participant_name,birth_date:input.birth_date,status:'active',created_at:'2026-11-03T12:00:00Z',created_by_label:'You'});activity.unshift({id:'audit-created',action:'participant_created',username,actor_label:'You',created_at:'2026-11-03T12:00:00Z'});
+   return route.fulfill({status:201,json:{username,temporaryPassword:'FictionalOneTimeValue_123'}});
   }
   changes++;const account=participants.find(p=>p.user_id===input.user_id)!;
   if(input.action!=='reset')account.status=input.action==='restore'?'active':input.action==='remove'?'removed':'suspended';
@@ -37,16 +37,17 @@ test('dashboard renders backend counts and supports account creation, search, cr
  const state=await fixture(page);await expect(page.getByText('Assigned seats',{exact:true})).toBeVisible();
  await page.screenshot({path:'/tmp/daybridge-admin-'+testInfo.project.name+'.png',fullPage:true});
  await expect(page.getByRole('heading',{name:'Participants (3)'})).toBeVisible();
- await page.getByLabel('Participant username',{exact:false}).fill('participant004');
- await expect(page.getByLabel('Internal Auth alias (preview)')).toHaveValue('participant004@accounts.daybridge.example.com');
+ await page.getByLabel('Participant full name',{exact:false}).fill('Taylor Example');
+ await page.getByLabel('Date of birth',{exact:false}).fill('1994-04-12');
+ await expect(page.getByLabel('Internal Auth alias (preview)')).toHaveCount(0);
  await page.getByRole('button',{name:'Create account',exact:true}).click();
  const credentials=page.getByRole('status',{name:'Temporary credentials'});await expect(credentials).toContainText('Account created successfully');
  await credentials.getByRole('button',{name:'Show temporary password'}).click();await expect(credentials).toContainText('FictionalOneTimeValue_123');
  await expect(page.getByRole('heading',{name:'Participants (4)'})).toBeVisible();expect(state.counts().creates).toBe(1);
- await page.getByLabel('Search participants',{exact:true}).fill('participant004');await expect(page.locator('tbody tr')).toHaveCount(1);
+ await page.getByLabel('Search participants',{exact:true}).fill('kqmt4827');await expect(page.locator('tbody tr')).toHaveCount(1);
  await credentials.getByRole('button',{name:'Dismiss credentials'}).click();await expect(credentials).toHaveCount(0);
  await page.getByRole('navigation',{name:'Admin portal'}).getByRole('button',{name:'Activity',exact:true}).click();
- await expect(page.getByText('Account created',{exact:false})).toBeVisible();await expect(page.getByText('participant004',{exact:false})).toBeVisible();
+ await expect(page.getByText('Account created',{exact:false})).toBeVisible();await expect(page.getByText('kqmt4827',{exact:false})).toBeVisible();
  await page.getByRole('navigation',{name:'Admin portal'}).getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Court & subscription'})).toBeVisible();await expect(page.getByRole('heading',{name:'Change password'})).toBeVisible();
 });
 test('participant actions require confirmation and update seats, status, credentials and audit',async({page})=>{
@@ -62,7 +63,7 @@ test('participant actions require confirmation and update seats, status, credent
  await expect(page.getByRole('heading',{name:'Participants (2)'})).toBeVisible();await expect(page.locator('tbody')).not.toContainText('participant001');expect(state.participants).toHaveLength(3);expect(state.counts().changes).toBe(4);
 });
 test('an expired session clears credentials and ignores a delayed privileged response',async({page})=>{
- await fixture(page);await page.getByLabel('Participant username',{exact:false}).fill('participant004');
+ await fixture(page);await page.getByLabel('Participant full name',{exact:false}).fill('Taylor Example');await page.getByLabel('Date of birth',{exact:false}).fill('1994-04-12');
  let release:()=>void=()=>{};let received:()=>void=()=>{};const wait=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{received=resolve;});
  await page.route('**/api/admin/participants',async route=>{received();await wait;await route.fulfill({status:201,json:{username:'participant004',temporaryPassword:'FictionalDelayedValue'}});});
  await page.getByRole('button',{name:'Create account',exact:true}).click();await started;
@@ -70,12 +71,12 @@ test('an expired session clears credentials and ignores a delayed privileged res
  await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);await expect(page.getByText('FictionalDelayedValue')).toHaveCount(0);await expect(page.locator('tbody')).toHaveCount(0);
 });
 test('switching to an unauthorized court clears the previous court and shows denial',async({page})=>{
- await fixture(page);await page.getByRole('button',{name:'Change court',exact:true}).click();await page.getByRole('combobox',{name:'Court',exact:true}).selectOption(second);await expect(page.getByRole('alert').filter({hasText:'You are not assigned'})).toContainText('You are not assigned to this court');await expect(page.locator('tbody')).toHaveCount(0);await expect(page.getByLabel('Participant username',{exact:false})).toHaveCount(0);
+ await fixture(page);await page.getByRole('button',{name:'Change court',exact:true}).click();await page.getByRole('combobox',{name:'Court',exact:true}).selectOption(second);await expect(page.getByRole('alert').filter({hasText:'You are not assigned'})).toContainText('You are not assigned to this court');await expect(page.locator('tbody')).toHaveCount(0);await expect(page.getByLabel('Participant full name',{exact:false})).toHaveCount(0);
 });
 
-test('duplicate usernames show a real error without success credentials and secrets clear on session end',async({page})=>{
- const state=await fixture(page);await page.getByLabel('Participant username',{exact:false}).fill('participant001');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByText('Username is unavailable',{exact:true})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);expect(state.participants).toHaveLength(3);
- await page.getByLabel('Participant username',{exact:false}).fill('participant004');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByRole('status',{name:'Temporary credentials'})).toBeVisible();
+test('provider failures show no success credentials and secrets clear on session end',async({page})=>{
+ const state=await fixture(page);await page.getByLabel('Participant full name',{exact:false}).fill('Provider failure');await page.getByLabel('Date of birth',{exact:false}).fill('1994-04-12');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByText('Identity provider could not create the account. Try again.',{exact:true})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);expect(state.participants).toHaveLength(3);
+ await page.getByLabel('Participant full name',{exact:false}).fill('Taylor Example');await page.getByLabel('Date of birth',{exact:false}).fill('1994-04-12');await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByRole('status',{name:'Temporary credentials'})).toBeVisible();
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('synthetic-admin-auth',{detail:null})));await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByRole('status',{name:'Temporary credentials'})).toHaveCount(0);
 });
 
@@ -98,7 +99,7 @@ test('temporary staff credentials cannot open participant administration before 
  let attempts=0;
  await page.route('**/api/admin/staff-password',r=>{attempts++;return r.fulfill(attempts===1?{status:400,json:{error:'Temporary password was not accepted'}}:{json:{ok:true}});});
  await page.goto('/map-test-internal?admin=test');
- await expect(page.getByRole('heading',{name:'Set your private staff password'})).toBeVisible();await expect(page.getByLabel('Participant username',{exact:false})).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:'Set your private staff password'})).toBeVisible();await expect(page.getByLabel('Participant full name',{exact:false})).toHaveCount(0);
  const fill=async()=>{await page.getByLabel('Current temporary password',{exact:true}).fill('FictionalTemporary');await page.getByLabel('New staff password',{exact:true}).fill('FictionalPrivate_456');await page.getByLabel('Confirm new staff password',{exact:true}).fill('FictionalPrivate_456');};
  await fill();await page.getByRole('button',{name:'Save staff password',exact:true}).click();await expect(page.getByRole('region',{name:'Staff password setup'}).getByRole('alert')).toContainText('Temporary password was not accepted');await expect(page.getByLabel('Current temporary password',{exact:true})).toHaveValue('');
  await fill();await page.getByRole('button',{name:'Save staff password',exact:true}).click();await expect(page.getByRole('heading',{name:'Court staff sign in'})).toBeVisible();await expect(page.getByText('Staff password saved. Sign in with your new password.',{exact:true})).toBeVisible();
@@ -120,4 +121,21 @@ test('refresh initializes selectors when the first published court arrives and p
  courts=[directory[0]];
  await page.getByRole('button',{name:'Refresh court directory',exact:true}).click();
  await expect(page.getByRole('combobox',{name:'Court',exact:true})).toHaveValue(court);
+});
+
+test('matching participant names remain distinguishable by birthday and generated username',async({page})=>{
+ await fixture(page);
+ await page.getByLabel('Search participants',{exact:true}).fill('Alex Sample');
+ const rows=page.getByRole('table').getByRole('row').filter({hasText:'Alex Sample'});
+ const cards=page.getByLabel('Participant cards',{exact:true}).getByRole('article').filter({hasText:'Alex Sample'});
+ if(await page.getByRole('table').count()){
+  await expect(rows).toHaveCount(2);await expect(rows.filter({hasText:'participant001'})).toContainText('1990');await expect(rows.filter({hasText:'participant002'})).toContainText('1993');
+ }else{
+  await expect(cards).toHaveCount(2);await expect(cards.filter({hasText:'participant001'})).toContainText('1990');await expect(cards.filter({hasText:'participant002'})).toContainText('1993');
+ }
+ await page.getByLabel('Participant full name',{exact:false}).fill('Alex Sample');
+ await page.getByLabel('Date of birth',{exact:false}).fill('1997-06-18');
+ await page.getByRole('button',{name:'Create account',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Temporary credentials'})).toContainText('kqmt4827');
+ await expect(page.getByRole('heading',{name:'Participants (3)'})).toBeVisible();
 });
