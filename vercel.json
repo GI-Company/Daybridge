@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "feat/daybridge-pilot-security-hardening": false
+      "feat/daybridge-pilot-security-hardening": false,
+      "codex/consented-court-progress": false
     }
   }
 }

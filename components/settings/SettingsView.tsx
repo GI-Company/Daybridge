@@ -24,6 +24,7 @@ import { ChangePasswordCard } from '../common/ChangePasswordCard';
 import { RecoveryHistory } from '../common/RecoveryHistory';
 import { DeviceStorageStatus } from '../common/DeviceStorageStatus';
 import { SignOutCard } from '../common/SignOutCard';
+import {CourtSharing} from './CourtSharing';
 import {PersonalBilling} from './PersonalBilling';
 
 export const SettingsView: React.FC = () => {
@@ -56,6 +57,7 @@ export const SettingsView: React.FC = () => {
 
       <SignOutCard />
       <PersonalBilling />
+      <CourtSharing />
 
       <section className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
         <h3 className="font-semibold text-slate-950">Undo and redo changes</h3>

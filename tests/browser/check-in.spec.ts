@@ -13,7 +13,7 @@ async function add(page:Page){
  await expect.poll(async()=> (await records(page)).events.length).toBe(2);
  await expect(page.getByTestId('check-in-sync')).toHaveText('synced');
 }
-test.beforeEach(async({page})=>{await page.addInitScript(()=>Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>sessionStorage.getItem('synthetic-check-in-offline')!=='yes'}));await page.clock.install({time:new Date('2026-10-24T14:01:00Z')});await page.goto(url);await expect(page.getByTestId('check-in-sync')).toHaveText('synced');});
+test.beforeEach(async({page})=>{page.on('dialog',dialog=>dialog.accept());await page.addInitScript(()=>Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>sessionStorage.getItem('synthetic-check-in-offline')!=='yes'}));await page.clock.install({time:new Date('2026-10-24T14:01:00Z')});await page.goto(url);await expect(page.getByTestId('check-in-sync')).toHaveText('synced');});
 test('daily check-in saves its window, completes only today, survives reload, and can be undone from Today',async({page})=>{
  await add(page);
  const saved=await records(page),event=saved.events.find((x:{checkInReminderMinutes?:number})=>x.checkInReminderMinutes===15);
