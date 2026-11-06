@@ -1,3 +1,8 @@
 export function suggestedLoginSlug(value:string){return value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,63).replace(/-$/,'');}
 export type OwnerCourt={id:string;circuit_id:string;court_name:string;login_slug:string;seat_limit:number;subscription_status:'pilot'|'active'|'paused'|'canceled';listed:boolean;enabled:boolean;is_demo:boolean;occupied_seats:number};
 export type OwnerDirectory={states:{code:string;name:string}[];circuits:{id:string;state_code:string;name:string;login_slug:string}[];courts:OwnerCourt[];staff:{court_id:string;user_id:string;role:string;active:boolean;username:string|null}[]};
+
+export type OwnerActivity={id:string;court_name:string;action:string;created_at:string};
+export type OwnerSession={email:string|null;checked_at:string;owner_role_verified:true};
+export type OwnerDashboardData=OwnerDirectory&{activity?:OwnerActivity[];session?:OwnerSession};
+export type OwnerView='overview'|'courts'|'staff'|'create'|'manage'|'guide'|'security';

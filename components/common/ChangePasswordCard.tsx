@@ -4,7 +4,7 @@ import React, {useState} from 'react';
 import {KeyRound} from 'lucide-react';
 import {createClient} from '../../lib/supabase/client';
 
-export function ChangePasswordCard(){
+export function ChangePasswordCard({recoveryNotice}:{recoveryNotice?:string}){
  const [current,setCurrent]=useState('');
  const [next,setNext]=useState('');
  const [confirm,setConfirm]=useState('');
@@ -31,7 +31,7 @@ export function ChangePasswordCard(){
  };
  return <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 space-y-4" aria-labelledby="change-password-heading">
   <h3 id="change-password-heading" className="flex items-center gap-2 font-bold text-slate-900"><KeyRound className="h-5 w-5 text-teal-800"/>Change password</h3>
-  <p className="text-sm leading-6 text-slate-700">Username accounts do not have an email recovery inbox. You can change your password while signed in. If you lose access, contact the administrator for an account reset.</p>
+  <p className="text-sm leading-6 text-slate-700">{recoveryNotice||'Username accounts do not have an email recovery inbox. You can change your password while signed in. If you lose access, contact the administrator for an account reset.'}</p>
   <form onSubmit={submit} className="space-y-3">
     <label className="block text-sm font-semibold text-slate-800">Current password
       <input required type="password" autoComplete="current-password" value={current} onChange={e=>setCurrent(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900"/>

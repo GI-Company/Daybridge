@@ -12,10 +12,11 @@ async function fixture(page:Page){
   if(input.action==='revoke_staff')data.staff[0].active=false;
   return route.fulfill({status:input.action==='create'?201:200,json:{court_id:input.action==='create'?data.courts[1].id:court}});
  });
- await page.goto('/map-test-internal?owner=test');await expect(page.getByRole('heading',{name:'Add a court',exact:true})).toBeVisible();return {data,mutations};
+ await page.goto('/map-test-internal?owner=test');await expect(page.getByRole('navigation',{name:'Owner dashboard'})).toBeVisible();return {data,mutations};
 }
 test('owner creates a court using an existing hierarchy and gets accurate setup feedback',async({page})=>{
  const state=await fixture(page);
+ await page.getByRole('button',{name:'Add a court',exact:true}).click();
  await page.getByLabel('State code',{exact:true}).fill('GA');await expect(page.getByLabel('State name',{exact:true})).toHaveValue('Georgia');
  await page.getByLabel('Judicial circuit',{exact:true}).fill('Beta Circuit');await expect(page.getByLabel('Circuit sign-in code',{exact:true})).toHaveValue('beta');
  await page.getByLabel('Court name',{exact:true}).fill('New Beta Court');await expect(page.getByLabel('Court sign-in code',{exact:true})).toHaveValue('new-beta-court');
@@ -25,7 +26,7 @@ test('owner creates a court using an existing hierarchy and gets accurate setup 
  expect(state.mutations[0]).toMatchObject({state_code:'GA',circuit_slug:'beta',seat_limit:25,listed:false,is_demo:true});
 });
 test('staff assignment uses the court alias, requires confirmation, and revokes without deleting records',async({page})=>{
- const state=await fixture(page);await page.getByRole('combobox',{name:'Select court',exact:true}).selectOption(court);
+ const state=await fixture(page);await page.getByRole('navigation',{name:'Owner dashboard'}).getByRole('button',{name:'Courts',exact:true}).click();await page.getByRole('button',{name:'Manage Beta Court',exact:true}).click();
  await page.getByLabel('Staff username',{exact:true}).fill('manager');await expect(page.getByLabel('Required staff sign-in',{exact:true})).toHaveValue('manager@ga.beta.beta-court');
  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Assign verified staff'}).click();await expect(page.getByText('manager',{exact:true})).toBeVisible();expect(state.mutations[0].role).toBe('case_manager');
  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Revoke access'}).click();await expect(page.getByText('Staff access revoked.',{exact:true})).toBeVisible();expect(state.data.courts[0].occupied_seats).toBe(2);
@@ -33,10 +34,36 @@ test('staff assignment uses the court alias, requires confirmation, and revokes 
 test('unauthorized accounts see no owner forms and a late response cannot restore a signed-out dashboard',async({page})=>{
  await page.route('**/api/owner/setup',r=>r.fulfill({status:403,json:{error:'Owner access required'}}));
  await page.goto('/map-test-internal?owner=test');await expect(page.getByRole('heading',{name:'Owner access required'})).toBeVisible();await expect(page.getByRole('button',{name:'Create court',exact:true})).toHaveCount(0);
- await page.unroute('**/api/owner/setup');await fixture(page);await page.getByRole('combobox',{name:'Select court',exact:true}).selectOption(court);
+ await page.unroute('**/api/owner/setup');await fixture(page);await page.getByRole('navigation',{name:'Owner dashboard'}).getByRole('button',{name:'Courts',exact:true}).click();await page.getByRole('button',{name:'Manage Beta Court',exact:true}).click();
  let release=()=>{};let received=()=>{};const wait=new Promise<void>(r=>{release=r;}),started=new Promise<void>(r=>{received=r;});
  await page.route('**/api/owner/setup',async r=>{if(r.request().method()==='POST'){received();await wait;return r.fulfill({json:{court_id:court}});}return r.fulfill({json:seed()});});
  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Save court settings'}).click();await started;
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('synthetic-owner-auth',{detail:null})));release();
  await expect(page.getByRole('heading',{name:'Owner sign in'})).toBeVisible();await expect(page.getByRole('heading',{name:'Add a court',exact:true})).toHaveCount(0);await expect(page.getByText('Court settings saved.',{exact:true})).toHaveCount(0);
+});
+
+
+test('overview, court search, instructions and security explanations form a responsive dashboard',async({page},testInfo)=>{
+ await fixture(page);
+ await expect(page.getByRole('region',{name:'Program totals'})).toContainText('23');
+ await expect(page.getByText('Needs staff',{exact:true})).toBeVisible();
+ await expect(page.getByText('Your activity log is ready',{exact:true})).toBeVisible();
+ await page.screenshot({path:'/private/tmp/daybridge-owner-dashboard-'+testInfo.project.name+'.png',fullPage:true});
+ const navigation=page.getByRole('navigation',{name:'Owner dashboard'});
+ await navigation.getByRole('button',{name:'Courts',exact:true}).click();
+ await page.getByLabel('Search courts',{exact:true}).fill('not-a-court');await expect(page.getByText('No courts match',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect(page.getByRole('button',{name:'Manage Beta Court',exact:true})).toBeVisible();
+ await navigation.getByRole('button',{name:'Setup guide',exact:true}).click();await expect(page.getByRole('heading',{name:'Set up a court in five steps',exact:true})).toBeVisible();
+ await expect(page.getByText('This dashboard cannot create the Auth identity for you.',{exact:false})).toBeVisible();
+ await navigation.getByRole('button',{name:'Security & account',exact:true}).click();await expect(page.getByRole('heading',{name:'How owner access is protected',exact:true})).toBeVisible();
+ await expect(page.getByText('This dashboard currently does not require multi-factor authentication.',{exact:false})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Change password',exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
+test('instructions retain draft fields and refresh requires permission to discard them',async({page})=>{
+ await fixture(page);await page.getByRole('button',{name:'Add a court',exact:true}).click();
+ await page.getByLabel('Court name',{exact:true}).fill('Unsaved draft court');
+ await page.getByRole('navigation',{name:'Owner dashboard'}).getByRole('button',{name:'Setup guide',exact:true}).click();
+ await page.getByRole('button',{name:'Add a court',exact:true}).click();await expect(page.getByLabel('Court name',{exact:true})).toHaveValue('Unsaved draft court');
+ page.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Refresh dashboard',exact:true}).click();await expect(page.getByLabel('Court name',{exact:true})).toHaveValue('Unsaved draft court');
 });

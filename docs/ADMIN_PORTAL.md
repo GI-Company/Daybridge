@@ -33,3 +33,15 @@ Staff setup previews the exact `username@state.circuit.court` alias. The identit
 The additive `owner_court_setup` migration installs service-only RPCs and narrowly scoped private Auth lookup helpers. It seeds no accounts, roles, courts, memberships, or participant data. Owner HTTP APIs verify the signed session and current Auth record; the database rechecks the owner flag for each operation. Owner API responses use `private, no-store`; the existing service worker does not cache `/api` or `/owner` navigation. This dashboard does not display participant schedules, medication records, budgets, notes, attendance, or snapshots.
 
 Verification includes input validation, disposable PostgreSQL tests for owner revocation, non-owner denial, forged roles, atomic hierarchy creation, staff alias checks and seat limits, plus desktop/mobile browser fixtures for creation, confirmation, staff assignment/revocation and signed-out response handling. Fixtures are UI evidence only. Production activation still requires choosing the real owner account and verifying its signed-in owner flow; no permission is assigned merely by shipping the dashboard.
+
+## Using the owner dashboard
+
+- **Overview** shows database-backed court totals, active staff assignments, assigned participant seats, remaining capacity, configuration issues, and the eight most recent persisted owner setup events. Configuration badges do not certify pilot readiness.
+- **Courts** searches by court, circuit, or state and filters missing staff, paused portals, and test courts. Open a court to update settings or manage staff; use **Add a court** to start a new 25-seat free pilot.
+- **Staff & access** lists active court assignments, with an option to include revoked assignments. Assignment management opens the relevant court; it never grants owner permission.
+- **Setup guide** explains the complete sequence: register a private court, prepare the exact confirmed staff Auth identity in trusted Supabase administration, assign that identity, verify access and publish, then onboard a small participant group. It also explains every setting and the immutable sign-in codes.
+- **Security & account** explains current authorization checks and privacy boundaries, identifies the server-verified owner session, and provides password change with current-password verification.
+
+Navigation to the guide retains draft form fields. Refresh, switching edited courts, leaving the dashboard, and sign-out ask before discarding unsaved setup fields. Owner activity responses contain only action, court display name, identifier, and time; they exclude Auth credentials, participant records, and audit payloads. This dashboard enhancement requires no new schema or permission grants.
+
+Owner MFA is not currently required. The internal sign-in alias is not a mailbox, so email recovery cannot deliver there; retain trusted Supabase project administration for recovery. Use a unique owner password and a password manager. The security panel states these limits explicitly and does not describe the application as certified or guarantee notification delivery.

@@ -9,10 +9,19 @@ const headers={'Cache-Control':'private, no-store'};
 function failure(error:unknown){return NextResponse.json({error:error instanceof CourtAccessError||error instanceof PrivateRequestError?error.message:'Court setup is temporarily unavailable'},{status:error instanceof CourtAccessError||error instanceof PrivateRequestError?error.status:503,headers});}
 export async function GET(){
  try{
-  const {service,userId}=await requirePlatformOwner();
-  const {data,error}=await service.rpc('daybridge_owner_directory',{p_actor:userId});
-  if(error)throw Error('Directory unavailable');
-  return NextResponse.json(data,{headers});
+  const {service,userId,email}=await requirePlatformOwner();
+  const [directory,activity]=await Promise.all([
+   service.rpc('daybridge_owner_directory',{p_actor:userId}),
+   service.from('daybridge_court_audit').select('id,court_id,action,created_at')
+    .in('action',['owner_create','owner_update','owner_assign_staff','owner_revoke_staff'])
+    .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(8)
+  ]);
+  if(directory.error||activity.error)throw Error('Directory unavailable');
+  const names=new Map<string,string>((directory.data.courts||[]).map((court:{id:string;court_name:string})=>[court.id,court.court_name]));
+  return NextResponse.json({...directory.data,
+   activity:(activity.data||[]).map(row=>({id:row.id,court_name:names.get(row.court_id)||'Court',action:row.action,created_at:row.created_at})),
+   session:{email,checked_at:new Date().toISOString(),owner_role_verified:true}
+  },{headers});
  }catch(error){return failure(error);}
 }
 export async function POST(request:Request){

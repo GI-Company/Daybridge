@@ -11,5 +11,5 @@ export async function requirePlatformOwner(){
  if(lookupError||!current.user)throw new CourtAccessError(503,'Owner access could not be verified');
  if(current.user.app_metadata?.daybridge_platform_owner!==true)
   throw new CourtAccessError(403,'This account does not have DayBridge owner access');
- return {service,userId:user.id};
+ return {service,userId:user.id,email:current.user.email??null};
 }
