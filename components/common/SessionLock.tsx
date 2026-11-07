@@ -1,11 +1,12 @@
 'use client';
-import {WorkspaceVisibility} from '../../lib/workspace-visibility';
+import {WorkspaceVisibility,useWorkspaceVisible} from '../../lib/workspace-visibility';
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {LockKeyhole} from 'lucide-react';
 
 type SessionLockProps={userId:string;verify:(password:string)=>Promise<boolean>;verifyPasskey?:()=>Promise<boolean>;children:React.ReactNode;idleMilliseconds?:number};
 /** Hide the mounted workspace while locked; its encrypted save queue continues, so drafts are not discarded. */
 export function SessionLock({userId,verify,verifyPasskey,children,idleMilliseconds=0}:SessionLockProps){
+ const parentVisible=useWorkspaceVisible();
  const [locked,setLocked]=useState(true),[ready,setReady]=useState(false),[password,setPassword]=useState('');
  const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const lastActivity=useRef(Date.now()),lockedRef=useRef(true),channel=useRef<BroadcastChannel|null>(null);
@@ -52,7 +53,7 @@ export function SessionLock({userId,verify,verifyPasskey,children,idleMillisecon
   finally{setPassword('');setBusy(false);}
  };
  return <>
-  <div hidden={!ready||locked} inert={!ready||locked?true:undefined} aria-hidden={!ready||locked?true:undefined}><WorkspaceVisibility.Provider value={ready&&!locked}>{children}</WorkspaceVisibility.Provider></div>
+  <div hidden={!ready||locked} inert={!ready||locked?true:undefined} aria-hidden={!ready||locked?true:undefined}><WorkspaceVisibility.Provider value={parentVisible&&ready&&!locked}>{children}</WorkspaceVisibility.Provider></div>
   {ready&&locked&&<main className="flex min-h-screen items-center justify-center bg-slate-50 p-5">
    <section aria-labelledby="locked-title" className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
     <LockKeyhole className="h-8 w-8 text-teal-800" aria-hidden="true"/>

@@ -46,7 +46,7 @@ export function RecoveryHistory(){
  }
  return <section className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3" aria-labelledby="daybridge-backups">
   <h3 id="daybridge-backups" className="flex items-center gap-2 font-bold text-slate-900"><ShieldCheck className="h-5 w-5 text-teal-800"/>Protected cloud recovery history</h3>
-  <p className="text-xs leading-5 text-slate-700">DayBridge keeps earlier snapshots when cloud records change. A production update never intentionally clears your records. This list is private to your signed-in account and is stored in Supabase, not in the PWA cache.</p>
+  <p className="text-xs leading-5 text-slate-700">Cloud records have a 2 MiB limit. Recovery keeps up to 50 new revisions within 8 MiB per account, replacing older copies as new ones arrive. Backups created before this policy are preserved. Download important copies for longer storage. This list is private to your signed-in account.</p>
   <button type="button" disabled={loading} onClick={()=>void loadHistory()} className="rounded-xl border border-teal-400 px-4 py-2 text-sm font-semibold text-teal-900 disabled:opacity-50">View saved backups</button>
   {loaded&&<ul className="space-y-2">{records.length===0?<li className="text-xs text-slate-600">No earlier revisions yet. An earlier snapshot is recorded each time your saved data changes.</li>:records.map(record=><li key={record.revision} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3 text-xs text-slate-800">
     <span>Revision {record.revision} · {new Date(record.recorded_at).toLocaleString()}</span>

@@ -13,7 +13,7 @@ async function add(page:Page){
  await expect.poll(async()=> (await records(page)).events.length).toBe(2);
  await expect(page.getByTestId('check-in-sync')).toHaveText('synced');
 }
-test.beforeEach(async({page})=>{await page.addInitScript(()=>Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>sessionStorage.getItem('synthetic-check-in-offline')!=='yes'}));await page.clock.install({time:new Date('2026-10-24T14:01:00Z')});await page.goto(url);await expect(page.getByTestId('check-in-sync')).toHaveText('synced');});
+test.beforeEach(async({page})=>{page.on('dialog',dialog=>dialog.accept());await page.addInitScript(()=>Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>sessionStorage.getItem('synthetic-check-in-offline')!=='yes'}));await page.clock.install({time:new Date('2026-10-24T14:01:00Z')});await page.goto(url);await expect(page.getByTestId('check-in-sync')).toHaveText('synced');});
 test('daily check-in saves its window, completes only today, survives reload, and can be undone from Today',async({page})=>{
  await add(page);
  const saved=await records(page),event=saved.events.find((x:{checkInReminderMinutes?:number})=>x.checkInReminderMinutes===15);
@@ -95,4 +95,12 @@ test('check-in notification opens its exact day and Court uses task completion i
  await page.getByRole('button',{name:'Undo done',exact:true}).click();
  await expect.poll(async()=> (await records(page)).reminders.length).toBe(1);
  expect((await records(page)).tomorrowReminders).toHaveLength(0);
+});
+
+test('cancelling completion leaves the check-in and its reminder unchanged',async({page})=>{
+ await add(page);await page.getByRole('button',{name:'Switch Today / Schedule'}).click();
+ page.removeAllListeners('dialog');page.once('dialog',dialog=>dialog.dismiss());
+ await page.getByRole('button',{name:'Mark done',exact:true}).click();
+ expect((await records(page)).reminders).toHaveLength(1);
+ await expect(page.getByRole('button',{name:'Mark done',exact:true})).toBeVisible();
 });

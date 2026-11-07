@@ -162,6 +162,8 @@ export interface BudgetAccount {
 export type TransactionType = 'income' | 'expense' | 'transfer';
 
 export interface MoneyTransaction {
+  /** Stable identity for a bill occurrence or paycheck cycle across devices. */
+  operationId?: string;
   id: string;
   userId: string;
   accountId: string;

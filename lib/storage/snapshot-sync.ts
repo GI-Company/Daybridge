@@ -104,8 +104,10 @@ export class SnapshotSync {
     if(snapshotEqual(this.local,sending)){this.state('synced');return;}
    }
    if(!this.stopped)this.state('device_saved','Another device is actively saving. Your changes are safe; synchronization will retry.');
-  }catch{
-   if(!this.stopped&&!this.writeError)this.state('device_saved','Cloud synchronization is temporarily unavailable. Your encrypted device copy is preserved and will retry automatically.');
+  }catch(error){
+   const message=error instanceof Error?error.message:'';
+   const issue=message.includes('snapshot_too_large')?'Cloud records exceed the 2 MiB limit. Export a backup and reduce large notes. Your encrypted device copy is preserved.':message.includes('snapshot_rate_limited')?'Cloud save limit reached. Your encrypted device copy is preserved and will retry next minute.':'Cloud synchronization is temporarily unavailable. Your encrypted device copy is preserved and will retry automatically.';
+   if(!this.stopped&&!this.writeError)this.state('device_saved',issue);
   }
  }
  stop(){this.stopped=true;}

@@ -39,7 +39,7 @@ export default function MapHarness() {
   const [ready,setReady]=useState(false);useEffect(()=>setReady(true),[]);
   if(!ready)return <main>Loading test harness…</main>;
   if (typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('notifications')==='test')return <NotificationsHarness/>;
-  if(typeof window!=='undefined'){const security=new URLSearchParams(window.location.search).get('security');if(security==='billing')return <ManagedAccountGate userId="synthetic-billing"><p>Paid workspace allowed</p></ManagedAccountGate>;if(security==='sync')return <SyncHarness/>;if(security==='storage')return <StorageHarness/>;if(security==='lock')return <LockHarness/>;if(security==='auth')return <AuthHarness/>;if(security==='update')return <UpdateHarness/>;}
+  if(typeof window!=='undefined'){const security=new URLSearchParams(window.location.search).get('security');if(security==='billing')return <ManagedAccountGate userId="synthetic-billing"><p>Paid workspace allowed</p><input aria-label="Managed workspace draft"/></ManagedAccountGate>;if(security==='sync')return <SyncHarness/>;if(security==='storage')return <StorageHarness/>;if(security==='lock')return <LockHarness/>;if(security==='auth')return <AuthHarness/>;if(security==='update')return <UpdateHarness/>;}
   if(new URLSearchParams(window.location.search).get('owner')==='test')return <OwnerHarness/>;
   if(new URLSearchParams(window.location.search).get('admin')==='test')return <AdminHarness/>;
   if(new URLSearchParams(window.location.search).get('polish')==='test')return <PolishHarness/>;

@@ -1,4 +1,4 @@
-import {arrivalTarget,travelReminderPhase,reminderLeadMinutes} from './timing';
+import {arrivalTarget,travelReminderPhase} from './timing';
 import 'server-only';
 import {createClient} from '@supabase/supabase-js';
 import * as webpush from 'web-push';
@@ -89,12 +89,13 @@ export async function monitorTravel(context?:MonitorContext){
  const admin=adminClient(),now=Date.now();
  const records=context??monitorContext(admin);
  const syncFailures=await syncPlans(admin,now,records);
- const start=new Date(now-60000).toISOString(),end=new Date(now+36*3600000).toISOString();
- const {data:plans,error}=await admin.from('travel_appointments').select('*').eq('enabled',true).eq('cancelled',false).gt('occurrence_start',start).lt('occurrence_start',end).not('origin_lat','is',null).not('origin_lon','is',null).order('occurrence_start').limit(60);
+ const {data:plans,error}=await admin.rpc('daybridge_due_travel_plans',{p_now:new Date(now).toISOString()});
  if(error)throw Error('Could not load upcoming travel');
  let checked=0,alerts=0,cancelled=0,failures=syncFailures;
  await eachAccount(plans??[],async item=>{
   const plan=item as Plan;const startMs=Date.parse(plan.occurrence_start);
+  const {error:attemptError}=await admin.from('travel_appointments').update({last_attempted_at:new Date(now).toISOString()}).eq('id',plan.id).eq('user_id',plan.user_id);
+  if(attemptError){failures++;return;}
   let source:Snapshot|null;
   try{source=await records.snapshot(plan.user_id);}catch{failures++;return;}
   if(!source)return;
@@ -114,9 +115,6 @@ export async function monitorTravel(context?:MonitorContext){
   }
   try{
    const remaining=startMs-now;
-   const estimatedLeave=startMs-(plan.last_travel_seconds||0)*1000-plan.arrival_buffer_minutes*60000;
-   const interval=remaining<=3600000||now>=estimatedLeave-reminderLeadMinutes(((source?.events||[]).find(e=>e.id===plan.source_event_id)?.reminderLeadMinutes??source?.profile?.reminderLeadMinutes))*60000?60000:remaining<=4*3600000?5*60000:30*60000;
-   if(plan.last_checked_at&&now-Date.parse(plan.last_checked_at)<interval)return;
    // Compare alternative route choices automatically as the appointment approaches.
    // The background calculation always starts at the user-approved saved origin,
    // never an inferred live device location.

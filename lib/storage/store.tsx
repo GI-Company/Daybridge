@@ -120,7 +120,7 @@ interface DayBridgeContextType {
   setPaycheckForecast: (plan:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>void;
   recordPaycheckDeposit: (accountId:string,amountCents:number)=>boolean;
   addAdvance: (advance: Omit<WageAdvance, 'id' | 'userId' | 'createdAt' | 'updatedAt'>, depositAccountId:string) => void;
-  markBillPaid: (billId: string, createTransaction?: boolean, accountId?:string) => void;
+  markBillPaid: (billId: string, createTransaction?: boolean, accountId?:string) => boolean;
   addBill: (bill: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => void;
   addReserve: (reserve: Pick<BudgetReserve,'name'|'category'|'targetCents'|'allocatedCents'|'isEssential'>)=>void;
   deleteReserve: (reserveId:string)=>void;
@@ -182,6 +182,9 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     setBills(previous.bills as Bill[]);
     setReserves(previous.reserves as BudgetReserve[]);
     setContacts(previous.contacts as ResourceContact[]);
+    paidBillIdsRef.current=new Set((previous.bills as Bill[]).filter(b=>b.isPaid).map(b=>b.id));
+    const plan=previous.paycheckPlan as PaycheckPlan|null;
+    depositedPlanIdsRef.current=new Set(plan?.reconciledAt?[plan.id]:[]);
   };
   const undoChange=()=>{
     if(!undoStackRef.current.length||!window.confirm('Undo your last change? This updates saved records.'))return;
@@ -516,7 +519,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     const now=new Date().toISOString();
     const newTx: MoneyTransaction = {
       ...txData,
-      id: crypto.randomUUID(),
+      id: txData.operationId||crypto.randomUUID(),
       userId: profile.id,
       createdAt: now,
     };
@@ -538,15 +541,16 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
   const setPaycheckForecast=(details:Pick<PaycheckPlan,'expectedNetCents'|'nextPayday'|'recurringFrequency'|'confidence'>)=>{
     // A revised payday is a new cycle, which can receive its own deposit.
-    if(paycheckPlan)depositedPlanIdsRef.current.delete(paycheckPlan.id);
+    if(paycheckPlan&&paycheckPlan.nextPayday!==details.nextPayday)depositedPlanIdsRef.current.delete(paycheckPlan.id);
     setPaycheckPlan(prev=>({
       id:prev?.id||crypto.randomUUID(),userId,
       expectedNetCents:details.expectedNetCents,
       nextPayday:details.nextPayday,
       recurringFrequency:details.recurringFrequency,
       confidence:details.confidence,
-      // Every newly saved payday is a new forecast, not a prior deposit.
-      actualNetCents:undefined,reconciledAt:undefined
+      // Editing estimates for the same cycle must retain its recorded receipt.
+      actualNetCents:prev?.nextPayday===details.nextPayday?prev.actualNetCents:undefined,
+      reconciledAt:prev?.nextPayday===details.nextPayday?prev.reconciledAt:undefined
     }));
   };
 
@@ -554,9 +558,11 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     if(!paycheckPlan||paycheckPlan.reconciledAt||depositedPlanIdsRef.current.has(paycheckPlan.id)||
        !Number.isSafeInteger(amountCents)||amountCents<=0||
        !accounts.some(a=>a.id===accountId&&a.isActive))return false;
+    const operationId='paycheck:'+paycheckPlan.id+':'+paycheckPlan.nextPayday;
+    if(transactions.some(tx=>tx.operationId===operationId))return false;
     depositedPlanIdsRef.current.add(paycheckPlan.id);
     addTransaction({
-      accountId,amountCents,transactionType:'income',category:'wages',
+      operationId,accountId,amountCents,transactionType:'income',category:'wages',
       transactionDate:[new Date().getFullYear(),String(new Date().getMonth()+1).padStart(2,'0'),String(new Date().getDate()).padStart(2,'0')].join('-'),notes:'Paycheck deposit',
       isPending:false
     });
@@ -592,8 +598,10 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
 
   const markBillPaid = (billId: string, createTransaction: boolean = true, accountId?: string) => {
     const bill = bills.find((b) => b.id === billId);
-    if (!bill || bill.isPaid || paidBillIdsRef.current.has(billId)) return;
-    if(createTransaction && !accounts.some(a=>a.id===accountId && a.isActive))return;
+    if (!bill || bill.isPaid || paidBillIdsRef.current.has(billId)) return false;
+    if(createTransaction && !accounts.some(a=>a.id===accountId && a.isActive))return false;
+    const operationId='bill:'+bill.id+':'+bill.nextDueDate;
+    if(createTransaction&&transactions.some(tx=>tx.operationId===operationId))return false;
     paidBillIdsRef.current.add(billId);
     setBills((prev) =>
       prev.map((b) =>
@@ -610,6 +618,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
     if (createTransaction && accountId) {
       addTransaction({
         accountId,
+        operationId,
         amountCents: -bill.amountCents,
         transactionType: 'expense',
         category: bill.category,
@@ -618,6 +627,7 @@ export const DayBridgeProvider: React.FC<{ children: React.ReactNode; userId: st
         isPending: false,
       });
     }
+    return true;
   };
 
   const addBill = (billData: Omit<Bill, 'id' | 'userId' | 'isPaid' | 'lastPaidAt' | 'createdAt' | 'updatedAt'>) => {

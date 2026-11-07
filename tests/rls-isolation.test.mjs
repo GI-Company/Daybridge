@@ -11,7 +11,7 @@ async function check(name,work){await work();checks.push({name,status:'passed'})
 const denied=async promise=>assert.rejects(promise,error=>['42501','P0001','28000'].includes(error.code));
 test('disposable PostgreSQL: three synthetic accounts, migration integrity, RLS, device ownership, CAS and recovery',async()=>{
  let beforeRows;
- const preserve=async db=>{const names=(await db.query("select tablename from pg_tables where schemaname='public' order by tablename")).rows;const result={};for(const {tablename} of names)result[tablename]=(await db.query('select to_jsonb(t) as row from public."'+tablename+'" t')).rows.map(x=>JSON.stringify(x.row)).sort();return result;};
+ const preserve=async db=>{const names=(await db.query("select tablename from pg_tables where schemaname='public' order by tablename")).rows;const result={};for(const {tablename} of names)result[tablename]=(await db.query('select '+(tablename==='travel_appointments'?"to_jsonb(t)-'last_attempted_at'":'to_jsonb(t)')+' as row from public."'+tablename+'" t')).rows.map(x=>JSON.stringify(x.row)).sort();return result;};
  const {db,applied}=await isolatedDatabase({beforeSecurityMigration:async db=>{
   for(const id of ids)await db.query('insert into auth.users(id) values($1)',[id]);
   for(const [index,id] of ids.entries())await asRole(db,'authenticated',id,async()=>{

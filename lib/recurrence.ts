@@ -1,3 +1,4 @@
+import {safeExternalURL} from './security/urls.ts';
 import type { CalendarEvent, EventOccurrence } from './types';
 import {calendarInstances} from './notifications/time.ts';
 
@@ -28,7 +29,7 @@ export function expandEventOccurrences(
     endTime: new Date(instance.end),
     venueType: event.venueType,
     location: event.location,
-    meetingUrl: event.meetingUrl,
+    meetingUrl: safeExternalURL(event.meetingUrl||(event.venueType==='virtual'?event.location:undefined))||undefined,
     travelBufferMinutes: event.travelBufferMinutes,
     prepChecklist: event.prepChecklist,
     checkInReminderMinutes: event.checkInReminderMinutes,

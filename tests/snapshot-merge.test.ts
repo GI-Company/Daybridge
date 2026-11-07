@@ -30,3 +30,26 @@ test('concurrent ledger and dose edits reconcile derived totals, deduplicate slo
  const same={...right,medicationLogs:[{...left.medicationLogs[0],id:'different-id'}]};const once=mergeSnapshots(base,left,same);assert.equal((once.payload.medicationLogs as unknown[]).length,1);assert.equal((once.payload.medications as typeof left.medications)[0].inventoryCount,9);
  assert.ok(snapshotEqual({x:1,y:undefined},{x:1}));
 });
+
+test('one paycheck or bill occurrence recorded on two devices moves money only once',()=>{
+ for(const [operationId,amount] of [['paycheck:plan:2026-11-07',10000],['bill:rent:2026-11-07',-1000]] as const){
+  const base={accounts:[{id:'a',balanceCents:10000}],transactions:[]};
+  const make=(time:string)=>({accounts:[{id:'a',balanceCents:10000+amount}],transactions:[{id:crypto.randomUUID(),operationId,accountId:'a',amountCents:amount,createdAt:time,transactionDate:time.slice(0,10)}]});
+  const result=mergeSnapshots(base,make('2026-11-07T10:00:00Z'),make('2026-11-08T10:00:00Z'));
+  assert.deepEqual(result.conflicts,[]);assert.equal((result.payload.transactions as unknown[]).length,1);
+  assert.equal((result.payload.accounts as typeof base.accounts)[0].balanceCents,10000+amount);
+ }
+});
+test('conflicting amounts or funding accounts for one operation require one atomic choice',()=>{
+ const base={accounts:[{id:'a',balanceCents:1000},{id:'b',balanceCents:1000}],transactions:[]};
+ const device={accounts:[{id:'a',balanceCents:900},{id:'b',balanceCents:1000}],transactions:[{id:'device',operationId:'bill:x:2026-11-07',accountId:'a',amountCents:-100}]};
+ const cloud={accounts:[{id:'a',balanceCents:1000},{id:'b',balanceCents:800}],transactions:[{id:'cloud',operationId:'bill:x:2026-11-07',accountId:'b',amountCents:-200}]};
+ for(const choice of ['cloud','device'] as const){
+  const result=mergeSnapshots(base,device,cloud,choice);assert.ok(result.conflicts.includes('transactions.bill:x:2026-11-07'));
+  assert.deepEqual(result.payload.transactions,choice==='cloud'?cloud.transactions:device.transactions);
+  assert.deepEqual(result.payload.accounts,choice==='cloud'?cloud.accounts:device.accounts);
+ }
+ // Unlinked legacy/manual transactions remain distinct even when amounts match.
+ const legacy=mergeSnapshots(base,{...device,transactions:[{id:'one',accountId:'a',amountCents:-100}]},{...device,transactions:[{id:'two',accountId:'a',amountCents:-100}]});
+ assert.equal((legacy.payload.transactions as unknown[]).length,2);
+});

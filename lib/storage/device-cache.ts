@@ -133,3 +133,14 @@ export async function isDurableStorage():Promise<boolean>{
  if(typeof navigator==='undefined'||!navigator.storage?.persisted)return false;
  try{return await navigator.storage.persisted()}catch{return false}
 }
+
+/** Last online entitlement is encrypted and scoped to this user, like record data.
+ * It only permits bounded offline device access; RLS still authorizes every cloud call. */
+export async function readDeviceAccessUntil(userId:string):Promise<number>{
+ const grant=await readSnapshotEntry(userId,'access:'+userId);
+ const until=grant?.payload.accessUntil;
+ return typeof until==='number'&&Number.isFinite(until)?until:0;
+}
+export async function writeDeviceAccessUntil(userId:string,accessUntil:number):Promise<void>{
+ await writeSnapshotEntry(userId,'access:'+userId,{payload:{accessUntil},revision:0,dirty:false,updatedAt:Date.now()});
+}

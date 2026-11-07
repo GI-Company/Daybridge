@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useDayBridge } from '../../lib/storage/store';
 import {reminderLeadMinutes,reminderLeadLabel} from '../../lib/travel/timing';
+import {safeExternalURL} from '../../lib/security/urls';
 import { parseDollarsToCents } from '../../lib/budget';
 import {AddBudgetAccount} from '../money/AddBudgetAccount';
 import {enrollTrafficAlerts} from '../../lib/travel/auto-reminder';
@@ -191,6 +192,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
       const matchedPlace=savedPlaces.find(place=>place.address===eventLocation.trim())||
         (verifiedEventLocation&&verifiedEventLocation.label===eventLocation.trim()
           ?{address:verifiedEventLocation.label,lat:verifiedEventLocation.lat,lon:verifiedEventLocation.lon}:null);
+      const meetingUrl=!isCheckIn&&eventVenue==='virtual'?safeExternalURL(eventLocation.trim()):undefined;
+      if(!isCheckIn&&eventVenue==='virtual'&&eventLocation.trim()&&!meetingUrl){setFormError('Enter a valid http or https meeting link.');return;}
       const created=addEvent({
         title: eventTitle.trim(),
         category: activeType==='class'?'class':activeType==='self_help'?'self_help':effectiveCategory,
@@ -199,9 +202,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, i
         endTime: endIso,
         timezone: profile.timezone,
         venueType: isCheckIn?'phone':eventVenue,
-        location: isCheckIn?undefined:eventLocation.trim(),
-        destinationLat:isCheckIn?undefined:matchedPlace?.lat,
-        destinationLon:isCheckIn?undefined:matchedPlace?.lon,
+        location: isCheckIn||eventVenue==='virtual'?undefined:eventLocation.trim(),
+        meetingUrl:meetingUrl||undefined,
+        destinationLat:isCheckIn||eventVenue!=='in_person'?undefined:matchedPlace?.lat,
+        destinationLon:isCheckIn||eventVenue!=='in_person'?undefined:matchedPlace?.lon,
         contactInfo: eventContact.trim(),
         rrule,
         checkInReminderMinutes: isCheckIn?15:undefined,

@@ -70,25 +70,30 @@ test('opening an appointment reminder automatically requests GPS and calculates 
  await planner.locator('summary').filter({hasText:'Turn-by-turn route instructions'}).click();await expect(planner).toContainText('Follow the synthetic road.');
 });
 
-test('the reminder slider below Arrive early saves one-to-five-hour timing and keeps notification settings in sync',async({page})=>{
+test('the per-appointment reminder slider saves up to five hours through reload',async({page})=>{
  await page.goto('/map-test-internal?polish=test');await expect(page.getByTestId('polish-sync')).toHaveText('synced');
- await page.getByRole('button',{name:'More',exact:true}).last().click();await page.getByRole('button',{name:/Settings & security/}).last().click();
- await page.locator('summary').filter({hasText:'Travel notifications & location settings'}).click();
- const slider=page.getByRole('slider',{name:/Remind me:/});
+ await page.getByRole('button',{name:'Schedule',exact:true}).last().click();
+ await page.getByLabel('Jump to date').fill('2026-10-30');
+ await page.getByRole('region',{name:'Selected day schedule'}).getByRole('button').filter({hasText:'Community workshop'}).click();
+ const details=page.getByRole('dialog',{name:'Appointment details'});
+ const slider=details.getByRole('slider',{name:"Minutes before this appointment's departure or start"});
  await expect(slider).toHaveAttribute('max','300');
- await slider.fill('180');await expect(slider).toHaveAttribute('aria-valuetext','3 hours before departure');
- const appointment=page.getByLabel('Appointment reminder lead time',{exact:true});await expect(appointment).toHaveValue('180');
- await slider.fill('300');await expect(appointment).toHaveValue('300');
- await expect(page.getByTestId('polish-sync')).toHaveText('synced');
+ await slider.fill('180');await expect(slider).toHaveValue('180');
+ await slider.fill('300');await expect(page.getByTestId('polish-sync')).toHaveText('synced');
  await page.reload();await expect(page.getByTestId('polish-sync')).toHaveText('synced');
- await page.getByRole('button',{name:'More',exact:true}).last().click();await page.getByRole('button',{name:/Settings & security/}).last().click();
- await expect(page.getByLabel('Appointment reminder lead time',{exact:true})).toHaveValue('300');
+ await page.getByRole('button',{name:'Schedule',exact:true}).last().click();
+ await page.getByLabel('Jump to date').fill('2026-10-30');
+ await page.getByRole('region',{name:'Selected day schedule'}).getByRole('button').filter({hasText:'Community workshop'}).click();
+ await expect(page.getByRole('dialog',{name:'Appointment details'}).getByRole('slider',{name:"Minutes before this appointment's departure or start"})).toHaveValue('300');
 });
 
 test('locking stops GPS without discarding the mounted draft, and unlocking reacquires it',async({page})=>{
  await page.goto('/map-test-internal?security=lock&gpsmap=test');
  await expect(page.getByText('Loading interactive map…')).toBeHidden({timeout:20000});await expect(page.getByLabel('Unsaved synthetic draft')).toBeVisible();
- await page.getByLabel('Unsaved synthetic draft').fill('Preserve this draft');await fix(page);
+ await page.getByLabel('Unsaved synthetic draft').fill('Preserve this draft');
+ // Both the shared foreground hook and the asynchronously loaded map need a receiver.
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {syntheticGPSWatchCount:()=>number}).syntheticGPSWatchCount())).toBeGreaterThanOrEqual(2);
+ await fix(page);
  await expect(page.getByTestId('lock-location')).toHaveText('current');await expect(page.getByText('Live device location enabled',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Lock test workspace',exact:true}).click();
  await expect(page.getByLabel('Unsaved synthetic draft')).toBeHidden();
@@ -96,5 +101,6 @@ test('locking stops GPS without discarding the mounted draft, and unlocking reac
  await page.getByLabel('Account password').fill('synthetic-password');await page.getByRole('button',{name:'Unlock',exact:true}).click();
  await expect(page.getByLabel('Unsaved synthetic draft')).toHaveValue('Preserve this draft');
  await page.getByRole('button',{name:'Find my location',exact:true}).waitFor();
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {syntheticGPSWatchCount:()=>number}).syntheticGPSWatchCount())).toBeGreaterThanOrEqual(2);
  await fix(page);await expect(page.getByTestId('lock-location')).toHaveText('current');await expect(page.getByText('Live device location enabled',{exact:true})).toBeVisible();
 });

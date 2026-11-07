@@ -16,6 +16,13 @@ export function mergeSnapshots(base:Snapshot,device:Snapshot,cloud:Snapshot,choi
   if(b===undefined)b=missing;if(l===undefined)l=missing;if(r===undefined)r=missing;
   if((path.startsWith('medicationLogs.')||path.startsWith('eventOccurrences.'))&&path.endsWith('.id')&&b===missing)return r;
   if(path.endsWith('.recordedAtUtc')||path.endsWith('.lastConfirmedAt')){if(l!==missing&&r!==missing)return String(l)>String(r)?l:r;}
+  // One financial operation is an atomic choice, including its funding account.
+  if(path.startsWith('transactions.')&&!path.slice('transactions.'.length).includes('.')&&object(l)&&object(r)&&typeof l.operationId==='string'&&l.operationId===r.operationId){
+   const substantive=(row:Snapshot)=>Object.fromEntries(Object.entries(row).filter(([key])=>!['id','createdAt','transactionDate'].includes(key)));
+   if(snapshotEqual(substantive(l),substantive(r)))return r;
+   if(!snapshotEqual(l,b)&&!snapshotEqual(r,b)){conflicts.push(path);return choice==='device'?l:r;}
+  }
+  if((path.endsWith('.lastPaidAt')||path==='paycheckPlan.reconciledAt')&&l!==missing&&r!==missing)return String(l)>String(r)?l:r;
   if(snapshotEqual(l,r))return r;
   if(snapshotEqual(l,b))return r;
   if(snapshotEqual(r,b))return l;
@@ -30,6 +37,7 @@ export function mergeSnapshots(base:Snapshot,device:Snapshot,cloud:Snapshot,choi
   if(Array.isArray(b)&&Array.isArray(l)&&Array.isArray(r)){
    const keyFor=(value:unknown):string|null=>{
     if(!object(value))return null;
+    if(path==='transactions'&&typeof value.operationId==='string')return value.operationId;
     if(path==='medicationLogs'&&typeof value.medicationId==='string'&&typeof value.scheduledSlotUtc==='string')return value.medicationId+'/'+value.scheduledSlotUtc;
     if(path==='eventOccurrences'&&typeof value.eventId==='string'&&typeof value.startTimeUtc==='string')return value.eventId+'/'+value.startTimeUtc;
     return typeof value.id==='string'?value.id:null;
@@ -56,7 +64,6 @@ export function mergeSnapshots(base:Snapshot,device:Snapshot,cloud:Snapshot,choi
    const old=rows(base,config.collection).find(x=>x.id===item.id),left=rows(device,config.collection).find(x=>x.id===item.id),right=rows(cloud,config.collection).find(x=>x.id===item.id);
    if(!old||!left||!right||typeof old[config.field]!=='number'||typeof left[config.field]!=='number'||typeof right[config.field]!=='number')continue;
    const start=old[config.field] as number,l=left[config.field] as number,r=right[config.field] as number,id=item.id as string;
-   if(l===start||r===start)continue;
    const dl=sum(device,id)-sum(base,id),dr=sum(cloud,id)-sum(base,id),projected=start+sum(payload,id)-sum(base,id),path=config.collection+'.'+id+'.'+config.field;
    if(l-start===dl&&r-start===dr&&Number.isSafeInteger(projected)&&(config.field!=='inventoryCount'||projected>=0)){
     item[config.field]=projected;const at=conflicts.indexOf(path);if(at>=0)conflicts.splice(at,1);
